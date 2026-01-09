@@ -1,0 +1,3988 @@
+openapi: 3.0.3
+info:
+  title: AgentTrace API
+  description: |
+    AgentTrace is an observability platform for AI coding agents. This API provides
+    endpoints for trace ingestion, querying, prompt management, dataset management,
+    evaluations, and more.
+
+    ## Authentication
+
+    The API supports two authentication methods:
+
+    ### API Key Authentication
+    For programmatic access (SDKs, ingestion), use an API key with the `Authorization` header:
+    ```
+    Authorization: Bearer at_pk_xxxxx
+    ```
+    Or via the `X-API-Key` header:
+    ```
+    X-API-Key: at_pk_xxxxx
+    ```
+
+    ### JWT Authentication
+    For user-facing operations, use JWT tokens obtained from the `/api/auth/login` endpoint:
+    ```
+    Authorization: Bearer <jwt_token>
+    ```
+  version: 0.1.0
+  contact:
+    name: AgentTrace Support
+    url: https://github.com/agenttrace/agenttrace
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.agenttrace.io
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Auth
+    description: Authentication endpoints
+  - name: Ingestion
+    description: Trace and observation ingestion
+  - name: Traces
+    description: Trace querying and management
+  - name: Scores
+    description: Score management
+  - name: Prompts
+    description: Prompt versioning and management
+  - name: Datasets
+    description: Dataset and experiment management
+  - name: Evaluators
+    description: Evaluator configuration
+  - name: Organizations
+    description: Organization management
+  - name: Projects
+    description: Project management
+  - name: API Keys
+    description: API key management
+  - name: Checkpoints
+    description: Agent state checkpoint management
+  - name: Git Links
+    description: Git commit and repository linking
+  - name: File Operations
+    description: File operation tracking for agents
+  - name: Terminal Commands
+    description: Terminal command logging for agents
+  - name: CI Runs
+    description: CI/CD pipeline run tracking
+  - name: SSO
+    description: Single Sign-On configuration (Enterprise)
+  - name: Audit Logs
+    description: Audit logging and compliance (Enterprise)
+
+paths:
+  # Health endpoints
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns the health status of all services
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /livez:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      operationId: getLiveness
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: alive
+
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      operationId: getReadiness
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        '503':
+          description: Service is not ready
+
+  /version:
+    get:
+      tags: [Health]
+      summary: Get version info
+      operationId: getVersion
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                    example: "0.1.0"
+                  uptime:
+                    type: string
+                    example: "2h30m15s"
+
+  # Auth endpoints
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with credentials
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout user
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logged out successfully
+
+  # Ingestion endpoints
+  /api/public/ingestion:
+    post:
+      tags: [Ingestion]
+      summary: Batch ingestion (Langfuse-compatible)
+      description: |
+        Ingest multiple events in a single request. Supports trace-create, span-create,
+        generation-create, event-create, and score-create event types.
+      operationId: batchIngestion
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchIngestionRequest'
+      responses:
+        '200':
+          description: Batch processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchIngestionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/public/traces:
+    get:
+      tags: [Traces]
+      summary: List traces
+      operationId: listTraces
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: tags
+          in: query
+          schema:
+            type: string
+          description: Comma-separated list of tags
+        - name: fromTimestamp
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: toTimestamp
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: gitCommitSha
+          in: query
+          schema:
+            type: string
+          description: Filter by Git commit SHA
+        - name: gitBranch
+          in: query
+          schema:
+            type: string
+          description: Filter by Git branch name
+        - name: gitRepoUrl
+          in: query
+          schema:
+            type: string
+          description: Filter by Git repository URL
+      responses:
+        '200':
+          description: List of traces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Ingestion]
+      summary: Create a trace
+      operationId: createTrace
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraceInput'
+      responses:
+        '201':
+          description: Trace created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/public/traces/{traceId}:
+    get:
+      tags: [Traces]
+      summary: Get trace by ID
+      operationId: getTrace
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trace'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Traces]
+      summary: Delete trace
+      operationId: deleteTrace
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trace marked for deletion
+
+  /api/public/traces/{traceId}/observations:
+    get:
+      tags: [Traces]
+      summary: Get trace observation tree
+      operationId: getTraceObservations
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Observation tree
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationTree'
+
+  /api/public/traces/{traceId}/scores:
+    get:
+      tags: [Scores]
+      summary: Get scores for a trace
+      operationId: getTraceScores
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of scores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Score'
+
+  /api/public/spans:
+    post:
+      tags: [Ingestion]
+      summary: Create a span
+      operationId: createSpan
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservationInput'
+      responses:
+        '201':
+          description: Span created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Observation'
+
+  /api/public/generations:
+    post:
+      tags: [Ingestion]
+      summary: Create a generation
+      operationId: createGeneration
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationInput'
+      responses:
+        '201':
+          description: Generation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Observation'
+
+  /api/public/events:
+    post:
+      tags: [Ingestion]
+      summary: Create an event
+      operationId: createEvent
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservationInput'
+      responses:
+        '201':
+          description: Event created
+
+  # Sessions
+  /api/public/sessions:
+    get:
+      tags: [Traces]
+      summary: List sessions
+      operationId: listSessions
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+                  totalCount:
+                    type: integer
+
+  /api/public/sessions/{sessionId}:
+    get:
+      tags: [Traces]
+      summary: Get session by ID
+      operationId: getSession
+      security:
+        - apiKey: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+
+  # Scores
+  /api/public/scores:
+    get:
+      tags: [Scores]
+      summary: List scores
+      operationId: listScores
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - name: traceId
+          in: query
+          schema:
+            type: string
+        - name: observationId
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: source
+          in: query
+          schema:
+            $ref: '#/components/schemas/ScoreSource'
+        - name: dataType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ScoreDataType'
+      responses:
+        '200':
+          description: List of scores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreList'
+    post:
+      tags: [Scores]
+      summary: Create a score
+      operationId: createScore
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreInput'
+      responses:
+        '201':
+          description: Score created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+
+  /api/public/scores/batch:
+    post:
+      tags: [Scores]
+      summary: Batch create scores
+      operationId: batchCreateScores
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scores]
+              properties:
+                scores:
+                  type: array
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/ScoreInput'
+      responses:
+        '201':
+          description: Scores created
+
+  /api/public/scores/stats:
+    get:
+      tags: [Scores]
+      summary: Get score statistics
+      operationId: getScoreStats
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Score statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreStats'
+
+  /api/public/scores/{scoreId}:
+    get:
+      tags: [Scores]
+      summary: Get score by ID
+      operationId: getScore
+      security:
+        - apiKey: []
+      parameters:
+        - name: scoreId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Score details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+    put:
+      tags: [Scores]
+      summary: Update score
+      operationId: updateScore
+      security:
+        - apiKey: []
+      parameters:
+        - name: scoreId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreInput'
+      responses:
+        '200':
+          description: Score updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+
+  # Prompts
+  /api/public/prompts:
+    get:
+      tags: [Prompts]
+      summary: List prompts
+      operationId: listPrompts
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of prompts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptList'
+    post:
+      tags: [Prompts]
+      summary: Create a prompt
+      operationId: createPrompt
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptInput'
+      responses:
+        '201':
+          description: Prompt created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+
+  /api/public/prompts/{name}:
+    get:
+      tags: [Prompts]
+      summary: Get prompt by name
+      operationId: getPrompt
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: query
+          schema:
+            type: integer
+          description: Specific version number
+        - name: label
+          in: query
+          schema:
+            type: string
+          description: Label (e.g., "production", "latest")
+      responses:
+        '200':
+          description: Prompt details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+    put:
+      tags: [Prompts]
+      summary: Update prompt (creates new version)
+      operationId: updatePrompt
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptInput'
+      responses:
+        '200':
+          description: Prompt updated
+    delete:
+      tags: [Prompts]
+      summary: Delete prompt
+      operationId: deletePrompt
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Prompt deleted
+
+  /api/public/prompts/{name}/versions:
+    get:
+      tags: [Prompts]
+      summary: List prompt versions
+      operationId: listPromptVersions
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromptVersion'
+
+  /api/public/prompts/{name}/labels:
+    post:
+      tags: [Prompts]
+      summary: Set label on prompt version
+      operationId: setPromptLabel
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, version]
+              properties:
+                label:
+                  type: string
+                version:
+                  type: integer
+      responses:
+        '200':
+          description: Label set
+
+  /api/public/prompts/{name}/labels/{label}:
+    delete:
+      tags: [Prompts]
+      summary: Remove label from prompt
+      operationId: removePromptLabel
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: label
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Label removed
+
+  /api/public/prompts/{name}/compile:
+    post:
+      tags: [Prompts]
+      summary: Compile prompt with variables
+      operationId: compilePrompt
+      security:
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variables:
+                  type: object
+                  additionalProperties:
+                    type: string
+                version:
+                  type: integer
+                label:
+                  type: string
+      responses:
+        '200':
+          description: Compiled prompt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compiledPrompt:
+                    type: string
+
+  # Datasets
+  /api/public/datasets:
+    get:
+      tags: [Datasets]
+      summary: List datasets
+      operationId: listDatasets
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: List of datasets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetList'
+    post:
+      tags: [Datasets]
+      summary: Create a dataset
+      operationId: createDataset
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetInput'
+      responses:
+        '201':
+          description: Dataset created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+
+  /api/public/datasets/{datasetId}:
+    get:
+      tags: [Datasets]
+      summary: Get dataset by ID
+      operationId: getDataset
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dataset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+    put:
+      tags: [Datasets]
+      summary: Update dataset
+      operationId: updateDataset
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetInput'
+      responses:
+        '200':
+          description: Dataset updated
+    delete:
+      tags: [Datasets]
+      summary: Delete dataset
+      operationId: deleteDataset
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Dataset deleted
+
+  /api/public/datasets/{datasetId}/items:
+    get:
+      tags: [Datasets]
+      summary: List dataset items
+      operationId: listDatasetItems
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItemList'
+    post:
+      tags: [Datasets]
+      summary: Create dataset item
+      operationId: createDatasetItem
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetItemInput'
+      responses:
+        '201':
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItem'
+
+  /api/public/datasets/{datasetId}/runs:
+    get:
+      tags: [Datasets]
+      summary: List dataset runs
+      operationId: listDatasetRuns
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of runs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DatasetRun'
+    post:
+      tags: [Datasets]
+      summary: Create dataset run
+      operationId: createDatasetRun
+      security:
+        - apiKey: []
+      parameters:
+        - name: datasetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetRunInput'
+      responses:
+        '201':
+          description: Run created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetRun'
+
+  # Evaluators
+  /api/public/evaluators:
+    get:
+      tags: [Evaluators]
+      summary: List evaluators
+      operationId: listEvaluators
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: List of evaluators
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Evaluator'
+    post:
+      tags: [Evaluators]
+      summary: Create evaluator
+      operationId: createEvaluator
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluatorInput'
+      responses:
+        '201':
+          description: Evaluator created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+
+  /api/public/evaluators/{evaluatorId}:
+    get:
+      tags: [Evaluators]
+      summary: Get evaluator by ID
+      operationId: getEvaluator
+      security:
+        - apiKey: []
+      parameters:
+        - name: evaluatorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Evaluator details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+    put:
+      tags: [Evaluators]
+      summary: Update evaluator
+      operationId: updateEvaluator
+      security:
+        - apiKey: []
+      parameters:
+        - name: evaluatorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluatorInput'
+      responses:
+        '200':
+          description: Evaluator updated
+    delete:
+      tags: [Evaluators]
+      summary: Delete evaluator
+      operationId: deleteEvaluator
+      security:
+        - apiKey: []
+      parameters:
+        - name: evaluatorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Evaluator deleted
+
+  /api/public/evaluator-templates:
+    get:
+      tags: [Evaluators]
+      summary: List evaluator templates
+      operationId: listEvaluatorTemplates
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EvaluatorTemplate'
+
+  # Real-time events
+  /api/public/events:
+    get:
+      tags: [Traces]
+      summary: Stream real-time events (SSE)
+      operationId: streamEvents
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # Feedback
+  /api/public/feedback:
+    post:
+      tags: [Scores]
+      summary: Submit user feedback
+      operationId: submitFeedback
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [traceId, name]
+              properties:
+                traceId:
+                  type: string
+                name:
+                  type: string
+                value:
+                  type: number
+                dataType:
+                  $ref: '#/components/schemas/ScoreDataType'
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Feedback submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Score'
+
+  # Internal API - Organizations
+  /api/v1/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/v1/organizations:
+    get:
+      tags: [Organizations]
+      summary: List user organizations
+      operationId: listOrganizations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+    post:
+      tags: [Organizations]
+      summary: Create organization
+      operationId: createOrganization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+
+  /api/v1/organizations/{orgId}:
+    get:
+      tags: [Organizations]
+      summary: Get organization by ID
+      operationId: getOrganization
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+    put:
+      tags: [Organizations]
+      summary: Update organization
+      operationId: updateOrganization
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Organization updated
+    delete:
+      tags: [Organizations]
+      summary: Delete organization
+      operationId: deleteOrganization
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Organization deleted
+
+  # Projects
+  /api/v1/projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      operationId: listProjects
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: organizationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+    post:
+      tags: [Projects]
+      summary: Create project
+      operationId: createProject
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /api/v1/projects/{projectId}:
+    get:
+      tags: [Projects]
+      summary: Get project by ID
+      operationId: getProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+    put:
+      tags: [Projects]
+      summary: Update project
+      operationId: updateProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '200':
+          description: Project updated
+    delete:
+      tags: [Projects]
+      summary: Delete project
+      operationId: deleteProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Project deleted
+
+  /api/v1/projects/{projectId}/api-keys:
+    get:
+      tags: [API Keys]
+      summary: List project API keys
+      operationId: listApiKeys
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/APIKey'
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      operationId: createApiKey
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: API key created (secret shown only once)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyWithSecret'
+
+  /api/v1/api-keys/{keyId}:
+    delete:
+      tags: [API Keys]
+      summary: Delete API key
+      operationId: deleteApiKey
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: API key deleted
+
+  # Checkpoints
+  /v1/checkpoints:
+    get:
+      tags: [Checkpoints]
+      summary: List checkpoints
+      operationId: listCheckpoints
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [auto, manual, pre_edit, post_edit]
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of checkpoints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointList'
+    post:
+      tags: [Checkpoints]
+      summary: Create checkpoint
+      operationId: createCheckpoint
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckpointInput'
+      responses:
+        '201':
+          description: Checkpoint created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checkpoint'
+
+  /v1/checkpoints/{checkpointId}:
+    get:
+      tags: [Checkpoints]
+      summary: Get checkpoint by ID
+      operationId: getCheckpoint
+      security:
+        - apiKey: []
+      parameters:
+        - name: checkpointId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Checkpoint details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checkpoint'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/checkpoints/{checkpointId}/restore:
+    post:
+      tags: [Checkpoints]
+      summary: Restore checkpoint
+      operationId: restoreCheckpoint
+      security:
+        - apiKey: []
+      parameters:
+        - name: checkpointId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Checkpoint restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  restoredFiles:
+                    type: integer
+
+  # Git Links
+  /v1/git-links:
+    get:
+      tags: [Git Links]
+      summary: List git links
+      operationId: listGitLinks
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: query
+          schema:
+            type: string
+        - name: commitSha
+          in: query
+          schema:
+            type: string
+        - name: repoUrl
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of git links
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitLinkList'
+    post:
+      tags: [Git Links]
+      summary: Create git link
+      operationId: createGitLink
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitLinkInput'
+      responses:
+        '201':
+          description: Git link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitLink'
+
+  /v1/git-links/timeline:
+    get:
+      tags: [Git Links]
+      summary: Get git timeline
+      operationId: getGitTimeline
+      security:
+        - apiKey: []
+      parameters:
+        - name: repoUrl
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: branch
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Git timeline with traces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GitTimelineEntry'
+
+  # File Operations
+  /v1/file-operations:
+    get:
+      tags: [File Operations]
+      summary: List file operations
+      operationId: listFileOperations
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: query
+          schema:
+            type: string
+        - name: operation
+          in: query
+          schema:
+            type: string
+            enum: [create, read, update, delete, rename, move, copy]
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of file operations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileOperationList'
+    post:
+      tags: [File Operations]
+      summary: Track file operation
+      operationId: createFileOperation
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileOperationInput'
+      responses:
+        '201':
+          description: File operation tracked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileOperation'
+
+  # Terminal Commands
+  /v1/terminal-commands:
+    get:
+      tags: [Terminal Commands]
+      summary: List terminal commands
+      operationId: listTerminalCommands
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [running, completed, failed]
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of terminal commands
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalCommandList'
+    post:
+      tags: [Terminal Commands]
+      summary: Log terminal command
+      operationId: createTerminalCommand
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalCommandInput'
+      responses:
+        '201':
+          description: Terminal command logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalCommand'
+
+  # CI Runs
+  /v1/ci-runs:
+    get:
+      tags: [CI Runs]
+      summary: List CI runs
+      operationId: listCIRuns
+      security:
+        - apiKey: []
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+            enum: [github_actions, gitlab_ci, jenkins, circleci, other]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of CI runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIRunList'
+    post:
+      tags: [CI Runs]
+      summary: Create CI run
+      operationId: createCIRun
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CIRunInput'
+      responses:
+        '201':
+          description: CI run created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIRun'
+
+  /v1/ci-runs/{ciRunId}:
+    get:
+      tags: [CI Runs]
+      summary: Get CI run by ID
+      operationId: getCIRun
+      security:
+        - apiKey: []
+      parameters:
+        - name: ciRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: CI run details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIRun'
+    patch:
+      tags: [CI Runs]
+      summary: Update CI run
+      operationId: updateCIRun
+      security:
+        - apiKey: []
+      parameters:
+        - name: ciRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CIRunUpdateInput'
+      responses:
+        '200':
+          description: CI run updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIRun'
+
+  # Evaluator Execute
+  /v1/evaluators/{evaluatorId}/execute:
+    post:
+      tags: [Evaluators]
+      summary: Execute evaluator on trace
+      operationId: executeEvaluator
+      security:
+        - apiKey: []
+      parameters:
+        - name: evaluatorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [traceId]
+              properties:
+                traceId:
+                  type: string
+                observationId:
+                  type: string
+      responses:
+        '202':
+          description: Evaluation job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationJob'
+
+  /v1/evaluators/jobs/{jobId}:
+    get:
+      tags: [Evaluators]
+      summary: Get evaluation job status
+      operationId: getEvaluationJob
+      security:
+        - apiKey: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationJob'
+
+  # SSO Endpoints (Enterprise)
+  /auth/sso/login/{orgId}:
+    get:
+      tags: [SSO]
+      summary: Initiate SSO login
+      operationId: initiateSSOLogin
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: returnUrl
+          in: query
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to identity provider
+
+  /auth/sso/callback:
+    get:
+      tags: [SSO]
+      summary: OIDC callback
+      operationId: handleOIDCCallback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to application with session
+
+  /auth/sso/saml/callback:
+    post:
+      tags: [SSO]
+      summary: SAML callback
+      operationId: handleSAMLCallback
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                SAMLResponse:
+                  type: string
+                RelayState:
+                  type: string
+      responses:
+        '302':
+          description: Redirect to application with session
+
+  /v1/organizations/{orgId}/sso/config:
+    get:
+      tags: [SSO]
+      summary: Get SSO configuration
+      operationId: getSSOConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SSO configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSOConfiguration'
+    put:
+      tags: [SSO]
+      summary: Update SSO configuration
+      operationId: updateSSOConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SSOConfigurationInput'
+      responses:
+        '200':
+          description: SSO configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSOConfiguration'
+    delete:
+      tags: [SSO]
+      summary: Delete SSO configuration
+      operationId: deleteSSOConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: SSO configuration deleted
+
+  # Audit Logs (Enterprise)
+  /v1/organizations/{orgId}/audit-logs:
+    get:
+      tags: [Audit Logs]
+      summary: List audit logs
+      operationId: listAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: startTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: List of audit logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /v1/organizations/{orgId}/audit-logs/{logId}:
+    get:
+      tags: [Audit Logs]
+      summary: Get audit log by ID
+      operationId: getAuditLog
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: logId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Audit log details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+
+  /v1/organizations/{orgId}/audit-logs/summary:
+    get:
+      tags: [Audit Logs]
+      summary: Get audit log summary
+      operationId: getAuditLogSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 24h
+      responses:
+        '200':
+          description: Audit summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditSummary'
+
+  /v1/organizations/{orgId}/audit-logs/export:
+    post:
+      tags: [Audit Logs]
+      summary: Export audit logs
+      operationId: exportAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [json, csv]
+                  default: json
+                compress:
+                  type: boolean
+                  default: true
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+      responses:
+        '202':
+          description: Export job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditExportJob'
+
+  # Trace update endpoint
+  /v1/traces/{traceId}:
+    patch:
+      tags: [Traces]
+      summary: Update trace
+      operationId: updateTrace
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraceUpdateInput'
+      responses:
+        '200':
+          description: Trace updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trace'
+
+components:
+  securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+      description: API key authentication (at_pk_xxx or at_sk_xxx)
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT authentication for user operations
+
+  parameters:
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        maximum: 100
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        version:
+          type: string
+        uptime:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        image:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        retentionDays:
+          type: integer
+        rateLimitPerMin:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProjectInput:
+      type: object
+      required: [organizationId, name]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        retentionDays:
+          type: integer
+        rateLimitPerMin:
+          type: integer
+
+    APIKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        publicKey:
+          type: string
+        lastUsedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    APIKeyWithSecret:
+      allOf:
+        - $ref: '#/components/schemas/APIKey'
+        - type: object
+          properties:
+            secretKey:
+              type: string
+              description: Only shown once at creation time
+
+    BatchIngestionRequest:
+      type: object
+      required: [batch]
+      properties:
+        batch:
+          type: array
+          items:
+            type: object
+            required: [type]
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+                enum: [trace-create, span-create, generation-create, event-create, score-create, sdk-log]
+              timestamp:
+                type: string
+                format: date-time
+              body:
+                type: object
+        metadata:
+          type: object
+
+    BatchIngestionResponse:
+      type: object
+      properties:
+        successes:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              status:
+                type: integer
+              message:
+                type: string
+
+    Trace:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        userId:
+          type: string
+        sessionId:
+          type: string
+        release:
+          type: string
+        version:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+        public:
+          type: boolean
+        bookmarked:
+          type: boolean
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        durationMs:
+          type: number
+        input:
+          type: object
+        output:
+          type: object
+        level:
+          $ref: '#/components/schemas/Level'
+        statusMessage:
+          type: string
+        totalCost:
+          type: number
+        inputCost:
+          type: number
+        outputCost:
+          type: number
+        totalTokens:
+          type: integer
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        gitCommitSha:
+          type: string
+        gitBranch:
+          type: string
+        gitRepoUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TraceInput:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        userId:
+          type: string
+        sessionId:
+          type: string
+        release:
+          type: string
+        version:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+        public:
+          type: boolean
+        input:
+          type: object
+        output:
+          type: object
+
+    TraceList:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trace'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    Level:
+      type: string
+      enum: [DEBUG, DEFAULT, WARNING, ERROR]
+
+    Observation:
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        parentObservationId:
+          type: string
+        type:
+          $ref: '#/components/schemas/ObservationType'
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        durationMs:
+          type: number
+        model:
+          type: string
+        modelParameters:
+          type: object
+        input:
+          type: object
+        output:
+          type: object
+        metadata:
+          type: object
+        level:
+          $ref: '#/components/schemas/Level'
+        statusMessage:
+          type: string
+        version:
+          type: string
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        inputCost:
+          type: number
+        outputCost:
+          type: number
+        totalCost:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ObservationInput:
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        parentObservationId:
+          type: string
+        name:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        model:
+          type: string
+        modelParameters:
+          type: object
+        input:
+          type: object
+        output:
+          type: object
+        metadata:
+          type: object
+        level:
+          $ref: '#/components/schemas/Level'
+        statusMessage:
+          type: string
+        version:
+          type: string
+
+    GenerationInput:
+      allOf:
+        - $ref: '#/components/schemas/ObservationInput'
+        - type: object
+          properties:
+            usage:
+              type: object
+              properties:
+                input:
+                  type: integer
+                output:
+                  type: integer
+                total:
+                  type: integer
+                unit:
+                  type: string
+                  enum: [TOKENS, CHARACTERS]
+            promptTokens:
+              type: integer
+            completionTokens:
+              type: integer
+
+    ObservationType:
+      type: string
+      enum: [SPAN, GENERATION, EVENT]
+
+    ObservationTree:
+      type: object
+      properties:
+        observations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Observation'
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trace'
+
+    Score:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        observationId:
+          type: string
+        name:
+          type: string
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        value:
+          type: number
+        stringValue:
+          type: string
+        comment:
+          type: string
+        configId:
+          type: string
+        authorUserId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ScoreInput:
+      type: object
+      required: [traceId, name]
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        observationId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+        stringValue:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        comment:
+          type: string
+        configId:
+          type: string
+
+    ScoreList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Score'
+        totalCount:
+          type: integer
+
+    ScoreStats:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+        avgValue:
+          type: number
+        minValue:
+          type: number
+        maxValue:
+          type: number
+        medianValue:
+          type: number
+
+    ScoreSource:
+      type: string
+      enum: [API, ANNOTATION, EVAL]
+
+    ScoreDataType:
+      type: string
+      enum: [NUMERIC, CATEGORICAL, BOOLEAN]
+
+    Prompt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [text, chat]
+        prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                properties:
+                  role:
+                    type: string
+                  content:
+                    type: string
+        config:
+          type: object
+        version:
+          type: integer
+        labels:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PromptInput:
+      type: object
+      required: [name, prompt]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [text, chat]
+          default: text
+        prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                properties:
+                  role:
+                    type: string
+                  content:
+                    type: string
+        config:
+          type: object
+        labels:
+          type: array
+          items:
+            type: string
+
+    PromptList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prompt'
+        totalCount:
+          type: integer
+
+    PromptVersion:
+      type: object
+      properties:
+        version:
+          type: integer
+        prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+        config:
+          type: object
+        labels:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Dataset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+        itemCount:
+          type: integer
+        runCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DatasetInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+
+    DatasetList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dataset'
+        totalCount:
+          type: integer
+
+    DatasetItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        datasetId:
+          type: string
+          format: uuid
+        input:
+          type: object
+        expectedOutput:
+          type: object
+        metadata:
+          type: object
+        sourceTraceId:
+          type: string
+        sourceObservationId:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DatasetItemInput:
+      type: object
+      required: [input]
+      properties:
+        input:
+          type: object
+        expectedOutput:
+          type: object
+        metadata:
+          type: object
+        sourceTraceId:
+          type: string
+        sourceObservationId:
+          type: string
+
+    DatasetItemList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetItem'
+        totalCount:
+          type: integer
+
+    DatasetRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        datasetId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+        itemCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    DatasetRunInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+
+    Evaluator:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: '#/components/schemas/EvaluatorType'
+        config:
+          type: object
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    EvaluatorInput:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: '#/components/schemas/EvaluatorType'
+        config:
+          type: object
+        isActive:
+          type: boolean
+          default: true
+
+    EvaluatorType:
+      type: string
+      enum: [LLM_AS_JUDGE, SIMILARITY, REGEX, CONTAINS, CUSTOM]
+
+    EvaluatorTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: '#/components/schemas/EvaluatorType'
+        config:
+          type: object
+
+    EvaluationJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        evaluatorId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        observationId:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        result:
+          type: object
+        error:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    TraceUpdateInput:
+      type: object
+      properties:
+        name:
+          type: string
+        userId:
+          type: string
+        sessionId:
+          type: string
+        release:
+          type: string
+        version:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+        public:
+          type: boolean
+        bookmarked:
+          type: boolean
+        level:
+          $ref: '#/components/schemas/Level'
+        statusMessage:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+        gitCommitSha:
+          type: string
+        gitBranch:
+          type: string
+        gitRepoUrl:
+          type: string
+
+    # Checkpoint schemas
+    Checkpoint:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        observationId:
+          type: string
+        type:
+          type: string
+          enum: [auto, manual, pre_edit, post_edit]
+        name:
+          type: string
+        description:
+          type: string
+        workingDirectory:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckpointFile'
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    CheckpointFile:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        hash:
+          type: string
+        size:
+          type: integer
+        permissions:
+          type: string
+
+    CheckpointInput:
+      type: object
+      required: [traceId, type]
+      properties:
+        traceId:
+          type: string
+        observationId:
+          type: string
+        type:
+          type: string
+          enum: [auto, manual, pre_edit, post_edit]
+        name:
+          type: string
+        description:
+          type: string
+        workingDirectory:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckpointFile'
+        metadata:
+          type: object
+
+    CheckpointList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Checkpoint'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    # Git Link schemas
+    GitLink:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        commitSha:
+          type: string
+        commitMessage:
+          type: string
+        commitAuthor:
+          type: string
+        commitEmail:
+          type: string
+        commitTime:
+          type: string
+          format: date-time
+        branch:
+          type: string
+        repoUrl:
+          type: string
+        repoName:
+          type: string
+        prNumber:
+          type: integer
+        prTitle:
+          type: string
+        parentCommits:
+          type: array
+          items:
+            type: string
+        filesChanged:
+          type: array
+          items:
+            type: string
+        additions:
+          type: integer
+        deletions:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    GitLinkInput:
+      type: object
+      required: [traceId, commitSha]
+      properties:
+        traceId:
+          type: string
+        commitSha:
+          type: string
+        commitMessage:
+          type: string
+        commitAuthor:
+          type: string
+        commitEmail:
+          type: string
+        commitTime:
+          type: string
+          format: date-time
+        branch:
+          type: string
+        repoUrl:
+          type: string
+        repoName:
+          type: string
+        prNumber:
+          type: integer
+        prTitle:
+          type: string
+        parentCommits:
+          type: array
+          items:
+            type: string
+        filesChanged:
+          type: array
+          items:
+            type: string
+        additions:
+          type: integer
+        deletions:
+          type: integer
+
+    GitLinkList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/GitLink'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    GitTimelineEntry:
+      type: object
+      properties:
+        commitSha:
+          type: string
+        commitMessage:
+          type: string
+        commitTime:
+          type: string
+          format: date-time
+        branch:
+          type: string
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trace'
+
+    # File Operation schemas
+    FileOperation:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        observationId:
+          type: string
+        operation:
+          type: string
+          enum: [create, read, update, delete, rename, move, copy]
+        path:
+          type: string
+        newPath:
+          type: string
+        size:
+          type: integer
+        lineCount:
+          type: integer
+        language:
+          type: string
+        diff:
+          type: string
+        contentBefore:
+          type: string
+        contentAfter:
+          type: string
+        metadata:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    FileOperationInput:
+      type: object
+      required: [traceId, operation, path]
+      properties:
+        traceId:
+          type: string
+        observationId:
+          type: string
+        operation:
+          type: string
+          enum: [create, read, update, delete, rename, move, copy]
+        path:
+          type: string
+        newPath:
+          type: string
+        size:
+          type: integer
+        lineCount:
+          type: integer
+        language:
+          type: string
+        diff:
+          type: string
+        contentBefore:
+          type: string
+        contentAfter:
+          type: string
+        metadata:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    FileOperationList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileOperation'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    # Terminal Command schemas
+    TerminalCommand:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        observationId:
+          type: string
+        command:
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        workingDirectory:
+          type: string
+        exitCode:
+          type: integer
+        stdout:
+          type: string
+        stderr:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, failed]
+        durationMs:
+          type: number
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        environment:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          type: object
+
+    TerminalCommandInput:
+      type: object
+      required: [traceId, command]
+      properties:
+        traceId:
+          type: string
+        observationId:
+          type: string
+        command:
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        workingDirectory:
+          type: string
+        exitCode:
+          type: integer
+        stdout:
+          type: string
+        stderr:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, failed]
+        durationMs:
+          type: number
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        environment:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          type: object
+
+    TerminalCommandList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TerminalCommand'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    # CI Run schemas
+    CIRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum: [github_actions, gitlab_ci, jenkins, circleci, other]
+        runId:
+          type: string
+        runNumber:
+          type: integer
+        jobName:
+          type: string
+        workflowName:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        conclusion:
+          type: string
+        branch:
+          type: string
+        commitSha:
+          type: string
+        commitMessage:
+          type: string
+        actor:
+          type: string
+        triggerEvent:
+          type: string
+        runUrl:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: number
+        traceCount:
+          type: integer
+        totalCost:
+          type: number
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CIRunInput:
+      type: object
+      required: [provider, runId]
+      properties:
+        provider:
+          type: string
+          enum: [github_actions, gitlab_ci, jenkins, circleci, other]
+        runId:
+          type: string
+        runNumber:
+          type: integer
+        jobName:
+          type: string
+        workflowName:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        branch:
+          type: string
+        commitSha:
+          type: string
+        commitMessage:
+          type: string
+        actor:
+          type: string
+        triggerEvent:
+          type: string
+        runUrl:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+
+    CIRunUpdateInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        conclusion:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+
+    CIRunList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CIRun'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    # SSO schemas
+    SSOConfiguration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum: [oidc, saml]
+        enabled:
+          type: boolean
+        oidcClientId:
+          type: string
+        oidcIssuerUrl:
+          type: string
+        oidcScopes:
+          type: array
+          items:
+            type: string
+        samlEntityId:
+          type: string
+        samlSsoUrl:
+          type: string
+        samlCertificate:
+          type: string
+        samlNameIdFormat:
+          type: string
+        allowedDomains:
+          type: array
+          items:
+            type: string
+        autoProvisionUsers:
+          type: boolean
+        defaultRole:
+          type: string
+        attributeMapping:
+          type: object
+          properties:
+            email:
+              type: string
+            firstName:
+              type: string
+            lastName:
+              type: string
+            displayName:
+              type: string
+            groups:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SSOConfigurationInput:
+      type: object
+      required: [provider]
+      properties:
+        provider:
+          type: string
+          enum: [oidc, saml]
+        enabled:
+          type: boolean
+        oidcClientId:
+          type: string
+        oidcClientSecret:
+          type: string
+        oidcIssuerUrl:
+          type: string
+        oidcScopes:
+          type: array
+          items:
+            type: string
+        samlEntityId:
+          type: string
+        samlSsoUrl:
+          type: string
+        samlCertificate:
+          type: string
+        samlNameIdFormat:
+          type: string
+        allowedDomains:
+          type: array
+          items:
+            type: string
+        autoProvisionUsers:
+          type: boolean
+        defaultRole:
+          type: string
+        attributeMapping:
+          type: object
+
+    # Audit Log schemas
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        actorId:
+          type: string
+          format: uuid
+        actorEmail:
+          type: string
+        actorType:
+          type: string
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+          format: uuid
+        resourceName:
+          type: string
+        description:
+          type: string
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        requestId:
+          type: string
+        changes:
+          type: object
+          properties:
+            before:
+              type: object
+            after:
+              type: object
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLogList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+        totalCount:
+          type: integer
+        hasMore:
+          type: boolean
+
+    AuditSummary:
+      type: object
+      properties:
+        totalEvents:
+          type: integer
+        actionCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        resourceTypeCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        topActors:
+          type: array
+          items:
+            type: object
+            properties:
+              actorEmail:
+                type: string
+              count:
+                type: integer
+
+    AuditExportJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        format:
+          type: string
+        compress:
+          type: boolean
+        downloadUrl:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
