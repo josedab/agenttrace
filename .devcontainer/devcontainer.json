@@ -1,0 +1,120 @@
+{
+  "name": "AgentTrace Development",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.21"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "graphql.vscode-graphql",
+        "graphql.vscode-graphql-syntax",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        "streetsidesoftware.code-spell-checker",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintFlags": ["--fast"],
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.typeCheckingMode": "basic",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true
+        },
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.formatOnSave": true
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.formatOnSave": true
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.formatOnSave": true
+        },
+        "editor.tabSize": 2,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      }
+    }
+  },
+  "forwardPorts": [3000, 8080, 5432, 9000, 8123, 6379, 9001],
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend (Next.js)",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL"
+    },
+    "9000": {
+      "label": "ClickHouse"
+    },
+    "8123": {
+      "label": "ClickHouse HTTP"
+    },
+    "6379": {
+      "label": "Redis"
+    },
+    "9001": {
+      "label": "MinIO Console"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "POSTGRES_HOST": "postgres",
+    "POSTGRES_PORT": "5432",
+    "POSTGRES_USER": "agenttrace",
+    "POSTGRES_PASSWORD": "agenttrace",
+    "POSTGRES_DB": "agenttrace",
+    "CLICKHOUSE_HOST": "clickhouse",
+    "CLICKHOUSE_PORT": "9000",
+    "CLICKHOUSE_USER": "default",
+    "CLICKHOUSE_PASSWORD": "agenttrace",
+    "CLICKHOUSE_DATABASE": "agenttrace",
+    "REDIS_HOST": "redis",
+    "REDIS_PORT": "6379",
+    "MINIO_ENDPOINT": "minio:9000",
+    "MINIO_ACCESS_KEY": "minioadmin",
+    "MINIO_SECRET_KEY": "minioadmin"
+  }
+}

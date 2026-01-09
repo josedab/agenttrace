@@ -1,0 +1,47 @@
+{
+  "recommendations": [
+    // Go
+    "golang.go",
+
+    // TypeScript/JavaScript
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+
+    // Python
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+
+    // GraphQL
+    "graphql.vscode-graphql",
+    "graphql.vscode-graphql-syntax",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Docker
+    "ms-azuretools.vscode-docker",
+
+    // Database
+    "cweijan.vscode-postgresql-client2",
+
+    // Git
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+
+    // Markdown
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+
+    // YAML
+    "redhat.vscode-yaml",
+
+    // REST Client
+    "humao.rest-client",
+
+    // General
+    "editorconfig.editorconfig",
+    "streetsidesoftware.code-spell-checker"
+  ],
+  "unwantedRecommendations": []
+}

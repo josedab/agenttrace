@@ -1,0 +1,105 @@
+# Pre-commit hooks for AgentTrace
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Go linting
+  - repo: local
+    hooks:
+      - id: golangci-lint-api
+        name: golangci-lint (api)
+        entry: bash -c 'cd api && golangci-lint run --timeout=5m'
+        language: system
+        files: ^api/.*\.go$
+        pass_filenames: false
+
+      - id: golangci-lint-sdk-go
+        name: golangci-lint (sdk/go)
+        entry: bash -c 'cd sdk/go && golangci-lint run --timeout=5m'
+        language: system
+        files: ^sdk/go/.*\.go$
+        pass_filenames: false
+
+      - id: golangci-lint-sdk-cli
+        name: golangci-lint (sdk/cli)
+        entry: bash -c 'cd sdk/cli && golangci-lint run --timeout=5m'
+        language: system
+        files: ^sdk/cli/.*\.go$
+        pass_filenames: false
+
+  # Python linting
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (sdk/python)
+        entry: bash -c 'cd sdk/python && ruff check .'
+        language: system
+        files: ^sdk/python/.*\.py$
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff format check (sdk/python)
+        entry: bash -c 'cd sdk/python && ruff format --check .'
+        language: system
+        files: ^sdk/python/.*\.py$
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy (sdk/python)
+        entry: bash -c 'cd sdk/python && mypy agenttrace'
+        language: system
+        files: ^sdk/python/.*\.py$
+        pass_filenames: false
+
+  # TypeScript/JavaScript linting
+  - repo: local
+    hooks:
+      - id: eslint-web
+        name: eslint (web)
+        entry: bash -c 'cd web && npm run lint'
+        language: system
+        files: ^web/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      - id: eslint-sdk-ts
+        name: eslint (sdk/typescript)
+        entry: bash -c 'cd sdk/typescript && npm run lint'
+        language: system
+        files: ^sdk/typescript/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      - id: typecheck-web
+        name: typecheck (web)
+        entry: bash -c 'cd web && npm run type-check'
+        language: system
+        files: ^web/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: typecheck-sdk-ts
+        name: typecheck (sdk/typescript)
+        entry: bash -c 'cd sdk/typescript && npx tsc --noEmit'
+        language: system
+        files: ^sdk/typescript/.*\.ts$
+        pass_filenames: false
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(.*\.md|.*\.snap)$
+      - id: end-of-file-fixer
+        exclude: ^(.*\.snap)$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Secret detection
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.1
+    hooks:
+      - id: gitleaks

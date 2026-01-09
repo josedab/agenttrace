@@ -1,0 +1,16 @@
+#!/bin/bash
+
+echo "=== AgentTrace Dev Container Started ==="
+echo ""
+echo "Services available:"
+echo "  - PostgreSQL:     localhost:5432"
+echo "  - ClickHouse:     localhost:9000 (native), localhost:8123 (HTTP)"
+echo "  - Redis:          localhost:6379"
+echo "  - MinIO:          localhost:9002 (API), localhost:9001 (Console)"
+echo ""
+echo "Quick commands:"
+echo "  Start API:        cd /workspace/api && go run cmd/server/main.go"
+echo "  Start Web:        cd /workspace/web && npm run dev"
+echo "  Run API tests:    cd /workspace/api && make test"
+echo "  Run Web tests:    cd /workspace/web && npm test"
+echo ""
