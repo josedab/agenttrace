@@ -1,0 +1,160 @@
+# golangci-lint configuration for AgentTrace API
+# Run: golangci-lint run
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - vendor
+    - internal/graphql/generated
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  enable:
+    # Default linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Additional linters
+    - bodyclose        # Check HTTP response body is closed
+    - dogsled          # Check for too many blank identifiers
+    - dupl             # Code clone detection
+    - exhaustive       # Check exhaustiveness of enum switch statements
+    - exportloopref    # Check for pointers to loop variables
+    - gochecknoinits   # Check no init functions
+    - goconst          # Find repeated strings that could be constants
+    - gocritic         # Comprehensive linter
+    - gocyclo          # Cyclomatic complexity
+    - gofmt            # Check code is formatted
+    - goimports        # Check imports are organized
+    - goprintffuncname # Check printf-like function names end with f
+    - gosec            # Security checker
+    - misspell         # Spell checker
+    - nakedret         # Find naked returns
+    - noctx            # Check http requests use context
+    - nolintlint       # Check nolint directives are valid
+    - prealloc         # Find slice declarations that could be preallocated
+    - revive           # Replacement for golint
+    - rowserrcheck     # Check sql.Rows.Err is called
+    - sqlclosecheck    # Check sql.Rows and sql.Stmt are closed
+    - stylecheck       # Style checker
+    - unconvert        # Remove unnecessary type conversions
+    - unparam          # Find unused function parameters
+    - whitespace       # Check for unnecessary whitespace
+
+  disable:
+    - funlen           # Too strict for our codebase
+    - gochecknoglobals # We use globals for config
+    - godox            # We allow TODO comments
+    - gomnd            # Magic numbers are sometimes okay
+    - lll              # Line length handled by editor
+    - wsl              # Too opinionated about whitespace
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    check-shadowing: true
+    enable-all: true
+
+  gocyclo:
+    min-complexity: 20
+
+  dupl:
+    threshold: 150
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - hugeParam
+      - rangeValCopy
+
+  goimports:
+    local-prefixes: github.com/agenttrace/agenttrace
+
+  gosec:
+    excludes:
+      - G104  # Audit errors not checked (we use errcheck)
+      - G304  # File path provided as taint input (intentional in some cases)
+
+  misspell:
+    locale: US
+
+  nakedret:
+    max-func-lines: 30
+
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: false
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: var-declaration
+      - name: var-naming
+
+  stylecheck:
+    checks:
+      - all
+      - -ST1000  # Package comments not required
+      - -ST1003  # We have our own naming conventions
+
+  unparam:
+    check-exported: false
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+        - goconst
+
+    # Exclude known issues in generated files
+    - path: internal/graphql/generated/
+      linters:
+        - all
+
+    # Allow shadow in test files
+    - path: _test\.go
+      text: "shadow"
+
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  new: false

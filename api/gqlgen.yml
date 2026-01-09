@@ -1,0 +1,117 @@
+# gqlgen configuration
+# https://gqlgen.com/config/
+
+schema:
+  - schema/*.graphql
+
+exec:
+  filename: internal/graphql/generated/generated.go
+  package: generated
+
+model:
+  filename: internal/graphql/model/models_gen.go
+  package: model
+
+resolver:
+  layout: follow-schema
+  dir: internal/graphql/resolver
+  package: resolver
+  filename_template: "{name}.resolvers.go"
+
+# Skip generation for types that we want to map to domain types
+autobind:
+  - "github.com/agenttrace/agenttrace/api/internal/domain"
+  - "github.com/google/uuid"
+
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+  UUID:
+    model:
+      - github.com/google/uuid.UUID
+  DateTime:
+    model:
+      - github.com/99designs/gqlgen/graphql.Time
+  JSON:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.JSON
+
+  # Map GraphQL types to domain types
+  Trace:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Trace
+  Observation:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Observation
+  Score:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Score
+  Prompt:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Prompt
+  PromptVersion:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.PromptVersion
+  Dataset:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Dataset
+  DatasetItem:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.DatasetItem
+  DatasetRun:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.DatasetRun
+  DatasetRunItem:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.DatasetRunItem
+  Evaluator:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Evaluator
+  EvaluatorTemplate:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.EvaluatorTemplate
+  Organization:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Organization
+  OrganizationMember:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.OrganizationMember
+  Project:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Project
+  ProjectMember:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.ProjectMember
+  User:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.User
+  APIKey:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.APIKey
+
+  # Enum mappings
+  ObservationType:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.ObservationType
+  Level:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.Level
+  ScoreDataType:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.ScoreDataType
+  ScoreSource:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.ScoreSource
+  EvaluatorType:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.EvaluatorType
+  OrgRole:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.OrgRole
+  PromptType:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.PromptType
+  DatasetItemStatus:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.DatasetItemStatus
