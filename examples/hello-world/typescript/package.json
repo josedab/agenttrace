@@ -1,0 +1,17 @@
+{
+  "name": "agenttrace-hello-world-typescript",
+  "version": "1.0.0",
+  "description": "AgentTrace Hello World Example (TypeScript)",
+  "main": "main.ts",
+  "scripts": {
+    "start": "ts-node main.ts"
+  },
+  "dependencies": {
+    "@agenttrace/sdk": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  }
+}

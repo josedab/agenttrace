@@ -1,0 +1,8 @@
+# AgentTrace SDK
+agenttrace
+
+# CrewAI
+crewai>=0.28.0
+
+# OpenAI (required for default LLM)
+openai>=1.0.0

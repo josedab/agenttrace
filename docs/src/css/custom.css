@@ -1,0 +1,257 @@
+/**
+ * AgentTrace Documentation Theme
+ */
+
+/* Primary colors */
+:root {
+  --ifm-color-primary: #7c3aed;
+  --ifm-color-primary-dark: #6d28d9;
+  --ifm-color-primary-darker: #5b21b6;
+  --ifm-color-primary-darkest: #4c1d95;
+  --ifm-color-primary-light: #8b5cf6;
+  --ifm-color-primary-lighter: #a78bfa;
+  --ifm-color-primary-lightest: #c4b5fd;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(124, 58, 237, 0.1);
+}
+
+/* Dark mode */
+[data-theme='dark'] {
+  --ifm-color-primary: #a78bfa;
+  --ifm-color-primary-dark: #8b5cf6;
+  --ifm-color-primary-darker: #7c3aed;
+  --ifm-color-primary-darkest: #6d28d9;
+  --ifm-color-primary-light: #c4b5fd;
+  --ifm-color-primary-lighter: #ddd6fe;
+  --ifm-color-primary-lightest: #ede9fe;
+  --docusaurus-highlighted-code-line-bg: rgba(167, 139, 250, 0.15);
+}
+
+/* Navbar */
+.navbar {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.navbar__title {
+  font-weight: 700;
+}
+
+/* Sidebar */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-toc-border-color);
+}
+
+.menu__link {
+  font-size: 0.9rem;
+}
+
+.menu__link--sublist-caret::after {
+  background-size: 1.5rem 1.5rem;
+}
+
+/* Code blocks */
+.prism-code {
+  font-size: 0.875rem;
+}
+
+code {
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+}
+
+/* Tables */
+table {
+  display: table;
+  width: 100%;
+}
+
+table thead tr {
+  background-color: var(--ifm-table-head-background);
+}
+
+table thead th {
+  font-weight: 600;
+}
+
+/* API Reference styling */
+.api-method {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  margin-right: 0.5rem;
+}
+
+.api-method-get {
+  background-color: #10b981;
+  color: white;
+}
+
+.api-method-post {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.api-method-put {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.api-method-patch {
+  background-color: #8b5cf6;
+  color: white;
+}
+
+.api-method-delete {
+  background-color: #ef4444;
+  color: white;
+}
+
+/* Cards */
+.card {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card h3 {
+  margin-top: 0;
+}
+
+/* Admonitions */
+.admonition {
+  border-radius: 8px;
+}
+
+/* Footer */
+.footer {
+  background-color: var(--ifm-footer-background-color);
+  padding-top: 2rem;
+}
+
+.footer__title {
+  font-weight: 600;
+}
+
+/* Tabs */
+.tabs__item {
+  font-weight: 500;
+}
+
+.tabs__item--active {
+  border-bottom-color: var(--ifm-color-primary);
+}
+
+/* Breadcrumbs */
+.breadcrumbs__link {
+  font-size: 0.875rem;
+}
+
+/* Table of contents */
+.table-of-contents__link {
+  font-size: 0.875rem;
+}
+
+/* Search */
+.DocSearch-Button {
+  border-radius: 8px !important;
+}
+
+/* Hero section (for landing page) */
+.hero {
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.hero__title {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.hero__subtitle {
+  font-size: 1.5rem;
+  color: var(--ifm-color-emphasis-600);
+}
+
+/* Feature grid */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  padding: 2rem 0;
+}
+
+.feature {
+  text-align: center;
+}
+
+.feature__icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.feature__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.feature__description {
+  color: var(--ifm-color-emphasis-600);
+}
+
+/* Responsive adjustments */
+@media (max-width: 996px) {
+  .hero__title {
+    font-size: 2rem;
+  }
+
+  .hero__subtitle {
+    font-size: 1.25rem;
+  }
+}
+
+/* Code highlighting */
+.token.comment {
+  color: #6b7280;
+}
+
+.token.string {
+  color: #059669;
+}
+
+.token.keyword {
+  color: #7c3aed;
+}
+
+.token.function {
+  color: #2563eb;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ifm-background-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ifm-color-emphasis-400);
+}

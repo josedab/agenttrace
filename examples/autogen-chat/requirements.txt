@@ -1,0 +1,8 @@
+# AgentTrace SDK
+agenttrace
+
+# AutoGen
+pyautogen>=0.2.0
+
+# OpenAI (required for default LLM)
+openai>=1.0.0

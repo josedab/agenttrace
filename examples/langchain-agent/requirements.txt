@@ -1,0 +1,10 @@
+# AgentTrace SDK
+agenttrace
+
+# LangChain
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-core>=0.1.0
+
+# OpenAI (required for ChatOpenAI)
+openai>=1.0.0
