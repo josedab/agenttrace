@@ -1,0 +1,126 @@
+# Evaluator Types
+
+type Evaluator {
+  id: UUID!
+  projectId: UUID!
+  name: String!
+  description: String
+  type: EvaluatorType!
+  scoreName: String!
+  scoreDataType: ScoreDataType!
+  scoreCategories: [String!]
+  promptTemplate: String
+  variables: [String!]
+  config: JSON
+  targetFilter: JSON
+  samplingRate: Float!
+  enabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdById: UUID
+
+  # Computed
+  evalCount: Int!
+}
+
+type EvaluatorTemplate {
+  id: UUID!
+  name: String!
+  description: String!
+  type: EvaluatorType!
+  promptTemplate: String!
+  variables: [String!]!
+  scoreDataType: ScoreDataType!
+  scoreCategories: [String!]
+  config: JSON
+}
+
+type EvaluatorConnection {
+  edges: [EvaluatorEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type EvaluatorEdge {
+  node: Evaluator!
+  cursor: String!
+}
+
+enum EvaluatorType {
+  LLM_AS_JUDGE
+  RULE_BASED
+  HUMAN
+}
+
+input EvaluatorsInput {
+  type: EvaluatorType
+  enabled: Boolean
+  limit: Int = 50
+  cursor: String
+}
+
+input CreateEvaluatorInput {
+  name: String!
+  description: String
+  type: EvaluatorType = LLM_AS_JUDGE
+  scoreName: String!
+  scoreDataType: ScoreDataType = NUMERIC
+  scoreCategories: [String!]
+  promptTemplate: String
+  variables: [String!]
+  config: JSON
+  targetFilter: JSON
+  samplingRate: Float = 1.0
+  enabled: Boolean = true
+  templateId: UUID
+}
+
+input UpdateEvaluatorInput {
+  name: String
+  description: String
+  promptTemplate: String
+  variables: [String!]
+  scoreCategories: [String!]
+  config: JSON
+  targetFilter: JSON
+  samplingRate: Float
+  enabled: Boolean
+}
+
+# Annotation Queue Types
+
+type AnnotationQueue {
+  id: UUID!
+  projectId: UUID!
+  name: String!
+  description: String
+  scoreName: String!
+  scoreConfig: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Computed
+  pendingCount: Int!
+  completedCount: Int!
+}
+
+type AnnotationQueueItem {
+  id: UUID!
+  queueId: UUID!
+  traceId: ID!
+  observationId: ID
+  status: AnnotationStatus!
+  assignedUserId: UUID
+  completedAt: DateTime
+  createdAt: DateTime!
+
+  # Relations
+  trace: Trace
+  observation: Observation
+}
+
+enum AnnotationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}

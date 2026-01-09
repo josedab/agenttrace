@@ -1,0 +1,169 @@
+# Organization and Project Types
+
+type Organization {
+  id: UUID!
+  name: String!
+  slug: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  projects: [Project!]!
+  members: [OrganizationMember!]!
+}
+
+type OrganizationMember {
+  id: UUID!
+  organizationId: UUID!
+  userId: UUID!
+  role: OrgRole!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  user: User!
+}
+
+type Project {
+  id: UUID!
+  organizationId: UUID!
+  name: String!
+  slug: String!
+  description: String
+  settings: JSON
+  retentionDays: Int!
+  rateLimitPerMin: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  organization: Organization!
+  members: [ProjectMember!]!
+}
+
+type ProjectMember {
+  id: UUID!
+  projectId: UUID!
+  userId: UUID!
+  role: OrgRole!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  user: User!
+}
+
+enum OrgRole {
+  VIEWER
+  MEMBER
+  ADMIN
+  OWNER
+}
+
+input CreateProjectInput {
+  organizationId: UUID!
+  name: String!
+  description: String
+  settings: JSON
+  retentionDays: Int
+  rateLimitPerMin: Int
+}
+
+input UpdateProjectInput {
+  name: String
+  description: String
+  settings: JSON
+  retentionDays: Int
+  rateLimitPerMin: Int
+}
+
+# User Types
+
+type User {
+  id: UUID!
+  email: String!
+  name: String
+  image: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# API Key Types
+
+type APIKey {
+  id: UUID!
+  projectId: UUID!
+  name: String!
+  displayKey: String!
+  scopes: [String!]
+  expiresAt: DateTime
+  lastUsedAt: DateTime
+  createdAt: DateTime!
+}
+
+type APIKeyWithSecret {
+  id: UUID!
+  name: String!
+  key: String!
+  displayKey: String!
+  scopes: [String!]
+  expiresAt: DateTime
+  createdAt: DateTime!
+}
+
+input CreateAPIKeyInput {
+  name: String!
+  scopes: [String!]
+  expiresAt: DateTime
+}
+
+# Metrics Types
+
+type Metrics {
+  traceCount: Int!
+  observationCount: Int!
+  totalCost: Float!
+  totalTokens: Int!
+  avgLatency: Float
+  p50Latency: Float
+  p95Latency: Float
+  p99Latency: Float
+  modelUsage: [ModelUsage!]!
+}
+
+type ModelUsage {
+  model: String!
+  count: Int!
+  promptTokens: Int!
+  completionTokens: Int!
+  totalTokens: Int!
+  cost: Float!
+}
+
+type DailyCost {
+  date: String!
+  totalCost: Float!
+  traceCount: Int!
+  modelCosts: [ModelCost!]!
+}
+
+type ModelCost {
+  model: String!
+  cost: Float!
+  count: Int!
+}
+
+input MetricsInput {
+  fromTimestamp: DateTime!
+  toTimestamp: DateTime!
+  userId: String
+  sessionId: String
+  name: String
+  tags: [String!]
+}
+
+input DailyCostsInput {
+  fromDate: String!
+  toDate: String!
+  groupBy: String
+}

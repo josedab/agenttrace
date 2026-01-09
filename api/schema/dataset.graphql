@@ -1,0 +1,145 @@
+# Dataset Types
+
+type Dataset {
+  id: UUID!
+  projectId: UUID!
+  name: String!
+  description: String
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Computed
+  itemCount: Int!
+  runCount: Int!
+
+  # Relations
+  items(limit: Int = 50, offset: Int = 0): DatasetItemConnection!
+  runs(limit: Int = 50, offset: Int = 0): [DatasetRun!]!
+}
+
+type DatasetItem {
+  id: UUID!
+  datasetId: UUID!
+  input: JSON!
+  expectedOutput: JSON
+  metadata: JSON
+  sourceTraceId: ID
+  sourceObservationId: ID
+  status: DatasetItemStatus!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type DatasetItemConnection {
+  edges: [DatasetItemEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type DatasetItemEdge {
+  node: DatasetItem!
+  cursor: String!
+}
+
+type DatasetRun {
+  id: UUID!
+  datasetId: UUID!
+  name: String!
+  description: String
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Computed
+  itemCount: Int!
+
+  # Relations
+  items(limit: Int = 50): [DatasetRunItem!]!
+}
+
+type DatasetRunItem {
+  id: UUID!
+  datasetRunId: UUID!
+  datasetItemId: UUID!
+  traceId: ID!
+  observationId: ID
+  createdAt: DateTime!
+
+  # Relations
+  datasetItem: DatasetItem
+  trace: Trace
+  scores: [Score!]!
+}
+
+type DatasetRunResults {
+  run: DatasetRun!
+  items: [DatasetRunItemWithDiff!]!
+}
+
+type DatasetRunItemWithDiff {
+  runItem: DatasetRunItem!
+  expectedOutput: JSON
+  actualOutput: JSON
+}
+
+type DatasetConnection {
+  edges: [DatasetEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type DatasetEdge {
+  node: Dataset!
+  cursor: String!
+}
+
+enum DatasetItemStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+input DatasetsInput {
+  name: String
+  limit: Int = 50
+  cursor: String
+}
+
+input CreateDatasetInput {
+  name: String!
+  description: String
+  metadata: JSON
+}
+
+input UpdateDatasetInput {
+  name: String
+  description: String
+  metadata: JSON
+}
+
+input CreateDatasetItemInput {
+  input: JSON!
+  expectedOutput: JSON
+  metadata: JSON
+  sourceTraceId: ID
+  sourceObservationId: ID
+}
+
+input UpdateDatasetItemInput {
+  input: JSON
+  expectedOutput: JSON
+  metadata: JSON
+  status: DatasetItemStatus
+}
+
+input CreateDatasetRunInput {
+  name: String!
+  description: String
+  metadata: JSON
+}
+
+input AddDatasetRunItemInput {
+  datasetItemId: UUID!
+  traceId: ID!
+  observationId: ID
+}

@@ -1,0 +1,436 @@
+# AgentTrace GraphQL Schema
+
+scalar DateTime
+scalar UUID
+scalar JSON
+
+type Query {
+  # Traces
+  trace(id: ID!): Trace
+  traces(input: TracesInput!): TraceConnection!
+
+  # Observations
+  observation(id: ID!): Observation
+  observations(input: ObservationsInput!): ObservationConnection!
+
+  # Scores
+  score(id: ID!): Score
+  scores(input: ScoresInput!): ScoreConnection!
+
+  # Sessions
+  session(id: ID!): Session
+  sessions(input: SessionsInput!): SessionConnection!
+
+  # Prompts
+  prompt(name: String!, version: Int, label: String): Prompt
+  prompts(input: PromptsInput!): PromptConnection!
+
+  # Datasets
+  dataset(id: UUID!): Dataset
+  datasets(input: DatasetsInput!): DatasetConnection!
+  datasetByName(name: String!): Dataset
+
+  # Evaluators
+  evaluator(id: UUID!): Evaluator
+  evaluators(input: EvaluatorsInput!): EvaluatorConnection!
+  evaluatorTemplates: [EvaluatorTemplate!]!
+
+  # Organizations & Projects
+  organization(id: UUID!): Organization
+  organizations: [Organization!]!
+  project(id: UUID!): Project
+  projects(organizationId: UUID): [Project!]!
+
+  # Current user
+  me: User
+
+  # Metrics
+  metrics(input: MetricsInput!): Metrics!
+  dailyCosts(input: DailyCostsInput!): [DailyCost!]!
+}
+
+type Mutation {
+  # Traces
+  createTrace(input: CreateTraceInput!): Trace!
+  updateTrace(id: ID!, input: UpdateTraceInput!): Trace!
+  deleteTrace(id: ID!): Boolean!
+
+  # Observations
+  createSpan(input: CreateObservationInput!): Observation!
+  createGeneration(input: CreateGenerationInput!): Observation!
+  createEvent(input: CreateObservationInput!): Observation!
+  updateObservation(id: ID!, input: UpdateObservationInput!): Observation!
+
+  # Scores
+  createScore(input: CreateScoreInput!): Score!
+  updateScore(id: ID!, input: UpdateScoreInput!): Score!
+  deleteScore(id: ID!): Boolean!
+
+  # Prompts
+  createPrompt(input: CreatePromptInput!): Prompt!
+  updatePrompt(name: String!, input: UpdatePromptInput!): Prompt!
+  deletePrompt(name: String!): Boolean!
+  setPromptLabel(name: String!, version: Int!, label: String!): Boolean!
+  removePromptLabel(name: String!, label: String!): Boolean!
+
+  # Datasets
+  createDataset(input: CreateDatasetInput!): Dataset!
+  updateDataset(id: UUID!, input: UpdateDatasetInput!): Dataset!
+  deleteDataset(id: UUID!): Boolean!
+  createDatasetItem(datasetId: UUID!, input: CreateDatasetItemInput!): DatasetItem!
+  updateDatasetItem(id: UUID!, input: UpdateDatasetItemInput!): DatasetItem!
+  deleteDatasetItem(id: UUID!): Boolean!
+  createDatasetRun(datasetId: UUID!, input: CreateDatasetRunInput!): DatasetRun!
+  addDatasetRunItem(runId: UUID!, input: AddDatasetRunItemInput!): DatasetRunItem!
+
+  # Evaluators
+  createEvaluator(input: CreateEvaluatorInput!): Evaluator!
+  updateEvaluator(id: UUID!, input: UpdateEvaluatorInput!): Evaluator!
+  deleteEvaluator(id: UUID!): Boolean!
+
+  # Organizations & Projects
+  createOrganization(name: String!): Organization!
+  updateOrganization(id: UUID!, name: String!): Organization!
+  deleteOrganization(id: UUID!): Boolean!
+  createProject(input: CreateProjectInput!): Project!
+  updateProject(id: UUID!, input: UpdateProjectInput!): Project!
+  deleteProject(id: UUID!): Boolean!
+
+  # API Keys
+  createAPIKey(input: CreateAPIKeyInput!): APIKeyWithSecret!
+  deleteAPIKey(id: UUID!): Boolean!
+}
+
+type Subscription {
+  traceCreated(projectId: UUID!): Trace!
+  traceUpdated(projectId: UUID!): Trace!
+  observationCreated(projectId: UUID!): Observation!
+  scoreCreated(projectId: UUID!): Score!
+}
+
+# ======== COMMON TYPES ========
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+# ======== TRACE TYPES ========
+
+type Trace {
+  id: ID!
+  projectId: UUID!
+  name: String
+  timestamp: DateTime!
+  input: JSON
+  output: JSON
+  metadata: JSON
+  tags: [String!]
+  userId: String
+  sessionId: String
+  release: String
+  version: String
+  level: Level
+  statusMessage: String
+  public: Boolean!
+
+  # Computed fields
+  latency: Float
+  totalCost: Float
+  tokenUsage: TokenUsage
+
+  # Relations
+  observations: [Observation!]!
+  scores: [Score!]!
+}
+
+type TraceConnection {
+  edges: [TraceEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TraceEdge {
+  node: Trace!
+  cursor: String!
+}
+
+input TracesInput {
+  limit: Int = 50
+  cursor: String
+  userId: String
+  sessionId: String
+  name: String
+  tags: [String!]
+  fromTimestamp: DateTime
+  toTimestamp: DateTime
+  version: String
+  release: String
+  orderBy: String = "timestamp"
+  order: SortOrder = DESC
+}
+
+input CreateTraceInput {
+  id: ID
+  name: String
+  timestamp: DateTime
+  input: JSON
+  output: JSON
+  metadata: JSON
+  tags: [String!]
+  userId: String
+  sessionId: String
+  release: String
+  version: String
+  public: Boolean
+}
+
+input UpdateTraceInput {
+  name: String
+  input: JSON
+  output: JSON
+  metadata: JSON
+  tags: [String!]
+  userId: String
+  level: Level
+  statusMessage: String
+  public: Boolean
+}
+
+# ======== OBSERVATION TYPES ========
+
+type Observation {
+  id: ID!
+  traceId: ID!
+  projectId: UUID!
+  parentObservationId: ID
+  name: String
+  type: ObservationType!
+  startTime: DateTime!
+  endTime: DateTime
+  input: JSON
+  output: JSON
+  metadata: JSON
+  level: Level
+  statusMessage: String
+  version: String
+
+  # Generation-specific fields
+  model: String
+  modelParameters: JSON
+  promptTokens: Int
+  completionTokens: Int
+  totalTokens: Int
+  promptId: UUID
+
+  # Computed fields
+  latency: Float
+  cost: Float
+
+  # Relations
+  children: [Observation!]!
+  scores: [Score!]!
+}
+
+type ObservationConnection {
+  edges: [ObservationEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ObservationEdge {
+  node: Observation!
+  cursor: String!
+}
+
+enum ObservationType {
+  SPAN
+  GENERATION
+  EVENT
+}
+
+enum Level {
+  DEBUG
+  DEFAULT
+  WARNING
+  ERROR
+}
+
+input ObservationsInput {
+  traceId: ID
+  parentObservationId: ID
+  type: ObservationType
+  name: String
+  limit: Int = 50
+  cursor: String
+}
+
+input CreateObservationInput {
+  id: ID
+  traceId: ID!
+  parentObservationId: ID
+  name: String
+  startTime: DateTime
+  endTime: DateTime
+  input: JSON
+  output: JSON
+  metadata: JSON
+  level: Level
+  statusMessage: String
+  version: String
+}
+
+input CreateGenerationInput {
+  id: ID
+  traceId: ID!
+  parentObservationId: ID
+  name: String
+  startTime: DateTime
+  endTime: DateTime
+  input: JSON
+  output: JSON
+  metadata: JSON
+  level: Level
+  statusMessage: String
+  version: String
+  model: String
+  modelParameters: JSON
+  usage: UsageInput
+  promptId: UUID
+}
+
+input UsageInput {
+  promptTokens: Int
+  completionTokens: Int
+  totalTokens: Int
+}
+
+input UpdateObservationInput {
+  name: String
+  endTime: DateTime
+  input: JSON
+  output: JSON
+  metadata: JSON
+  level: Level
+  statusMessage: String
+  model: String
+  modelParameters: JSON
+  usage: UsageInput
+}
+
+# ======== SCORE TYPES ========
+
+type Score {
+  id: ID!
+  traceId: ID!
+  observationId: ID
+  projectId: UUID!
+  name: String!
+  value: Float
+  stringValue: String
+  dataType: ScoreDataType!
+  source: ScoreSource!
+  comment: String
+  authorUserId: UUID
+  configId: UUID
+  timestamp: DateTime!
+}
+
+type ScoreConnection {
+  edges: [ScoreEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ScoreEdge {
+  node: Score!
+  cursor: String!
+}
+
+enum ScoreDataType {
+  NUMERIC
+  CATEGORICAL
+  BOOLEAN
+}
+
+enum ScoreSource {
+  API
+  ANNOTATION
+  EVAL
+}
+
+input ScoresInput {
+  traceId: ID
+  observationId: ID
+  name: String
+  source: ScoreSource
+  limit: Int = 50
+  cursor: String
+}
+
+input CreateScoreInput {
+  id: ID
+  traceId: ID!
+  observationId: ID
+  name: String!
+  value: Float
+  stringValue: String
+  dataType: ScoreDataType
+  source: ScoreSource
+  comment: String
+}
+
+input UpdateScoreInput {
+  value: Float
+  stringValue: String
+  comment: String
+}
+
+# ======== SESSION TYPES ========
+
+type Session {
+  id: ID!
+  projectId: UUID!
+  createdAt: DateTime!
+
+  # Computed fields
+  traceCount: Int!
+  totalDuration: Float
+  totalCost: Float
+
+  # Relations
+  traces: [Trace!]!
+}
+
+type SessionConnection {
+  edges: [SessionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type SessionEdge {
+  node: Session!
+  cursor: String!
+}
+
+input SessionsInput {
+  limit: Int = 50
+  cursor: String
+  fromTimestamp: DateTime
+  toTimestamp: DateTime
+}
+
+# ======== TOKEN USAGE ========
+
+type TokenUsage {
+  promptTokens: Int!
+  completionTokens: Int!
+  totalTokens: Int!
+}

@@ -1,0 +1,84 @@
+# Prompt Types
+
+type Prompt {
+  id: UUID!
+  projectId: UUID!
+  name: String!
+  type: PromptType!
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdById: UUID
+
+  # Current version
+  version: PromptVersion!
+
+  # Relations
+  versions(limit: Int = 20): [PromptVersion!]!
+  labels: [String!]!
+}
+
+type PromptVersion {
+  id: UUID!
+  promptId: UUID!
+  version: Int!
+  prompt: String
+  messages: [PromptMessage!]
+  config: JSON
+  labels: [String!]!
+  createdAt: DateTime!
+  createdById: UUID
+
+  # Extracted variables
+  variables: [String!]!
+}
+
+type PromptMessage {
+  role: String!
+  content: String!
+}
+
+type PromptConnection {
+  edges: [PromptEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PromptEdge {
+  node: Prompt!
+  cursor: String!
+}
+
+enum PromptType {
+  TEXT
+  CHAT
+}
+
+input PromptsInput {
+  name: String
+  label: String
+  tags: [String!]
+  limit: Int = 50
+  cursor: String
+}
+
+input CreatePromptInput {
+  name: String!
+  type: PromptType = TEXT
+  prompt: String
+  messages: [PromptMessageInput!]
+  config: JSON
+  labels: [String!]
+}
+
+input UpdatePromptInput {
+  prompt: String
+  messages: [PromptMessageInput!]
+  config: JSON
+  labels: [String!]
+}
+
+input PromptMessageInput {
+  role: String!
+  content: String!
+}
