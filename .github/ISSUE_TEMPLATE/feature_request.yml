@@ -1,0 +1,103 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Your ideas help make AgentTrace better for everyone.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe the problem you're trying to solve.
+      placeholder: I'm frustrated when... / It would be helpful if... / Currently I have to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like. Be as specific as possible.
+      placeholder: |
+        I would like to be able to...
+
+        Example API/usage:
+        ```python
+        client.new_feature(...)
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component would this feature affect?
+      multiple: true
+      options:
+        - Python SDK
+        - TypeScript SDK
+        - Go SDK
+        - CLI
+        - Web UI
+        - API Server
+        - Documentation
+        - New Integration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Would improve my workflow
+        - Important for my use case
+        - Blocking my adoption
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your use case in detail. What are you building? How would this feature help?
+      placeholder: |
+        I'm building an AI coding assistant that...
+        This feature would help me...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, mockups, or screenshots about the feature request.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be willing to help implement this feature?
+      options:
+        - label: I would be willing to submit a PR to implement this feature
+          required: false
+        - label: I would be willing to help test this feature
+          required: false

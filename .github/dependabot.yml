@@ -1,0 +1,70 @@
+version: 2
+updates:
+  # Go backend
+  - package-ecosystem: "gomod"
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "go"
+    open-pull-requests-limit: 5
+
+  # Next.js frontend
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "npm"
+    open-pull-requests-limit: 5
+
+  # Python SDK
+  - package-ecosystem: "pip"
+    directory: "/sdk/python"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"
+    open-pull-requests-limit: 3
+
+  # TypeScript SDK
+  - package-ecosystem: "npm"
+    directory: "/sdk/typescript"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "npm"
+    open-pull-requests-limit: 3
+
+  # Go SDK
+  - package-ecosystem: "gomod"
+    directory: "/sdk/go"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "go"
+    open-pull-requests-limit: 3
+
+  # CLI
+  - package-ecosystem: "gomod"
+    directory: "/sdk/cli"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "go"
+    open-pull-requests-limit: 3
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "github-actions"

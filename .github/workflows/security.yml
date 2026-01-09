@@ -1,0 +1,238 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Sundays at midnight
+    - cron: "0 0 * * 0"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  # CodeQL Analysis for Go, TypeScript, Python
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["go", "javascript-typescript", "python"]
+        include:
+          - language: go
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        if: matrix.build-mode == 'autobuild'
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # Container Image Scanning with Trivy
+  trivy-container:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: false
+          load: true
+          tags: agenttrace/api:scan
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "agenttrace/api:scan"
+          format: "sarif"
+          output: "trivy-api-results.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+
+      - name: Upload API Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-api-results.sarif"
+          category: "trivy-api"
+
+      - name: Build Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          push: false
+          load: true
+          tags: agenttrace/web:scan
+
+      - name: Scan Web image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "agenttrace/web:scan"
+          format: "sarif"
+          output: "trivy-web-results.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+
+      - name: Upload Web Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-web-results.sarif"
+          category: "trivy-web"
+
+  # Filesystem Scanning with Trivy
+  trivy-fs:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-fs-results.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+
+      - name: Upload Trivy filesystem results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-fs-results.sarif"
+          category: "trivy-filesystem"
+
+  # Dependency Scanning
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  # Go Vulnerability Check
+  govulncheck:
+    name: Go Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck on API
+        working-directory: api
+        run: govulncheck ./...
+
+      - name: Run govulncheck on Go SDK
+        working-directory: sdk/go
+        run: govulncheck ./...
+
+      - name: Run govulncheck on CLI
+        working-directory: sdk/cli
+        run: govulncheck ./...
+
+  # npm audit for JavaScript/TypeScript
+  npm-audit:
+    name: npm Audit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [web, sdk/typescript]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run npm audit
+        working-directory: ${{ matrix.package }}
+        run: |
+          npm ci
+          npm audit --audit-level=high || true
+
+  # pip-audit for Python
+  pip-audit:
+    name: pip Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        working-directory: sdk/python
+        run: |
+          pip install -e ".[dev]"
+          pip-audit --strict || true
+
+  # Secret Scanning
+  gitleaks:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

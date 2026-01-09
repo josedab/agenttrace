@@ -1,0 +1,101 @@
+{
+  "categories": [
+    {
+      "title": "## Breaking Changes",
+      "labels": ["breaking-change", "breaking"]
+    },
+    {
+      "title": "## New Features",
+      "labels": ["feature", "enhancement"]
+    },
+    {
+      "title": "## Bug Fixes",
+      "labels": ["bug", "fix", "bugfix"]
+    },
+    {
+      "title": "## Performance Improvements",
+      "labels": ["performance", "optimization"]
+    },
+    {
+      "title": "## Security",
+      "labels": ["security"]
+    },
+    {
+      "title": "## Documentation",
+      "labels": ["documentation", "docs"]
+    },
+    {
+      "title": "## Dependencies",
+      "labels": ["dependencies", "deps"]
+    },
+    {
+      "title": "## Other Changes",
+      "labels": []
+    }
+  ],
+  "ignore_labels": ["skip-changelog", "chore", "ci", "internal"],
+  "sort": {
+    "order": "ASC",
+    "on_property": "mergedAt"
+  },
+  "template": "#{{CHANGELOG}}\n\n## Contributors\n\n{{CONTRIBUTORS}}\n\n**Full Changelog**: https://github.com/${{OWNER}}/${{REPO}}/compare/${{FROM_TAG}}...${{TO_TAG}}",
+  "pr_template": "- {{TITLE}} (#{{NUMBER}}) @{{AUTHOR}}",
+  "empty_template": "No notable changes in this release.",
+  "transformers": [
+    {
+      "pattern": "\\[(.+?)\\]\\((.+?)\\)",
+      "target": "$1"
+    }
+  ],
+  "max_tags_to_fetch": 200,
+  "max_pull_requests": 1000,
+  "max_back_track_time_days": 365,
+  "exclude_merge_branches": ["main", "master"],
+  "tag_resolver": {
+    "method": "semver"
+  },
+  "base_branches": ["main"],
+  "label_extractor": [
+    {
+      "pattern": "^feat(\\(.+\\))?:",
+      "on_property": "title",
+      "method": "match",
+      "flags": "i",
+      "labels": ["feature"]
+    },
+    {
+      "pattern": "^fix(\\(.+\\))?:",
+      "on_property": "title",
+      "method": "match",
+      "flags": "i",
+      "labels": ["fix"]
+    },
+    {
+      "pattern": "^docs(\\(.+\\))?:",
+      "on_property": "title",
+      "method": "match",
+      "flags": "i",
+      "labels": ["documentation"]
+    },
+    {
+      "pattern": "^perf(\\(.+\\))?:",
+      "on_property": "title",
+      "method": "match",
+      "flags": "i",
+      "labels": ["performance"]
+    },
+    {
+      "pattern": "^security(\\(.+\\))?:|^sec(\\(.+\\))?:",
+      "on_property": "title",
+      "method": "match",
+      "flags": "i",
+      "labels": ["security"]
+    },
+    {
+      "pattern": "BREAKING CHANGE|!:",
+      "on_property": "title",
+      "method": "match",
+      "labels": ["breaking-change"]
+    }
+  ]
+}
