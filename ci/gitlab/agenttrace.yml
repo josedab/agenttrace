@@ -1,0 +1,132 @@
+# AgentTrace GitLab CI/CD Integration
+# Include this file in your .gitlab-ci.yml:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/agenttrace/agenttrace/main/ci/gitlab/agenttrace.yml'
+#
+# Or for self-hosted:
+#   include:
+#     - local: 'ci/gitlab/agenttrace.yml'
+
+# Variables to set in your project settings or CI/CD variables:
+# - AGENTTRACE_API_KEY: Your AgentTrace API key (masked)
+# - AGENTTRACE_PROJECT_ID: Your AgentTrace project ID
+# - AGENTTRACE_API_URL: (optional) Custom API URL for self-hosted
+
+.agenttrace-setup:
+  variables:
+    AGENTTRACE_API_URL: ${AGENTTRACE_API_URL:-https://api.agenttrace.io}
+    AGENTTRACE_SESSION_ID: ${CI_PIPELINE_ID}
+    AGENTTRACE_CI_PROVIDER: gitlab_ci
+    AGENTTRACE_CI_RUN_ID: ${CI_PIPELINE_ID}
+    AGENTTRACE_CI_JOB_ID: ${CI_JOB_ID}
+    AGENTTRACE_CI_WORKFLOW: ${CI_PIPELINE_NAME:-$CI_PROJECT_NAME}
+    AGENTTRACE_CI_JOB: ${CI_JOB_NAME}
+    AGENTTRACE_CI_ACTOR: ${GITLAB_USER_LOGIN}
+    AGENTTRACE_CI_EVENT: ${CI_PIPELINE_SOURCE}
+    AGENTTRACE_CI_REF: ${CI_COMMIT_REF_NAME}
+    AGENTTRACE_CI_SHA: ${CI_COMMIT_SHA}
+    AGENTTRACE_CI_REPO: ${CI_PROJECT_PATH}
+  before_script:
+    - |
+      # Create CI run record
+      CI_RUN_RESPONSE=$(curl -s -X POST "${AGENTTRACE_API_URL}/v1/ci-runs" \
+        -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"provider\": \"gitlab_ci\",
+          \"providerRunId\": \"${CI_PIPELINE_ID}\",
+          \"providerJobId\": \"${CI_JOB_ID}\",
+          \"workflow\": \"${CI_PROJECT_NAME}\",
+          \"job\": \"${CI_JOB_NAME}\",
+          \"status\": \"running\",
+          \"branch\": \"${CI_COMMIT_REF_NAME}\",
+          \"commitSha\": \"${CI_COMMIT_SHA}\",
+          \"commitMessage\": $(echo "${CI_COMMIT_MESSAGE}" | head -1 | jq -R -s .),
+          \"commitAuthor\": \"${CI_COMMIT_AUTHOR}\",
+          \"repository\": \"${CI_PROJECT_PATH}\",
+          \"repositoryUrl\": \"${CI_PROJECT_URL}\",
+          \"triggerEvent\": \"${CI_PIPELINE_SOURCE}\",
+          \"triggeredBy\": \"${GITLAB_USER_LOGIN}\",
+          \"runUrl\": \"${CI_PIPELINE_URL}\"
+        }")
+
+      export AGENTTRACE_CI_RUN_UUID=$(echo $CI_RUN_RESPONSE | jq -r '.id // empty')
+
+      if [ -n "$AGENTTRACE_CI_RUN_UUID" ]; then
+        echo "Created AgentTrace CI run: $AGENTTRACE_CI_RUN_UUID"
+      else
+        echo "Warning: Failed to create CI run"
+      fi
+
+      # Link commit
+      curl -s -X POST "${AGENTTRACE_API_URL}/v1/git-links" \
+        -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"traceId\": \"ci-${CI_PIPELINE_ID}\",
+          \"commitSha\": \"${CI_COMMIT_SHA}\",
+          \"branch\": \"${CI_COMMIT_REF_NAME}\",
+          \"repoUrl\": \"${CI_PROJECT_URL}\",
+          \"commitMessage\": $(echo "${CI_COMMIT_MESSAGE}" | head -1 | jq -R -s .),
+          \"commitAuthor\": \"${CI_COMMIT_AUTHOR}\",
+          \"linkType\": \"ci\",
+          \"ciRunId\": \"${AGENTTRACE_CI_RUN_UUID}\"
+        }" || true
+
+.agenttrace-complete:
+  after_script:
+    - |
+      if [ -n "$AGENTTRACE_CI_RUN_UUID" ]; then
+        if [ "$CI_JOB_STATUS" == "success" ]; then
+          FINAL_STATUS="completed"
+        else
+          FINAL_STATUS="failed"
+        fi
+
+        curl -s -X PATCH "${AGENTTRACE_API_URL}/v1/ci-runs/${AGENTTRACE_CI_RUN_UUID}" \
+          -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+          -H "Content-Type: application/json" \
+          -d "{\"status\": \"${FINAL_STATUS}\"}"
+
+        echo "Updated CI run status: ${FINAL_STATUS}"
+      fi
+
+# Template for Python projects
+.agenttrace-python:
+  extends:
+    - .agenttrace-setup
+    - .agenttrace-complete
+  image: python:3.11
+  before_script:
+    - pip install agenttrace
+    - !reference [.agenttrace-setup, before_script]
+
+# Template for Node.js projects
+.agenttrace-node:
+  extends:
+    - .agenttrace-setup
+    - .agenttrace-complete
+  image: node:20
+  before_script:
+    - npm install -g agenttrace
+    - !reference [.agenttrace-setup, before_script]
+
+# Template for Go projects
+.agenttrace-go:
+  extends:
+    - .agenttrace-setup
+    - .agenttrace-complete
+  image: golang:1.21
+  before_script:
+    - go install github.com/agenttrace/agenttrace/sdk/go@latest
+    - !reference [.agenttrace-setup, before_script]
+
+# Template with CLI wrapper
+.agenttrace-cli:
+  extends:
+    - .agenttrace-setup
+    - .agenttrace-complete
+  before_script:
+    - curl -sSL https://get.agenttrace.io/cli | sh
+    - export PATH="$HOME/.agenttrace/bin:$PATH"
+    - !reference [.agenttrace-setup, before_script]

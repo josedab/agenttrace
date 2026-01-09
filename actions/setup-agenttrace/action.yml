@@ -1,0 +1,205 @@
+name: 'Setup AgentTrace'
+description: 'Set up AgentTrace for AI agent observability in your CI/CD pipeline'
+author: 'AgentTrace'
+
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  api-key:
+    description: 'AgentTrace API key'
+    required: true
+  project-id:
+    description: 'AgentTrace project ID'
+    required: true
+  api-url:
+    description: 'AgentTrace API URL (for self-hosted)'
+    required: false
+    default: 'https://api.agenttrace.io'
+  session-id:
+    description: 'Session ID to group traces'
+    required: false
+    default: '${{ github.run_id }}'
+  link-commits:
+    description: 'Automatically link git commits to traces'
+    required: false
+    default: 'true'
+  create-ci-run:
+    description: 'Create a CI run record'
+    required: false
+    default: 'true'
+  ci-provider:
+    description: 'CI provider name'
+    required: false
+    default: 'github_actions'
+  environment:
+    description: 'Deployment environment (production, staging, etc.)'
+    required: false
+    default: ''
+  python-version:
+    description: 'Python version to use (if installing Python SDK)'
+    required: false
+    default: ''
+  node-version:
+    description: 'Node.js version to use (if installing TypeScript SDK)'
+    required: false
+    default: ''
+  install-sdk:
+    description: 'Install SDK (python, typescript, go, cli, or none)'
+    required: false
+    default: 'none'
+
+outputs:
+  ci-run-id:
+    description: 'The created CI run ID'
+    value: ${{ steps.create-run.outputs.ci-run-id }}
+  session-id:
+    description: 'The session ID used for traces'
+    value: ${{ steps.setup.outputs.session-id }}
+  api-url:
+    description: 'The AgentTrace API URL'
+    value: ${{ inputs.api-url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up environment
+      id: setup
+      shell: bash
+      run: |
+        echo "AGENTTRACE_API_KEY=${{ inputs.api-key }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_PROJECT_ID=${{ inputs.project-id }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_API_URL=${{ inputs.api-url }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_SESSION_ID=${{ inputs.session-id }}" >> $GITHUB_ENV
+        echo "session-id=${{ inputs.session-id }}" >> $GITHUB_OUTPUT
+
+        # Export additional CI context
+        echo "AGENTTRACE_CI_PROVIDER=${{ inputs.ci-provider }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_RUN_ID=${{ github.run_id }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_WORKFLOW=${{ github.workflow }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_JOB=${{ github.job }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_ACTOR=${{ github.actor }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_EVENT=${{ github.event_name }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_REF=${{ github.ref }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_SHA=${{ github.sha }}" >> $GITHUB_ENV
+        echo "AGENTTRACE_CI_REPO=${{ github.repository }}" >> $GITHUB_ENV
+
+        if [ -n "${{ inputs.environment }}" ]; then
+          echo "AGENTTRACE_ENVIRONMENT=${{ inputs.environment }}" >> $GITHUB_ENV
+        fi
+
+    - name: Install Python SDK
+      if: inputs.install-sdk == 'python'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.python-version }}" ]; then
+          echo "Python version will be set by setup-python action"
+        fi
+        pip install agenttrace
+
+    - name: Install TypeScript SDK
+      if: inputs.install-sdk == 'typescript'
+      shell: bash
+      run: |
+        npm install -g agenttrace
+
+    - name: Install Go SDK
+      if: inputs.install-sdk == 'go'
+      shell: bash
+      run: |
+        go install github.com/agenttrace/agenttrace/sdk/go@latest
+
+    - name: Install CLI
+      if: inputs.install-sdk == 'cli'
+      shell: bash
+      run: |
+        curl -sSL https://get.agenttrace.io/cli | sh
+        echo "$HOME/.agenttrace/bin" >> $GITHUB_PATH
+
+    - name: Create CI Run
+      id: create-run
+      if: inputs.create-ci-run == 'true'
+      shell: bash
+      run: |
+        # Create CI run record
+        RESPONSE=$(curl -s -X POST "${{ inputs.api-url }}/v1/ci-runs" \
+          -H "Authorization: Bearer ${{ inputs.api-key }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "provider": "${{ inputs.ci-provider }}",
+            "providerRunId": "${{ github.run_id }}",
+            "providerJobId": "${{ github.job }}",
+            "workflow": "${{ github.workflow }}",
+            "job": "${{ github.job }}",
+            "status": "running",
+            "branch": "${{ github.ref_name }}",
+            "commitSha": "${{ github.sha }}",
+            "commitMessage": "${{ github.event.head_commit.message }}",
+            "commitAuthor": "${{ github.event.head_commit.author.name }}",
+            "repository": "${{ github.repository }}",
+            "repositoryUrl": "${{ github.server_url }}/${{ github.repository }}",
+            "triggerEvent": "${{ github.event_name }}",
+            "triggeredBy": "${{ github.actor }}",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }')
+
+        CI_RUN_ID=$(echo $RESPONSE | jq -r '.id // empty')
+
+        if [ -n "$CI_RUN_ID" ]; then
+          echo "ci-run-id=$CI_RUN_ID" >> $GITHUB_OUTPUT
+          echo "AGENTTRACE_CI_RUN_UUID=$CI_RUN_ID" >> $GITHUB_ENV
+          echo "Created CI run: $CI_RUN_ID"
+        else
+          echo "Failed to create CI run"
+          echo "Response: $RESPONSE"
+        fi
+
+    - name: Link commit to project
+      if: inputs.link-commits == 'true'
+      shell: bash
+      run: |
+        # Get commit details
+        COMMIT_SHA="${{ github.sha }}"
+        COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+        COMMIT_AUTHOR="${{ github.event.head_commit.author.name }}"
+        COMMIT_AUTHOR_EMAIL="${{ github.event.head_commit.author.email }}"
+        BRANCH="${{ github.ref_name }}"
+        REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+
+        # Get parent SHA
+        PARENT_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+
+        # Get files changed
+        FILES_ADDED=$(git diff-tree --no-commit-id --name-only -r --diff-filter=A HEAD 2>/dev/null | jq -R -s -c 'split("\n") | map(select(length > 0))' || echo '[]')
+        FILES_MODIFIED=$(git diff-tree --no-commit-id --name-only -r --diff-filter=M HEAD 2>/dev/null | jq -R -s -c 'split("\n") | map(select(length > 0))' || echo '[]')
+        FILES_DELETED=$(git diff-tree --no-commit-id --name-only -r --diff-filter=D HEAD 2>/dev/null | jq -R -s -c 'split("\n") | map(select(length > 0))' || echo '[]')
+
+        # Get additions/deletions
+        STATS=$(git diff --shortstat HEAD~1 HEAD 2>/dev/null || echo "")
+        ADDITIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
+        DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
+
+        # Create git link (this will be associated with traces later)
+        curl -s -X POST "${{ inputs.api-url }}/v1/git-links" \
+          -H "Authorization: Bearer ${{ inputs.api-key }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"traceId\": \"ci-${{ github.run_id }}\",
+            \"commitSha\": \"$COMMIT_SHA\",
+            \"parentSha\": \"$PARENT_SHA\",
+            \"branch\": \"$BRANCH\",
+            \"repoUrl\": \"$REPO_URL\",
+            \"commitMessage\": $(echo "$COMMIT_MESSAGE" | jq -R -s .),
+            \"commitAuthor\": \"$COMMIT_AUTHOR\",
+            \"commitAuthorEmail\": \"$COMMIT_AUTHOR_EMAIL\",
+            \"filesAdded\": $FILES_ADDED,
+            \"filesModified\": $FILES_MODIFIED,
+            \"filesDeleted\": $FILES_DELETED,
+            \"additions\": ${ADDITIONS:-0},
+            \"deletions\": ${DELETIONS:-0},
+            \"linkType\": \"ci\",
+            \"ciRunId\": \"${{ env.AGENTTRACE_CI_RUN_UUID }}\"
+          }" || true
+
+        echo "Linked commit $COMMIT_SHA to project"
