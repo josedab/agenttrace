@@ -1,0 +1,239 @@
+{
+  "name": "agenttrace-vscode",
+  "displayName": "AgentTrace",
+  "description": "AI Agent Observability for VS Code - View traces, monitor costs, and debug AI agent executions directly in your editor",
+  "version": "0.1.0",
+  "publisher": "agenttrace",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenttrace/agenttrace"
+  },
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "agents",
+    "observability",
+    "tracing",
+    "llm",
+    "opentelemetry"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agenttrace",
+          "title": "AgentTrace",
+          "icon": "images/agenttrace-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agenttrace": [
+        {
+          "id": "agenttrace.traces",
+          "name": "Recent Traces",
+          "icon": "images/trace-icon.svg"
+        },
+        {
+          "id": "agenttrace.sessions",
+          "name": "Sessions",
+          "icon": "images/session-icon.svg"
+        },
+        {
+          "id": "agenttrace.gitHistory",
+          "name": "Git History",
+          "icon": "images/git-icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agenttrace.refreshTraces",
+        "title": "Refresh Traces",
+        "icon": "$(refresh)",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.viewTrace",
+        "title": "View Trace Details",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.openInBrowser",
+        "title": "Open in AgentTrace Dashboard",
+        "icon": "$(link-external)",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.configure",
+        "title": "Configure AgentTrace",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.linkGitCommit",
+        "title": "Link Current Commit to Trace",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.createCheckpoint",
+        "title": "Create Checkpoint",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.showCostSummary",
+        "title": "Show Cost Summary",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.filterByFile",
+        "title": "Filter Traces by Current File",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.copyTraceId",
+        "title": "Copy Trace ID",
+        "category": "AgentTrace"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agenttrace.refreshTraces",
+          "when": "view == agenttrace.traces",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "agenttrace.viewTrace",
+          "when": "view == agenttrace.traces && viewItem == trace"
+        },
+        {
+          "command": "agenttrace.openInBrowser",
+          "when": "view == agenttrace.traces && viewItem == trace"
+        },
+        {
+          "command": "agenttrace.copyTraceId",
+          "when": "view == agenttrace.traces && viewItem == trace"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "agenttrace.refreshTraces",
+          "when": "agenttrace.isConfigured"
+        },
+        {
+          "command": "agenttrace.viewTrace",
+          "when": "agenttrace.isConfigured"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AgentTrace",
+      "properties": {
+        "agenttrace.apiUrl": {
+          "type": "string",
+          "default": "https://api.agenttrace.io",
+          "description": "AgentTrace API URL"
+        },
+        "agenttrace.dashboardUrl": {
+          "type": "string",
+          "default": "https://app.agenttrace.io",
+          "description": "AgentTrace Dashboard URL"
+        },
+        "agenttrace.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "AgentTrace API Key (stored securely)",
+          "scope": "machine"
+        },
+        "agenttrace.projectId": {
+          "type": "string",
+          "default": "",
+          "description": "Default Project ID"
+        },
+        "agenttrace.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-refresh traces list"
+        },
+        "agenttrace.refreshInterval": {
+          "type": "number",
+          "default": 30,
+          "description": "Refresh interval in seconds"
+        },
+        "agenttrace.showStatusBarItem": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show cost summary in status bar"
+        },
+        "agenttrace.enableFileDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show trace count decorations on files"
+        },
+        "agenttrace.maxTraces": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum number of traces to display"
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "agenttrace.traceSuccessBackground",
+        "description": "Background color for successful traces",
+        "defaults": {
+          "dark": "#28a74520",
+          "light": "#28a74520"
+        }
+      },
+      {
+        "id": "agenttrace.traceErrorBackground",
+        "description": "Background color for error traces",
+        "defaults": {
+          "dark": "#dc354520",
+          "light": "#dc354520"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.x",
+    "@typescript-eslint/eslint-plugin": "^6.x",
+    "@typescript-eslint/parser": "^6.x",
+    "eslint": "^8.x",
+    "typescript": "^5.x",
+    "webpack": "^5.x",
+    "webpack-cli": "^5.x",
+    "ts-loader": "^9.x",
+    "@vscode/test-electron": "^2.x"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

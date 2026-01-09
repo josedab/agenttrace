@@ -1,0 +1,39 @@
+{
+  "type": "datasource",
+  "name": "AgentTrace",
+  "id": "agenttrace-datasource",
+  "metrics": true,
+  "alerting": true,
+  "annotations": true,
+  "logs": false,
+  "streaming": false,
+  "info": {
+    "description": "AgentTrace datasource for Grafana - Monitor AI agent traces, costs, and performance",
+    "author": {
+      "name": "AgentTrace",
+      "url": "https://agenttrace.io"
+    },
+    "keywords": ["agenttrace", "llm", "observability", "ai", "agents", "tracing"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      {
+        "name": "Documentation",
+        "url": "https://docs.agenttrace.io/integrations/grafana"
+      },
+      {
+        "name": "GitHub",
+        "url": "https://github.com/agenttrace/agenttrace"
+      }
+    ],
+    "screenshots": [],
+    "version": "1.0.0",
+    "updated": "2024-01-15"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=9.0.0",
+    "plugins": []
+  }
+}

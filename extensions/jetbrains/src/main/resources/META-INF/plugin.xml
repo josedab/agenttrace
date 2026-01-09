@@ -1,0 +1,137 @@
+<idea-plugin>
+    <id>io.agenttrace.plugin</id>
+    <name>AgentTrace</name>
+    <version>0.1.0</version>
+    <vendor email="support@agenttrace.io" url="https://agenttrace.io">AgentTrace</vendor>
+
+    <description><![CDATA[
+    <h2>AgentTrace - AI Agent Observability</h2>
+    <p>Monitor and debug AI agent executions directly in your IDE.</p>
+
+    <h3>Features</h3>
+    <ul>
+        <li>View recent traces in a dedicated tool window</li>
+        <li>Monitor costs and token usage in real-time</li>
+        <li>Link git commits to traces automatically</li>
+        <li>Create checkpoints during development</li>
+        <li>Filter traces by file or session</li>
+        <li>Jump to trace details in the dashboard</li>
+    </ul>
+
+    <h3>Getting Started</h3>
+    <ol>
+        <li>Go to Settings → Tools → AgentTrace</li>
+        <li>Enter your API Key and Project ID</li>
+        <li>Open the AgentTrace tool window</li>
+    </ol>
+    ]]></description>
+
+    <change-notes><![CDATA[
+    <h3>0.1.0</h3>
+    <ul>
+        <li>Initial release</li>
+        <li>Trace viewer tool window</li>
+        <li>Cost summary status bar</li>
+        <li>Git integration</li>
+    </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Settings -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="io.agenttrace.plugin.settings.AgentTraceConfigurable"
+            id="io.agenttrace.plugin.settings"
+            displayName="AgentTrace"/>
+
+        <applicationService
+            serviceImplementation="io.agenttrace.plugin.settings.AgentTraceSettings"/>
+
+        <!-- Tool Window -->
+        <toolWindow
+            id="AgentTrace"
+            anchor="right"
+            icon="/icons/agenttrace.svg"
+            factoryClass="io.agenttrace.plugin.toolwindow.AgentTraceToolWindowFactory"/>
+
+        <!-- Status Bar Widget -->
+        <statusBarWidgetFactory
+            id="AgentTraceCostWidget"
+            implementation="io.agenttrace.plugin.toolwindow.CostStatusBarWidgetFactory"
+            order="after Memory"/>
+
+        <!-- Startup Activity -->
+        <postStartupActivity
+            implementation="io.agenttrace.plugin.services.AgentTraceStartupActivity"/>
+
+        <!-- Notifications -->
+        <notificationGroup
+            id="AgentTrace Notifications"
+            displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <!-- Main Menu Actions -->
+        <group id="AgentTrace.MainMenu" text="AgentTrace" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="AgentTrace.RefreshTraces"
+                class="io.agenttrace.plugin.actions.RefreshTracesAction"
+                text="Refresh Traces"
+                description="Refresh the traces list"
+                icon="AllIcons.Actions.Refresh"/>
+
+            <action id="AgentTrace.OpenDashboard"
+                class="io.agenttrace.plugin.actions.OpenDashboardAction"
+                text="Open Dashboard"
+                description="Open AgentTrace dashboard in browser"
+                icon="AllIcons.General.Web"/>
+
+            <separator/>
+
+            <action id="AgentTrace.LinkCommit"
+                class="io.agenttrace.plugin.actions.LinkGitCommitAction"
+                text="Link Current Commit to Trace"
+                description="Link the current git commit to a trace"/>
+
+            <action id="AgentTrace.CreateCheckpoint"
+                class="io.agenttrace.plugin.actions.CreateCheckpointAction"
+                text="Create Checkpoint"
+                description="Create a checkpoint for the current trace"/>
+
+            <separator/>
+
+            <action id="AgentTrace.Settings"
+                class="io.agenttrace.plugin.actions.OpenSettingsAction"
+                text="Settings"
+                description="Open AgentTrace settings"
+                icon="AllIcons.General.Settings"/>
+        </group>
+
+        <!-- Editor Context Menu -->
+        <group id="AgentTrace.EditorPopup">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <separator/>
+            <action id="AgentTrace.FilterByFile"
+                class="io.agenttrace.plugin.actions.FilterByFileAction"
+                text="Find Traces for This File"
+                description="Filter traces that modified this file"/>
+        </group>
+
+        <!-- Tool Window Actions -->
+        <group id="AgentTrace.ToolWindowActions">
+            <action id="AgentTrace.ToolWindow.Refresh"
+                class="io.agenttrace.plugin.actions.RefreshTracesAction"
+                text="Refresh"
+                icon="AllIcons.Actions.Refresh"/>
+
+            <action id="AgentTrace.ToolWindow.OpenInBrowser"
+                class="io.agenttrace.plugin.actions.OpenTraceInBrowserAction"
+                text="Open in Browser"
+                icon="AllIcons.General.Web"/>
+        </group>
+    </actions>
+</idea-plugin>

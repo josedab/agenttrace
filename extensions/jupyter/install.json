@@ -1,0 +1,5 @@
+{
+  "packageManager": "python",
+  "packageName": "agenttrace-jupyter",
+  "uninstallInstructions": "Use `pip uninstall agenttrace-jupyter` to uninstall"
+}

@@ -1,0 +1,300 @@
+/* AgentTrace JupyterLab Extension Styles */
+
+.agenttrace-sidebar {
+  background: var(--jp-layout-color1);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.agenttrace-container {
+  padding: 16px;
+}
+
+.agenttrace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jp-border-color1);
+}
+
+.agenttrace-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+}
+
+.agenttrace-status {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.agenttrace-status.connected {
+  background: var(--jp-success-color2);
+  color: var(--jp-success-color0);
+}
+
+.agenttrace-status.disconnected {
+  background: var(--jp-warn-color2);
+  color: var(--jp-warn-color0);
+}
+
+.agenttrace-metrics {
+  margin-bottom: 20px;
+}
+
+.agenttrace-metrics h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metric {
+  background: var(--jp-layout-color2);
+  padding: 12px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.metric-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+  margin-bottom: 4px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: var(--jp-ui-font-color2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agenttrace-controls {
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--jp-layout-color2);
+  border-radius: 6px;
+}
+
+.toggle-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--jp-ui-font-color1);
+}
+
+.toggle-control input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.agenttrace-traces {
+  margin-bottom: 20px;
+}
+
+.agenttrace-traces h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+}
+
+.trace-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--jp-ui-font-color2);
+  font-size: 13px;
+  padding: 20px;
+  font-style: italic;
+}
+
+.trace-item {
+  padding: 10px;
+  background: var(--jp-layout-color2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.trace-item:hover {
+  background: var(--jp-layout-color3);
+}
+
+.trace-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-ui-font-color0);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trace-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--jp-ui-font-color2);
+}
+
+.trace-cost {
+  color: var(--jp-brand-color1);
+  font-weight: 500;
+}
+
+.agenttrace-setup {
+  padding: 16px;
+  background: var(--jp-warn-color3);
+  border-radius: 6px;
+  border: 1px solid var(--jp-warn-color1);
+}
+
+.agenttrace-setup p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--jp-ui-font-color0);
+}
+
+.agenttrace-setup code {
+  display: block;
+  padding: 8px;
+  background: var(--jp-layout-color0);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--jp-code-font-family);
+  word-break: break-all;
+}
+
+/* Cell output trace indicator */
+.agenttrace-cell-indicator {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--jp-brand-color2);
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--jp-brand-color0);
+}
+
+.agenttrace-cell-indicator.tracing {
+  background: var(--jp-success-color2);
+  color: var(--jp-success-color0);
+}
+
+/* Trace visualization widget */
+.agenttrace-viz {
+  padding: 16px;
+  background: var(--jp-layout-color1);
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.agenttrace-viz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.agenttrace-viz-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+}
+
+.agenttrace-timeline {
+  position: relative;
+  padding-left: 20px;
+}
+
+.agenttrace-timeline-item {
+  position: relative;
+  padding: 8px 0 8px 20px;
+  border-left: 2px solid var(--jp-border-color1);
+}
+
+.agenttrace-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--jp-brand-color1);
+  border: 2px solid var(--jp-layout-color1);
+}
+
+.agenttrace-timeline-item.llm::before {
+  background: var(--jp-success-color1);
+}
+
+.agenttrace-timeline-item.tool::before {
+  background: var(--jp-warn-color1);
+}
+
+.agenttrace-timeline-item.error::before {
+  background: var(--jp-error-color1);
+}
+
+.timeline-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jp-ui-font-color0);
+}
+
+.timeline-item-meta {
+  font-size: 11px;
+  color: var(--jp-ui-font-color2);
+  margin-top: 2px;
+}
+
+/* Dark theme adjustments */
+[data-jp-theme-light="false"] .agenttrace-sidebar {
+  background: var(--jp-layout-color1);
+}
+
+[data-jp-theme-light="false"] .metric {
+  background: var(--jp-layout-color2);
+}
+
+[data-jp-theme-light="false"] .trace-item {
+  background: var(--jp-layout-color2);
+}
+
+[data-jp-theme-light="false"] .trace-item:hover {
+  background: var(--jp-layout-color3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 300px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
