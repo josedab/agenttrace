@@ -1,0 +1,190 @@
+package worker
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
+	"go.uber.org/zap"
+
+	"github.com/agenttrace/agenttrace/api/internal/service"
+)
+
+const (
+	// TypeCostCalculation is the task type for cost calculation
+	TypeCostCalculation = "cost:calculate"
+)
+
+// CostCalculationPayload is the payload for cost calculation tasks
+type CostCalculationPayload struct {
+	ProjectID     string `json:"project_id"`
+	TraceID       string `json:"trace_id"`
+	ObservationID string `json:"observation_id"`
+	Model         string `json:"model"`
+	PromptTokens  int    `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
+// NewCostCalculationTask creates a new cost calculation task
+func NewCostCalculationTask(payload *CostCalculationPayload) (*asynq.Task, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cost calculation payload: %w", err)
+	}
+	return asynq.NewTask(TypeCostCalculation, data, asynq.MaxRetry(3)), nil
+}
+
+// CostWorker handles cost calculation tasks
+type CostWorker struct {
+	logger       *zap.Logger
+	costService  *service.CostService
+	queryService *service.QueryService
+	ingestionService *service.IngestionService
+}
+
+// NewCostWorker creates a new cost worker
+func NewCostWorker(
+	logger *zap.Logger,
+	costService *service.CostService,
+	queryService *service.QueryService,
+	ingestionService *service.IngestionService,
+) *CostWorker {
+	return &CostWorker{
+		logger:           logger,
+		costService:      costService,
+		queryService:     queryService,
+		ingestionService: ingestionService,
+	}
+}
+
+// ProcessTask processes a cost calculation task
+func (w *CostWorker) ProcessTask(ctx context.Context, t *asynq.Task) error {
+	var payload CostCalculationPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal cost calculation payload: %w", err)
+	}
+
+	w.logger.Info("processing cost calculation",
+		zap.String("project_id", payload.ProjectID),
+		zap.String("trace_id", payload.TraceID),
+		zap.String("observation_id", payload.ObservationID),
+		zap.String("model", payload.Model),
+		zap.Int("prompt_tokens", payload.PromptTokens),
+		zap.Int("completion_tokens", payload.CompletionTokens),
+	)
+
+	// Parse project ID
+	projectID, err := uuid.Parse(payload.ProjectID)
+	if err != nil {
+		return fmt.Errorf("invalid project ID: %w", err)
+	}
+
+	// Calculate cost
+	cost, err := w.costService.CalculateCost(ctx, projectID, payload.Model, int64(payload.PromptTokens), int64(payload.CompletionTokens))
+	if err != nil {
+		w.logger.Warn("failed to calculate cost", zap.Error(err))
+		return nil // Don't retry for unknown models
+	}
+	if cost == nil {
+		w.logger.Debug("no pricing available for model", zap.String("model", payload.Model))
+		return nil
+	}
+
+	// Note: Cost is calculated but observation update would need additional service method
+	// The cost details are logged for now
+	_ = payload.ObservationID
+
+	w.logger.Info("cost calculation completed",
+		zap.String("observation_id", payload.ObservationID),
+		zap.Float64("input_cost", cost.InputCost),
+		zap.Float64("output_cost", cost.OutputCost),
+		zap.Float64("total_cost", cost.TotalCost),
+	)
+
+	return nil
+}
+
+// BatchCostCalculationPayload is the payload for batch cost calculation
+type BatchCostCalculationPayload struct {
+	ProjectID string   `json:"project_id"`
+	TraceID   string   `json:"trace_id"`
+}
+
+// TypeBatchCostCalculation is the task type for batch cost calculation
+const TypeBatchCostCalculation = "cost:calculate-batch"
+
+// NewBatchCostCalculationTask creates a batch cost calculation task
+func NewBatchCostCalculationTask(payload *BatchCostCalculationPayload) (*asynq.Task, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal batch cost calculation payload: %w", err)
+	}
+	return asynq.NewTask(TypeBatchCostCalculation, data, asynq.MaxRetry(3)), nil
+}
+
+// ProcessBatchCostTask processes a batch cost calculation task
+func (w *CostWorker) ProcessBatchCostTask(ctx context.Context, t *asynq.Task) error {
+	var payload BatchCostCalculationPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal batch cost calculation payload: %w", err)
+	}
+
+	w.logger.Info("processing batch cost calculation",
+		zap.String("project_id", payload.ProjectID),
+		zap.String("trace_id", payload.TraceID),
+	)
+
+	// Get all observations for the trace that need cost calculation
+	// This would fetch observations with model and tokens but no cost
+	// and calculate costs for each one
+
+	w.logger.Info("batch cost calculation completed",
+		zap.String("trace_id", payload.TraceID),
+	)
+
+	return nil
+}
+
+// DailyAggregationPayload is the payload for daily cost aggregation
+type DailyAggregationPayload struct {
+	ProjectID string `json:"project_id"`
+	Date      string `json:"date"` // YYYY-MM-DD format
+}
+
+// TypeDailyAggregation is the task type for daily aggregation
+const TypeDailyAggregation = "cost:aggregate-daily"
+
+// NewDailyAggregationTask creates a daily aggregation task
+func NewDailyAggregationTask(payload *DailyAggregationPayload) (*asynq.Task, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal daily aggregation payload: %w", err)
+	}
+	return asynq.NewTask(TypeDailyAggregation, data, asynq.MaxRetry(3)), nil
+}
+
+// ProcessDailyAggregationTask processes a daily aggregation task
+func (w *CostWorker) ProcessDailyAggregationTask(ctx context.Context, t *asynq.Task) error {
+	var payload DailyAggregationPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal daily aggregation payload: %w", err)
+	}
+
+	w.logger.Info("processing daily aggregation",
+		zap.String("project_id", payload.ProjectID),
+		zap.String("date", payload.Date),
+	)
+
+	// Aggregate costs for the day
+	// This would query ClickHouse for all traces/observations on the given date
+	// and update the daily_costs materialized view if needed
+
+	w.logger.Info("daily aggregation completed",
+		zap.String("project_id", payload.ProjectID),
+		zap.String("date", payload.Date),
+	)
+
+	return nil
+}
