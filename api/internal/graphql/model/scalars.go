@@ -20,7 +20,9 @@ func MarshalJSON(val map[string]interface{}) graphql.Marshaler {
 		}
 		data, err := json.Marshal(val)
 		if err != nil {
-			panic(err)
+			// Return null instead of panicking to avoid crashing the server
+			w.Write([]byte("null"))
+			return
 		}
 		w.Write(data)
 	})
@@ -61,7 +63,9 @@ func MarshalJSONAny(val interface{}) graphql.Marshaler {
 		}
 		data, err := json.Marshal(val)
 		if err != nil {
-			panic(err)
+			// Return null instead of panicking to avoid crashing the server
+			w.Write([]byte("null"))
+			return
 		}
 		w.Write(data)
 	})
