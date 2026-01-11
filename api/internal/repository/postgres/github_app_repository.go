@@ -82,7 +82,7 @@ func (r *GitHubAppRepository) GetInstallationByID(ctx context.Context, id uuid.U
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, apperrors.NewNotFoundError("installation not found")
+		return nil, apperrors.NotFound("installation not found")
 	}
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (r *GitHubAppRepository) GetInstallationByInstallationID(ctx context.Contex
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, apperrors.NewNotFoundError("installation not found")
+		return nil, apperrors.NotFound("installation not found")
 	}
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (r *GitHubAppRepository) GetRepositoryByID(ctx context.Context, id uuid.UUI
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, apperrors.NewNotFoundError("repository not found")
+		return nil, apperrors.NotFound("repository not found")
 	}
 	if err != nil {
 		return nil, err
@@ -282,7 +282,7 @@ func (r *GitHubAppRepository) GetRepositoryByRepoID(ctx context.Context, install
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, apperrors.NewNotFoundError("repository not found")
+		return nil, apperrors.NotFound("repository not found")
 	}
 	if err != nil {
 		return nil, err
@@ -309,7 +309,7 @@ func (r *GitHubAppRepository) GetRepositoryByFullName(ctx context.Context, fullN
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, apperrors.NewNotFoundError("repository not found")
+		return nil, apperrors.NotFound("repository not found")
 	}
 	if err != nil {
 		return nil, err
