@@ -21,8 +21,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"agenttrace/internal/domain"
-	"agenttrace/internal/repository/postgres"
+	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/repository/postgres"
 )
 
 var (

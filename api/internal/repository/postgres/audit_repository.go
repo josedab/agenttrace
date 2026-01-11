@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
-	"agenttrace/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
 
 type AuditRepository struct {

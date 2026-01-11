@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"agenttrace/internal/domain"
-	"agenttrace/internal/repository/postgres"
+	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/repository/postgres"
 )
 
 // MockAuditRepository is a mock implementation of the Audit repository

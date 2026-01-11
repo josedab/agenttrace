@@ -8,8 +8,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"agenttrace/internal/domain"
-	"agenttrace/internal/service"
+	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
 type AuditHandler struct {

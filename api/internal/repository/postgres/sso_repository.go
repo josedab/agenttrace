@@ -10,7 +10,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 
-	"agenttrace/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
 
 type SSORepository struct {
