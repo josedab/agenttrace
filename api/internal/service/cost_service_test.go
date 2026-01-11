@@ -7,11 +7,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestNewCostService(t *testing.T) {
 	t.Run("creates service with default pricing", func(t *testing.T) {
-		svc := NewCostService()
+		svc := NewCostService(zap.NewNop())
 
 		assert.NotNil(t, svc)
 		assert.NotEmpty(t, svc.pricing)
@@ -23,7 +24,7 @@ func TestNewCostService(t *testing.T) {
 }
 
 func TestCostService_CalculateCost(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -123,7 +124,7 @@ func TestCostService_CalculateCost(t *testing.T) {
 }
 
 func TestCostService_CalculateCostWithCache(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -150,7 +151,7 @@ func TestCostService_CalculateCostWithCache(t *testing.T) {
 }
 
 func TestCostService_GetPricing(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 
 	t.Run("gets pricing for known model", func(t *testing.T) {
 		// Use a versioned model to avoid duplicate entries between providers
@@ -191,7 +192,7 @@ func TestCostService_GetPricing(t *testing.T) {
 }
 
 func TestCostService_SetProjectPricing(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -261,7 +262,7 @@ func TestCostService_SetProjectPricing(t *testing.T) {
 }
 
 func TestCostService_ListModels(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 
 	t.Run("lists all models", func(t *testing.T) {
 		models := svc.ListModels()
@@ -314,7 +315,7 @@ func TestCostService_ModelNormalization(t *testing.T) {
 }
 
 func TestCostService_PartialModelMatching(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 
 	t.Run("matches versioned model prefix", func(t *testing.T) {
 		// If we query for a base model, it should match the specific version
@@ -326,7 +327,7 @@ func TestCostService_PartialModelMatching(t *testing.T) {
 }
 
 func TestCostService_SpecificProviderModels(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -444,7 +445,7 @@ func TestCostService_SpecificProviderModels(t *testing.T) {
 }
 
 func TestCostService_EmbeddingModels(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -476,7 +477,7 @@ func TestCostService_EmbeddingModels(t *testing.T) {
 }
 
 func TestCostService_ConcurrentAccess(t *testing.T) {
-	svc := NewCostService()
+	svc := NewCostService(zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 

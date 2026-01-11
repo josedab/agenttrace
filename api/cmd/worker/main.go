@@ -108,7 +108,7 @@ func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.Wor
 	orgRepo := pgrepo.NewOrgRepository(pgDB)
 
 	// Initialize services
-	costService := service.NewCostService()
+	costService := service.NewCostService(logger)
 	queryService := service.NewQueryService(traceRepo, observationRepo, scoreRepo, sessionRepo)
 	ingestionService := service.NewIngestionService(traceRepo, observationRepo, costService, nil)
 	scoreService := service.NewScoreService(scoreRepo, traceRepo, observationRepo)

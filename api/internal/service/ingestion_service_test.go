@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
@@ -426,7 +427,7 @@ func TestIngestionService_IngestGeneration(t *testing.T) {
 	t.Run("calculates cost with cost service", func(t *testing.T) {
 		traceRepo := new(MockTraceRepository)
 		obsRepo := new(MockObservationRepository)
-		costService := NewCostService()
+		costService := NewCostService(zap.NewNop())
 
 		obsRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Observation")).Return(nil)
 		// Mock for background cost update goroutine

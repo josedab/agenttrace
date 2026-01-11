@@ -164,7 +164,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 	deps.AsynqClient = asynqClient
 
 	// Initialize services
-	deps.CostService = service.NewCostService()
+	deps.CostService = service.NewCostService(logger)
 	deps.QueryService = service.NewQueryService(
 		deps.TraceRepo,
 		deps.ObservationRepo,

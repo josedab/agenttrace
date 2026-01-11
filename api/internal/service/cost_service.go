@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
@@ -22,16 +22,18 @@ type ModelPricing struct {
 
 // CostService handles cost calculation for LLM usage
 type CostService struct {
-	mu       sync.RWMutex
-	pricing  map[string]*ModelPricing
+	mu        sync.RWMutex
+	pricing   map[string]*ModelPricing
 	overrides map[uuid.UUID]map[string]*ModelPricing // project-specific overrides
+	logger    *zap.Logger
 }
 
 // NewCostService creates a new cost service with default pricing
-func NewCostService() *CostService {
+func NewCostService(logger *zap.Logger) *CostService {
 	s := &CostService{
 		pricing:   make(map[string]*ModelPricing),
 		overrides: make(map[uuid.UUID]map[string]*ModelPricing),
+		logger:    logger,
 	}
 	s.loadDefaultPricing()
 	return s
@@ -342,5 +344,7 @@ func (s *CostService) loadDefaultPricing() {
 		s.pricing[normalizeModel(m.Model)] = m
 	}
 
-	fmt.Printf("Loaded pricing for %d models\n", len(s.pricing))
+	if s.logger != nil {
+		s.logger.Info("loaded pricing for models", zap.Int("model_count", len(s.pricing)))
+	}
 }
