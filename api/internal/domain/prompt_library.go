@@ -156,15 +156,15 @@ type PromptFork struct {
 	ForkedAt        time.Time `json:"forkedAt"`
 }
 
-// PromptVersion represents a historical version of a prompt
-type PromptVersion struct {
-	PromptID    uuid.UUID        `json:"promptId"`
-	Version     int              `json:"version"`
-	Template    string           `json:"template"`
-	Variables   []PromptVariable `json:"variables"`
-	VersionNotes string          `json:"versionNotes,omitempty"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	CreatedBy   uuid.UUID        `json:"createdBy"`
+// LibraryPromptVersion represents a historical version of a library prompt
+type LibraryPromptVersion struct {
+	PromptID     uuid.UUID        `json:"promptId"`
+	Version      int              `json:"version"`
+	Template     string           `json:"template"`
+	Variables    []PromptVariable `json:"variables"`
+	VersionNotes string           `json:"versionNotes,omitempty"`
+	CreatedAt    time.Time        `json:"createdAt"`
+	CreatedBy    uuid.UUID        `json:"createdBy"`
 }
 
 // LibraryPromptInput represents input for creating a library prompt
