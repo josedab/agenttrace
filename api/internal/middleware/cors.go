@@ -23,6 +23,8 @@ type CORSConfig struct {
 }
 
 // DefaultCORSConfig returns default CORS config
+// NOTE: Uses AllowCredentials: false with wildcard origin for security.
+// Use ProductionCORSConfig() with explicit origins to enable credentials.
 func DefaultCORSConfig() CORSConfig {
 	return CORSConfig{
 		AllowOrigins: []string{"*"},
@@ -50,7 +52,7 @@ func DefaultCORSConfig() CORSConfig {
 			"X-RateLimit-Remaining",
 			"X-RateLimit-Reset",
 		},
-		AllowCredentials: true,
+		AllowCredentials: false, // Cannot use credentials with wildcard origin (security risk)
 		MaxAge:           86400, // 24 hours
 	}
 }
@@ -143,17 +145,12 @@ func (m *CORSMiddleware) Handler() fiber.Handler {
 }
 
 // SimpleCORS creates a simple CORS middleware that allows all origins
+// NOTE: Does not allow credentials for security (wildcard + credentials is unsafe)
 func SimpleCORS() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		origin := c.Get("Origin")
-		if origin == "" {
-			origin = "*"
-		}
-
-		c.Set("Access-Control-Allow-Origin", origin)
+		c.Set("Access-Control-Allow-Origin", "*")
 		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
 		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-API-Key, X-Request-ID")
-		c.Set("Access-Control-Allow-Credentials", "true")
 		c.Set("Access-Control-Expose-Headers", "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining")
 
 		if c.Method() == fiber.MethodOptions {
