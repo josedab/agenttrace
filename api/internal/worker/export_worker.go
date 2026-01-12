@@ -76,6 +76,7 @@ func NewDatasetExportTask(payload *DatasetExportPayload) (*asynq.Task, error) {
 type ExportWorker struct {
 	logger         *zap.Logger
 	queryService   *service.QueryService
+	scoreService   *service.ScoreService
 	datasetService *service.DatasetService
 	minioClient    *minio.Client
 	bucket         string
@@ -85,6 +86,7 @@ type ExportWorker struct {
 func NewExportWorker(
 	logger *zap.Logger,
 	queryService *service.QueryService,
+	scoreService *service.ScoreService,
 	datasetService *service.DatasetService,
 	minioClient *minio.Client,
 	bucket string,
@@ -92,6 +94,7 @@ func NewExportWorker(
 	return &ExportWorker{
 		logger:         logger,
 		queryService:   queryService,
+		scoreService:   scoreService,
 		datasetService: datasetService,
 		minioClient:    minioClient,
 		bucket:         bucket,
@@ -273,19 +276,45 @@ func (w *ExportWorker) exportObservations(
 }
 
 // exportScores exports scores
-// Note: Score export requires scoreService - currently not available in ExportWorker
 func (w *ExportWorker) exportScores(
 	ctx context.Context,
 	projectID uuid.UUID,
 	filters map[string]interface{},
 	format domain.ExportFormat,
 ) ([]byte, error) {
-	_ = ctx
-	_ = projectID
-	_ = filters
-	_ = format
-	// TODO: Add scoreService to ExportWorker to enable score exports
-	return nil, fmt.Errorf("score export not yet implemented - scoreService required")
+	// Build score filter from map
+	filter := &domain.ScoreFilter{
+		ProjectID: projectID,
+	}
+
+	// Apply filters if provided
+	if filters != nil {
+		if traceID, ok := filters["trace_id"].(string); ok {
+			filter.TraceID = &traceID
+		}
+		if name, ok := filters["name"].(string); ok {
+			filter.Name = &name
+		}
+		if source, ok := filters["source"].(string); ok {
+			s := domain.ScoreSource(source)
+			filter.Source = &s
+		}
+	}
+
+	// Get scores from service
+	scoreList, err := w.scoreService.List(ctx, projectID, filter, 10000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list scores: %w", err)
+	}
+
+	switch format {
+	case domain.ExportFormatJSON:
+		return json.Marshal(scoreList.Scores)
+	case domain.ExportFormatCSV:
+		return w.scoresToCSV(scoreList.Scores)
+	default:
+		return nil, fmt.Errorf("unsupported format: %s", format)
+	}
 }
 
 // tracesToCSV converts traces to CSV
