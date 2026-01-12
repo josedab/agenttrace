@@ -10,6 +10,7 @@ import (
 	"github.com/hibiken/asynq"
 	"go.uber.org/zap"
 
+	chrepo "github.com/agenttrace/agenttrace/api/internal/repository/clickhouse"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -72,6 +73,9 @@ type CleanupWorker struct {
 	queryService     *service.QueryService
 	ingestionService *service.IngestionService
 	projectService   *service.ProjectService
+	traceRepo        *chrepo.TraceRepository
+	observationRepo  *chrepo.ObservationRepository
+	scoreRepo        *chrepo.ScoreRepository
 }
 
 // NewCleanupWorker creates a new cleanup worker
@@ -80,12 +84,18 @@ func NewCleanupWorker(
 	queryService *service.QueryService,
 	ingestionService *service.IngestionService,
 	projectService *service.ProjectService,
+	traceRepo *chrepo.TraceRepository,
+	observationRepo *chrepo.ObservationRepository,
+	scoreRepo *chrepo.ScoreRepository,
 ) *CleanupWorker {
 	return &CleanupWorker{
 		logger:           logger,
 		queryService:     queryService,
 		ingestionService: ingestionService,
 		projectService:   projectService,
+		traceRepo:        traceRepo,
+		observationRepo:  observationRepo,
+		scoreRepo:        scoreRepo,
 	}
 }
 
@@ -205,55 +215,103 @@ func (w *CleanupWorker) ProcessOrphanCleanupTask(ctx context.Context, t *asynq.T
 }
 
 // countTracesBeforeCutoff counts traces before the cutoff date
-// Note: This is a placeholder - full implementation requires additional repository methods
 func (w *CleanupWorker) countTracesBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
-	_ = ctx
-	_ = projectID
-	_ = cutoff
-	// TODO: Implement when repository supports date-based counting
-	return 0, nil
+	return w.traceRepo.CountBeforeCutoff(ctx, projectID, cutoff)
 }
 
 // deleteTracesBeforeCutoff deletes traces before the cutoff date
-// Note: This is a placeholder - full implementation requires additional repository methods
+// Also deletes related observations and scores
 func (w *CleanupWorker) deleteTracesBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
-	_ = ctx
-	_ = projectID
-	_ = cutoff
-	// TODO: Implement when repository supports date-based deletion
-	return 0, nil
+	// Delete observations and scores first (they reference traces)
+	obsDeleted, err := w.observationRepo.DeleteBeforeCutoff(ctx, projectID, cutoff)
+	if err != nil {
+		w.logger.Error("failed to delete observations before cutoff",
+			zap.String("project_id", projectID.String()),
+			zap.Time("cutoff", cutoff),
+			zap.Error(err),
+		)
+		// Continue with trace deletion even if observation deletion fails
+	} else {
+		w.logger.Info("deleted observations before cutoff",
+			zap.String("project_id", projectID.String()),
+			zap.Int64("count", obsDeleted),
+		)
+	}
+
+	scoresDeleted, err := w.scoreRepo.DeleteBeforeCutoff(ctx, projectID, cutoff)
+	if err != nil {
+		w.logger.Error("failed to delete scores before cutoff",
+			zap.String("project_id", projectID.String()),
+			zap.Time("cutoff", cutoff),
+			zap.Error(err),
+		)
+		// Continue with trace deletion even if score deletion fails
+	} else {
+		w.logger.Info("deleted scores before cutoff",
+			zap.String("project_id", projectID.String()),
+			zap.Int64("count", scoresDeleted),
+		)
+	}
+
+	// Delete traces
+	return w.traceRepo.DeleteBeforeCutoff(ctx, projectID, cutoff)
 }
 
 // deleteAllProjectData deletes all data for a project
-// Note: This is a placeholder - full implementation requires additional repository methods
 func (w *CleanupWorker) deleteAllProjectData(ctx context.Context, projectID uuid.UUID) error {
-	_ = ctx
-	_ = projectID
-	// TODO: Implement when repository supports bulk project deletion
+	// Delete observations first (they reference traces)
+	if err := w.observationRepo.DeleteByProjectID(ctx, projectID); err != nil {
+		return fmt.Errorf("failed to delete observations: %w", err)
+	}
+	w.logger.Info("deleted all observations for project",
+		zap.String("project_id", projectID.String()),
+	)
+
+	// Delete scores
+	if err := w.scoreRepo.DeleteByProjectID(ctx, projectID); err != nil {
+		return fmt.Errorf("failed to delete scores: %w", err)
+	}
+	w.logger.Info("deleted all scores for project",
+		zap.String("project_id", projectID.String()),
+	)
+
+	// Delete traces
+	if err := w.traceRepo.DeleteByProjectID(ctx, projectID); err != nil {
+		return fmt.Errorf("failed to delete traces: %w", err)
+	}
+	w.logger.Info("deleted all traces for project",
+		zap.String("project_id", projectID.String()),
+	)
+
 	return nil
 }
 
 // findOrphanObservations finds observations without valid parent traces
-// Note: This is a placeholder - full implementation requires additional repository methods
 func (w *CleanupWorker) findOrphanObservations(ctx context.Context) (int64, error) {
-	_ = ctx
-	// TODO: Implement when repository supports orphan detection
-	return 0, nil
+	return w.observationRepo.CountOrphans(ctx)
 }
 
 // findOrphanScores finds scores without valid parent traces/observations
-// Note: This is a placeholder - full implementation requires additional repository methods
 func (w *CleanupWorker) findOrphanScores(ctx context.Context) (int64, error) {
-	_ = ctx
-	// TODO: Implement when repository supports orphan detection
-	return 0, nil
+	return w.scoreRepo.CountOrphans(ctx)
 }
 
 // deleteOrphanRecords deletes orphan observations and scores
-// Note: This is a placeholder - full implementation requires additional repository methods
 func (w *CleanupWorker) deleteOrphanRecords(ctx context.Context) error {
-	_ = ctx
-	// TODO: Implement when repository supports orphan deletion
+	// Delete orphan observations
+	obsDeleted, err := w.observationRepo.DeleteOrphans(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete orphan observations: %w", err)
+	}
+	w.logger.Info("deleted orphan observations", zap.Int64("count", obsDeleted))
+
+	// Delete orphan scores
+	scoresDeleted, err := w.scoreRepo.DeleteOrphans(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete orphan scores: %w", err)
+	}
+	w.logger.Info("deleted orphan scores", zap.Int64("count", scoresDeleted))
+
 	return nil
 }
 
