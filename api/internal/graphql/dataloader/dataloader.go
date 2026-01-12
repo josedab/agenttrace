@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/service"
@@ -21,6 +22,8 @@ const (
 
 // Loaders holds all dataloaders
 type Loaders struct {
+	logger *zap.Logger
+
 	// User loaders
 	UserByID *UserLoader
 
@@ -36,13 +39,13 @@ type Loaders struct {
 	ScoresByTrace       *ScoresLoader
 
 	// Prompt loaders
-	PromptByID          *PromptLoader
-	PromptVersionsByID  *PromptVersionsLoader
+	PromptByID         *PromptLoader
+	PromptVersionsByID *PromptVersionsLoader
 
 	// Dataset loaders
-	DatasetByID       *DatasetLoader
-	DatasetItemsByID  *DatasetItemsLoader
-	DatasetRunsByID   *DatasetRunsLoader
+	DatasetByID      *DatasetLoader
+	DatasetItemsByID *DatasetItemsLoader
+	DatasetRunsByID  *DatasetRunsLoader
 
 	// Evaluator loaders
 	EvaluatorByID *EvaluatorLoader
@@ -50,6 +53,7 @@ type Loaders struct {
 
 // NewLoaders creates new dataloaders
 func NewLoaders(
+	logger *zap.Logger,
 	queryService *service.QueryService,
 	authService *service.AuthService,
 	orgService *service.OrgService,
@@ -59,20 +63,22 @@ func NewLoaders(
 	evalService *service.EvalService,
 	scoreService *service.ScoreService,
 ) *Loaders {
-	return &Loaders{
-		UserByID:            NewUserLoader(authService),
-		OrganizationByID:    NewOrganizationLoader(orgService),
-		ProjectByID:         NewProjectLoader(projectService),
-		TraceByID:           NewTraceLoader(queryService),
-		ObservationsByTrace: NewObservationsLoader(queryService),
-		ScoresByTrace:       NewScoresLoader(scoreService),
-		PromptByID:          NewPromptLoader(promptService),
-		PromptVersionsByID:  NewPromptVersionsLoader(promptService),
-		DatasetByID:         NewDatasetLoader(datasetService),
-		DatasetItemsByID:    NewDatasetItemsLoader(datasetService),
-		DatasetRunsByID:     NewDatasetRunsLoader(datasetService),
-		EvaluatorByID:       NewEvaluatorLoader(evalService),
+	dl := &Loaders{
+		logger: logger.Named("dataloader"),
 	}
+	dl.UserByID = NewUserLoader(dl.logger, authService)
+	dl.OrganizationByID = NewOrganizationLoader(dl.logger, orgService)
+	dl.ProjectByID = NewProjectLoader(dl.logger, projectService)
+	dl.TraceByID = NewTraceLoader(dl.logger, queryService)
+	dl.ObservationsByTrace = NewObservationsLoader(dl.logger, queryService)
+	dl.ScoresByTrace = NewScoresLoader(dl.logger, scoreService)
+	dl.PromptByID = NewPromptLoader(dl.logger, promptService)
+	dl.PromptVersionsByID = NewPromptVersionsLoader(dl.logger, promptService)
+	dl.DatasetByID = NewDatasetLoader(dl.logger, datasetService)
+	dl.DatasetItemsByID = NewDatasetItemsLoader(dl.logger, datasetService)
+	dl.DatasetRunsByID = NewDatasetRunsLoader(dl.logger, datasetService)
+	dl.EvaluatorByID = NewEvaluatorLoader(dl.logger, evalService)
+	return dl
 }
 
 // For retrieves dataloaders from context
@@ -212,15 +218,20 @@ type UserLoader struct {
 }
 
 // NewUserLoader creates a user loader
-func NewUserLoader(authService *service.AuthService) *UserLoader {
+func NewUserLoader(logger *zap.Logger, authService *service.AuthService) *UserLoader {
 	return &UserLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID]*domain.User, error) {
 			result := make(map[uuid.UUID]*domain.User, len(keys))
 			for _, id := range keys {
 				user, err := authService.GetUserByID(context.Background(), id)
-				if err == nil {
-					result[id] = user
+				if err != nil {
+					logger.Warn("failed to load user",
+						zap.String("user_id", id.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = user
 			}
 			return result, nil
 		}),
@@ -233,15 +244,20 @@ type OrganizationLoader struct {
 }
 
 // NewOrganizationLoader creates an organization loader
-func NewOrganizationLoader(orgService *service.OrgService) *OrganizationLoader {
+func NewOrganizationLoader(logger *zap.Logger, orgService *service.OrgService) *OrganizationLoader {
 	return &OrganizationLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID]*domain.Organization, error) {
 			result := make(map[uuid.UUID]*domain.Organization, len(keys))
 			for _, id := range keys {
 				org, err := orgService.Get(context.Background(), id)
-				if err == nil {
-					result[id] = org
+				if err != nil {
+					logger.Warn("failed to load organization",
+						zap.String("org_id", id.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = org
 			}
 			return result, nil
 		}),
@@ -254,15 +270,20 @@ type ProjectLoader struct {
 }
 
 // NewProjectLoader creates a project loader
-func NewProjectLoader(projectService *service.ProjectService) *ProjectLoader {
+func NewProjectLoader(logger *zap.Logger, projectService *service.ProjectService) *ProjectLoader {
 	return &ProjectLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID]*domain.Project, error) {
 			result := make(map[uuid.UUID]*domain.Project, len(keys))
 			for _, id := range keys {
 				project, err := projectService.Get(context.Background(), id)
-				if err == nil {
-					result[id] = project
+				if err != nil {
+					logger.Warn("failed to load project",
+						zap.String("project_id", id.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = project
 			}
 			return result, nil
 		}),
@@ -275,16 +296,21 @@ type TraceLoader struct {
 }
 
 // NewTraceLoader creates a trace loader
-func NewTraceLoader(queryService *service.QueryService) *TraceLoader {
+func NewTraceLoader(logger *zap.Logger, queryService *service.QueryService) *TraceLoader {
 	return &TraceLoader{
 		Loader: NewLoader(func(keys []string) (map[string]*domain.Trace, error) {
 			result := make(map[string]*domain.Trace, len(keys))
 			for _, id := range keys {
 				// Note: This needs project ID in real implementation
 				trace, err := queryService.GetTrace(context.Background(), uuid.Nil, id)
-				if err == nil {
-					result[id] = trace
+				if err != nil {
+					logger.Warn("failed to load trace",
+						zap.String("trace_id", id),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = trace
 			}
 			return result, nil
 		}),
@@ -297,20 +323,25 @@ type ObservationsLoader struct {
 }
 
 // NewObservationsLoader creates an observations loader
-func NewObservationsLoader(queryService *service.QueryService) *ObservationsLoader {
+func NewObservationsLoader(logger *zap.Logger, queryService *service.QueryService) *ObservationsLoader {
 	return &ObservationsLoader{
 		Loader: NewLoader(func(keys []string) (map[string][]*domain.Observation, error) {
 			result := make(map[string][]*domain.Observation, len(keys))
 			for _, traceID := range keys {
 				observations, err := queryService.GetObservationsByTraceID(context.Background(), uuid.Nil, traceID)
-				if err == nil {
-					// Convert []domain.Observation to []*domain.Observation
-					ptrs := make([]*domain.Observation, len(observations))
-					for i := range observations {
-						ptrs[i] = &observations[i]
-					}
-					result[traceID] = ptrs
+				if err != nil {
+					logger.Warn("failed to load observations for trace",
+						zap.String("trace_id", traceID),
+						zap.Error(err),
+					)
+					continue
 				}
+				// Convert []domain.Observation to []*domain.Observation
+				ptrs := make([]*domain.Observation, len(observations))
+				for i := range observations {
+					ptrs[i] = &observations[i]
+				}
+				result[traceID] = ptrs
 			}
 			return result, nil
 		}),
@@ -323,20 +354,25 @@ type ScoresLoader struct {
 }
 
 // NewScoresLoader creates a scores loader
-func NewScoresLoader(scoreService *service.ScoreService) *ScoresLoader {
+func NewScoresLoader(logger *zap.Logger, scoreService *service.ScoreService) *ScoresLoader {
 	return &ScoresLoader{
 		Loader: NewLoader(func(keys []string) (map[string][]*domain.Score, error) {
 			result := make(map[string][]*domain.Score, len(keys))
 			for _, traceID := range keys {
 				scores, err := scoreService.GetByTraceID(context.Background(), uuid.Nil, traceID)
-				if err == nil {
-					// Convert []domain.Score to []*domain.Score
-					ptrs := make([]*domain.Score, len(scores))
-					for i := range scores {
-						ptrs[i] = &scores[i]
-					}
-					result[traceID] = ptrs
+				if err != nil {
+					logger.Warn("failed to load scores for trace",
+						zap.String("trace_id", traceID),
+						zap.Error(err),
+					)
+					continue
 				}
+				// Convert []domain.Score to []*domain.Score
+				ptrs := make([]*domain.Score, len(scores))
+				for i := range scores {
+					ptrs[i] = &scores[i]
+				}
+				result[traceID] = ptrs
 			}
 			return result, nil
 		}),
@@ -349,15 +385,20 @@ type PromptLoader struct {
 }
 
 // NewPromptLoader creates a prompt loader
-func NewPromptLoader(promptService *service.PromptService) *PromptLoader {
+func NewPromptLoader(logger *zap.Logger, promptService *service.PromptService) *PromptLoader {
 	return &PromptLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID]*domain.Prompt, error) {
 			result := make(map[uuid.UUID]*domain.Prompt, len(keys))
 			for _, id := range keys {
 				prompt, err := promptService.Get(context.Background(), id)
-				if err == nil {
-					result[id] = prompt
+				if err != nil {
+					logger.Warn("failed to load prompt",
+						zap.String("prompt_id", id.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = prompt
 			}
 			return result, nil
 		}),
@@ -370,20 +411,25 @@ type PromptVersionsLoader struct {
 }
 
 // NewPromptVersionsLoader creates a prompt versions loader
-func NewPromptVersionsLoader(promptService *service.PromptService) *PromptVersionsLoader {
+func NewPromptVersionsLoader(logger *zap.Logger, promptService *service.PromptService) *PromptVersionsLoader {
 	return &PromptVersionsLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID][]*domain.PromptVersion, error) {
 			result := make(map[uuid.UUID][]*domain.PromptVersion, len(keys))
 			for _, promptID := range keys {
 				versions, err := promptService.ListVersions(context.Background(), promptID)
-				if err == nil {
-					// Convert []domain.PromptVersion to []*domain.PromptVersion
-					ptrs := make([]*domain.PromptVersion, len(versions))
-					for i := range versions {
-						ptrs[i] = &versions[i]
-					}
-					result[promptID] = ptrs
+				if err != nil {
+					logger.Warn("failed to load prompt versions",
+						zap.String("prompt_id", promptID.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				// Convert []domain.PromptVersion to []*domain.PromptVersion
+				ptrs := make([]*domain.PromptVersion, len(versions))
+				for i := range versions {
+					ptrs[i] = &versions[i]
+				}
+				result[promptID] = ptrs
 			}
 			return result, nil
 		}),
@@ -396,15 +442,20 @@ type DatasetLoader struct {
 }
 
 // NewDatasetLoader creates a dataset loader
-func NewDatasetLoader(datasetService *service.DatasetService) *DatasetLoader {
+func NewDatasetLoader(logger *zap.Logger, datasetService *service.DatasetService) *DatasetLoader {
 	return &DatasetLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID]*domain.Dataset, error) {
 			result := make(map[uuid.UUID]*domain.Dataset, len(keys))
 			for _, id := range keys {
 				dataset, err := datasetService.Get(context.Background(), id)
-				if err == nil {
-					result[id] = dataset
+				if err != nil {
+					logger.Warn("failed to load dataset",
+						zap.String("dataset_id", id.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = dataset
 			}
 			return result, nil
 		}),
@@ -417,21 +468,26 @@ type DatasetItemsLoader struct {
 }
 
 // NewDatasetItemsLoader creates a dataset items loader
-func NewDatasetItemsLoader(datasetService *service.DatasetService) *DatasetItemsLoader {
+func NewDatasetItemsLoader(logger *zap.Logger, datasetService *service.DatasetService) *DatasetItemsLoader {
 	return &DatasetItemsLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID][]*domain.DatasetItem, error) {
 			result := make(map[uuid.UUID][]*domain.DatasetItem, len(keys))
 			for _, datasetID := range keys {
 				filter := &domain.DatasetItemFilter{DatasetID: datasetID}
 				items, _, err := datasetService.ListItems(context.Background(), filter, 1000, 0)
-				if err == nil {
-					// Convert []domain.DatasetItem to []*domain.DatasetItem
-					ptrs := make([]*domain.DatasetItem, len(items))
-					for i := range items {
-						ptrs[i] = &items[i]
-					}
-					result[datasetID] = ptrs
+				if err != nil {
+					logger.Warn("failed to load dataset items",
+						zap.String("dataset_id", datasetID.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				// Convert []domain.DatasetItem to []*domain.DatasetItem
+				ptrs := make([]*domain.DatasetItem, len(items))
+				for i := range items {
+					ptrs[i] = &items[i]
+				}
+				result[datasetID] = ptrs
 			}
 			return result, nil
 		}),
@@ -444,20 +500,25 @@ type DatasetRunsLoader struct {
 }
 
 // NewDatasetRunsLoader creates a dataset runs loader
-func NewDatasetRunsLoader(datasetService *service.DatasetService) *DatasetRunsLoader {
+func NewDatasetRunsLoader(logger *zap.Logger, datasetService *service.DatasetService) *DatasetRunsLoader {
 	return &DatasetRunsLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID][]*domain.DatasetRun, error) {
 			result := make(map[uuid.UUID][]*domain.DatasetRun, len(keys))
 			for _, datasetID := range keys {
 				runs, _, err := datasetService.ListRuns(context.Background(), datasetID, 1000, 0)
-				if err == nil {
-					// Convert []domain.DatasetRun to []*domain.DatasetRun
-					ptrs := make([]*domain.DatasetRun, len(runs))
-					for i := range runs {
-						ptrs[i] = &runs[i]
-					}
-					result[datasetID] = ptrs
+				if err != nil {
+					logger.Warn("failed to load dataset runs",
+						zap.String("dataset_id", datasetID.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				// Convert []domain.DatasetRun to []*domain.DatasetRun
+				ptrs := make([]*domain.DatasetRun, len(runs))
+				for i := range runs {
+					ptrs[i] = &runs[i]
+				}
+				result[datasetID] = ptrs
 			}
 			return result, nil
 		}),
@@ -470,15 +531,20 @@ type EvaluatorLoader struct {
 }
 
 // NewEvaluatorLoader creates an evaluator loader
-func NewEvaluatorLoader(evalService *service.EvalService) *EvaluatorLoader {
+func NewEvaluatorLoader(logger *zap.Logger, evalService *service.EvalService) *EvaluatorLoader {
 	return &EvaluatorLoader{
 		Loader: NewLoader(func(keys []uuid.UUID) (map[uuid.UUID]*domain.Evaluator, error) {
 			result := make(map[uuid.UUID]*domain.Evaluator, len(keys))
 			for _, id := range keys {
 				evaluator, err := evalService.Get(context.Background(), id)
-				if err == nil {
-					result[id] = evaluator
+				if err != nil {
+					logger.Warn("failed to load evaluator",
+						zap.String("evaluator_id", id.String()),
+						zap.Error(err),
+					)
+					continue
 				}
+				result[id] = evaluator
 			}
 			return result, nil
 		}),
