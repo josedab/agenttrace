@@ -63,6 +63,11 @@ func (m *MockTraceRepository) GetBySessionID(ctx context.Context, projectID uuid
 	return args.Get(0).([]domain.Trace), args.Error(1)
 }
 
+func (m *MockTraceRepository) Delete(ctx context.Context, projectID uuid.UUID, traceID string) error {
+	args := m.Called(ctx, projectID, traceID)
+	return args.Error(0)
+}
+
 // MockObservationRepository is a mock implementation of ObservationRepository
 type MockObservationRepository struct {
 	mock.Mock
@@ -123,7 +128,7 @@ func TestIngestionService_IngestTrace(t *testing.T) {
 
 		traceRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Trace")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		input := &domain.TraceInput{
@@ -145,7 +150,7 @@ func TestIngestionService_IngestTrace(t *testing.T) {
 
 		traceRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Trace")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		input := &domain.TraceInput{
@@ -171,7 +176,7 @@ func TestIngestionService_IngestTrace(t *testing.T) {
 			}).
 			Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		input := &domain.TraceInput{
@@ -206,7 +211,7 @@ func TestIngestionService_IngestTrace(t *testing.T) {
 
 		traceRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Trace")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		customTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -230,7 +235,7 @@ func TestIngestionService_IngestObservation(t *testing.T) {
 
 		obsRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Observation")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		traceID := "trace-123"
@@ -258,7 +263,7 @@ func TestIngestionService_IngestObservation(t *testing.T) {
 
 		obsRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Observation")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		parentID := "parent-obs-id"
@@ -290,7 +295,7 @@ func TestIngestionService_IngestObservation(t *testing.T) {
 			}).
 			Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		traceID := "trace-123"
@@ -333,7 +338,7 @@ func TestIngestionService_IngestGeneration(t *testing.T) {
 		obsRepo.On("GetByTraceID", mock.Anything, mock.Anything, mock.Anything).Return([]domain.Observation{}, nil).Maybe()
 		traceRepo.On("UpdateCosts", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		traceID := "trace-123"
@@ -363,7 +368,7 @@ func TestIngestionService_IngestGeneration(t *testing.T) {
 		obsRepo.On("GetByTraceID", mock.Anything, mock.Anything, mock.Anything).Return([]domain.Observation{}, nil).Maybe()
 		traceRepo.On("UpdateCosts", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		traceID := "trace-123"
@@ -400,7 +405,7 @@ func TestIngestionService_IngestGeneration(t *testing.T) {
 		obsRepo.On("GetByTraceID", mock.Anything, mock.Anything, mock.Anything).Return([]domain.Observation{}, nil).Maybe()
 		traceRepo.On("UpdateCosts", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		traceID := "trace-123"
@@ -434,7 +439,7 @@ func TestIngestionService_IngestGeneration(t *testing.T) {
 		obsRepo.On("GetByTraceID", mock.Anything, mock.Anything, mock.Anything).Return([]domain.Observation{}, nil).Maybe()
 		traceRepo.On("UpdateCosts", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-		svc := NewIngestionService(traceRepo, obsRepo, costService, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, costService, nil)
 
 		projectID := uuid.New()
 		traceID := "trace-123"
@@ -472,7 +477,7 @@ func TestIngestionService_IngestBatch(t *testing.T) {
 		obsRepo.On("GetByTraceID", mock.Anything, mock.Anything, mock.Anything).Return([]domain.Observation{}, nil).Maybe()
 		traceRepo.On("UpdateCosts", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		traceID1 := "trace-1"
@@ -503,7 +508,7 @@ func TestIngestionService_IngestBatch(t *testing.T) {
 		traceRepo := new(MockTraceRepository)
 		obsRepo := new(MockObservationRepository)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		projectID := uuid.New()
 		batch := &domain.IngestionBatch{}
@@ -532,7 +537,7 @@ func TestIngestionService_UpdateTrace(t *testing.T) {
 		traceRepo.On("GetByID", mock.Anything, projectID, "trace-123").Return(existingTrace, nil)
 		traceRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.Trace")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		input := &domain.TraceInput{
 			Name:   "updated-name",
@@ -565,7 +570,7 @@ func TestIngestionService_UpdateObservation(t *testing.T) {
 		obsRepo.On("GetByID", mock.Anything, projectID, "obs-123").Return(existingObs, nil)
 		obsRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.Observation")).Return(nil)
 
-		svc := NewIngestionService(traceRepo, obsRepo, nil, nil)
+		svc := NewIngestionService(zap.NewNop(), traceRepo, obsRepo, nil, nil)
 
 		endTime := time.Date(2024, 1, 15, 10, 0, 5, 0, time.UTC) // 5 seconds later
 		input := &domain.ObservationInput{

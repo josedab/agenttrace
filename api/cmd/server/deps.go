@@ -177,6 +177,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 		deps.ObservationRepo,
 	)
 	deps.IngestionService = service.NewIngestionService(
+		deps.Logger,
 		deps.TraceRepo,
 		deps.ObservationRepo,
 		deps.CostService,

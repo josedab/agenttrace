@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/id"
@@ -32,6 +33,9 @@ type TraceRepository interface {
 	SetBookmark(ctx context.Context, projectID uuid.UUID, traceID string, bookmarked bool) error
 	// GetBySessionID retrieves all traces belonging to a session.
 	GetBySessionID(ctx context.Context, projectID uuid.UUID, sessionID string) ([]domain.Trace, error)
+	// Delete removes a trace by ID.
+	// Note: This is a heavy operation in ClickHouse (ALTER TABLE DELETE).
+	Delete(ctx context.Context, projectID uuid.UUID, traceID string) error
 }
 
 // ObservationRepository defines the interface for observation persistence operations.
@@ -86,11 +90,13 @@ type IngestionService struct {
 	observationRepo ObservationRepository
 	costService     *CostService
 	evalService     *EvalService
+	logger          *zap.Logger
 }
 
 // NewIngestionService creates a new IngestionService with the provided dependencies.
 //
 // Parameters:
+//   - logger: Structured logger for observability (required)
 //   - traceRepo: Repository for trace persistence (required)
 //   - observationRepo: Repository for observation persistence (required)
 //   - costService: Service for LLM cost calculation (optional, costs won't be calculated if nil)
@@ -98,12 +104,14 @@ type IngestionService struct {
 //
 // Returns a configured IngestionService ready for use.
 func NewIngestionService(
+	logger *zap.Logger,
 	traceRepo TraceRepository,
 	observationRepo ObservationRepository,
 	costService *CostService,
 	evalService *EvalService,
 ) *IngestionService {
 	return &IngestionService{
+		logger:          logger.Named("ingestion"),
 		traceRepo:       traceRepo,
 		observationRepo: observationRepo,
 		costService:     costService,
@@ -186,7 +194,13 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 	// Trigger evaluators asynchronously
 	if s.evalService != nil {
 		go func() {
-			_ = s.evalService.TriggerForTrace(context.Background(), projectID, trace)
+			if err := s.evalService.TriggerForTrace(context.Background(), projectID, trace); err != nil {
+				s.logger.Error("failed to trigger evaluators for trace",
+					zap.String("trace_id", trace.ID),
+					zap.String("project_id", projectID.String()),
+					zap.Error(err),
+				)
+			}
 		}()
 	}
 
@@ -487,14 +501,28 @@ func (s *IngestionService) IngestGeneration(ctx context.Context, projectID uuid.
 	// Update trace with accumulated costs
 	if obs.CostDetails.TotalCost > 0 {
 		go func() {
-			_ = s.updateTraceCosts(context.Background(), projectID, traceID)
+			if err := s.updateTraceCosts(context.Background(), projectID, traceID); err != nil {
+				s.logger.Error("failed to update trace costs",
+					zap.String("trace_id", traceID),
+					zap.String("observation_id", obsID),
+					zap.String("project_id", projectID.String()),
+					zap.Error(err),
+				)
+			}
 		}()
 	}
 
 	// Trigger evaluators asynchronously
 	if s.evalService != nil {
 		go func() {
-			_ = s.evalService.TriggerForObservation(context.Background(), projectID, obs)
+			if err := s.evalService.TriggerForObservation(context.Background(), projectID, obs); err != nil {
+				s.logger.Error("failed to trigger evaluators for observation",
+					zap.String("observation_id", obs.ID),
+					zap.String("trace_id", obs.TraceID),
+					zap.String("project_id", projectID.String()),
+					zap.Error(err),
+				)
+			}
 		}()
 	}
 
