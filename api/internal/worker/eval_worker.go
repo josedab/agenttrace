@@ -1,9 +1,12 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/hibiken/asynq"
 	"go.uber.org/zap"
 
+	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
@@ -58,23 +62,30 @@ func NewBatchEvaluationTask(payload *BatchEvaluationPayload) (*asynq.Task, error
 // EvalWorker handles evaluation tasks
 type EvalWorker struct {
 	logger       *zap.Logger
+	config       *config.Config
 	evalService  *service.EvalService
 	scoreService *service.ScoreService
 	queryService *service.QueryService
+	httpClient   *http.Client
 }
 
 // NewEvalWorker creates a new eval worker
 func NewEvalWorker(
 	logger *zap.Logger,
+	cfg *config.Config,
 	evalService *service.EvalService,
 	scoreService *service.ScoreService,
 	queryService *service.QueryService,
 ) *EvalWorker {
 	return &EvalWorker{
 		logger:       logger,
+		config:       cfg,
 		evalService:  evalService,
 		scoreService: scoreService,
 		queryService: queryService,
+		httpClient: &http.Client{
+			Timeout: 60 * time.Second, // LLM evaluations can take longer
+		},
 	}
 }
 
@@ -217,15 +228,25 @@ func (w *EvalWorker) ProcessBatchTask(ctx context.Context, t *asynq.Task) error 
 	return nil
 }
 
+// LLMEvaluationResult represents the expected response from an LLM evaluation
+type LLMEvaluationResult struct {
+	Score       float64 `json:"score"`
+	StringValue string  `json:"string_value,omitempty"`
+	Reasoning   string  `json:"reasoning"`
+	Passed      *bool   `json:"passed,omitempty"` // For boolean evaluations
+}
+
 // runLLMEvaluation runs an LLM-as-Judge evaluation
-// Note: This is a placeholder - full implementation requires LLM integration
 func (w *EvalWorker) runLLMEvaluation(
 	ctx context.Context,
 	evaluator *domain.Evaluator,
 	trace *domain.Trace,
 	observation *domain.Observation,
 ) (*domain.Score, error) {
-	_ = ctx
+	// Check if LLM evaluation is configured
+	if w.config.Eval.APIKey == "" {
+		return nil, fmt.Errorf("LLM API key not configured (set EVAL_API_KEY)")
+	}
 
 	// Build prompt from template
 	prompt := evaluator.PromptTemplate
@@ -239,15 +260,39 @@ func (w *EvalWorker) runLLMEvaluation(
 		prompt = strings.ReplaceAll(prompt, "{{"+k+"}}", v)
 	}
 
-	// TODO: Call LLM (using the configured model from evaluator.Config)
-	// This would integrate with OpenAI, Anthropic, etc.
-	// For now, return a placeholder score
-	w.logger.Info("LLM evaluation prompt prepared",
+	// Get model from evaluator config or use default
+	model := w.config.Eval.DefaultModel
+	if evaluator.Config != "" {
+		var evalConfig map[string]interface{}
+		if err := json.Unmarshal([]byte(evaluator.Config), &evalConfig); err == nil {
+			if m, ok := evalConfig["model"].(string); ok && m != "" {
+				model = m
+			}
+		}
+	}
+
+	// Build the system prompt based on score data type
+	systemPrompt := w.buildEvaluationSystemPrompt(evaluator.ScoreDataType)
+
+	w.logger.Info("running LLM evaluation",
 		zap.String("evaluator_id", evaluator.ID.String()),
+		zap.String("model", model),
 		zap.Int("prompt_length", len(prompt)),
 	)
 
-	// Parse result and create score
+	// Call the LLM
+	response, err := w.callLLM(ctx, model, systemPrompt, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("LLM call failed: %w", err)
+	}
+
+	// Parse the response
+	result, err := w.parseLLMResponse(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse LLM response: %w", err)
+	}
+
+	// Create score from result
 	evalID := evaluator.ID
 	score := &domain.Score{
 		ID:        uuid.New(),
@@ -256,8 +301,34 @@ func (w *EvalWorker) runLLMEvaluation(
 		Name:      evaluator.ScoreName,
 		DataType:  evaluator.ScoreDataType,
 		Source:    domain.ScoreSourceEval,
+		Comment:   result.Reasoning,
 		ConfigID:  &evalID,
 		CreatedAt: time.Now(),
+	}
+
+	// Set value based on data type
+	switch evaluator.ScoreDataType {
+	case domain.ScoreDataTypeNumeric:
+		score.Value = &result.Score
+	case domain.ScoreDataTypeBoolean:
+		if result.Passed != nil {
+			val := 0.0
+			if *result.Passed {
+				val = 1.0
+			}
+			score.Value = &val
+		} else {
+			// Interpret score as boolean (>= 0.5 is true)
+			val := 0.0
+			if result.Score >= 0.5 {
+				val = 1.0
+			}
+			score.Value = &val
+		}
+	case domain.ScoreDataTypeCategorical:
+		if result.StringValue != "" {
+			score.StringValue = &result.StringValue
+		}
 	}
 
 	if observation != nil {
@@ -265,11 +336,149 @@ func (w *EvalWorker) runLLMEvaluation(
 		score.ObservationID = &obsID
 	}
 
-	// Note: LLM evaluation result parsing would go here
-	// For now, return nil to indicate no score was generated
-	// In a full implementation, the LLM response would be parsed here
-	_ = score
-	return nil, fmt.Errorf("LLM evaluation not yet implemented")
+	w.logger.Info("LLM evaluation completed",
+		zap.String("evaluator_id", evaluator.ID.String()),
+		zap.Float64("score", result.Score),
+		zap.String("reasoning", result.Reasoning),
+	)
+
+	return score, nil
+}
+
+// buildEvaluationSystemPrompt creates the system prompt based on score type
+func (w *EvalWorker) buildEvaluationSystemPrompt(dataType domain.ScoreDataType) string {
+	basePrompt := `You are an AI evaluation assistant. Your task is to evaluate AI agent outputs based on the criteria provided.
+
+Respond with a JSON object containing your evaluation. The JSON must include:
+- "reasoning": A brief explanation of your evaluation (1-3 sentences)
+`
+
+	switch dataType {
+	case domain.ScoreDataTypeNumeric:
+		return basePrompt + `- "score": A numeric score from 0.0 to 1.0 (where 1.0 is best)
+
+Example response:
+{"score": 0.85, "reasoning": "The response was accurate and helpful, but could have been more concise."}`
+
+	case domain.ScoreDataTypeBoolean:
+		return basePrompt + `- "passed": A boolean (true/false) indicating if the criteria was met
+- "score": 1.0 if passed, 0.0 if not
+
+Example response:
+{"passed": true, "score": 1.0, "reasoning": "The response correctly followed the instructions."}`
+
+	case domain.ScoreDataTypeCategorical:
+		return basePrompt + `- "string_value": The category that best matches the output
+- "score": A confidence score from 0.0 to 1.0
+
+Example response:
+{"string_value": "positive", "score": 0.9, "reasoning": "The sentiment is clearly positive based on word choice."}`
+
+	default:
+		return basePrompt + `- "score": A numeric score from 0.0 to 1.0
+
+Example response:
+{"score": 0.75, "reasoning": "The evaluation shows satisfactory results."}`
+	}
+}
+
+// callLLM makes a call to the configured LLM API (currently OpenAI-compatible)
+func (w *EvalWorker) callLLM(ctx context.Context, model, systemPrompt, userPrompt string) (string, error) {
+	url := "https://api.openai.com/v1/chat/completions"
+
+	requestBody := map[string]interface{}{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
+		},
+		"temperature":     0.1, // Low temperature for consistent evaluations
+		"max_tokens":      500,
+		"response_format": map[string]string{"type": "json_object"},
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+w.config.Eval.APIKey)
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
+	}
+
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if result.Error != nil {
+		return "", fmt.Errorf("LLM API error: %s", result.Error.Message)
+	}
+
+	if len(result.Choices) == 0 {
+		return "", fmt.Errorf("no response from LLM")
+	}
+
+	return result.Choices[0].Message.Content, nil
+}
+
+// parseLLMResponse parses the JSON response from the LLM
+func (w *EvalWorker) parseLLMResponse(response string) (*LLMEvaluationResult, error) {
+	var result LLMEvaluationResult
+
+	// Try to parse the response directly
+	if err := json.Unmarshal([]byte(response), &result); err != nil {
+		// Try to extract JSON from response if it contains extra text
+		start := strings.Index(response, "{")
+		end := strings.LastIndex(response, "}")
+		if start >= 0 && end > start {
+			jsonStr := response[start : end+1]
+			if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+				return nil, fmt.Errorf("invalid JSON in response: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("no JSON found in response")
+		}
+	}
+
+	// Validate score is in range
+	if result.Score < 0 {
+		result.Score = 0
+	}
+	if result.Score > 1 {
+		result.Score = 1
+	}
+
+	return &result, nil
 }
 
 // runRuleEvaluation runs a rule-based evaluation
@@ -292,22 +501,37 @@ func (w *EvalWorker) runRuleEvaluation(
 		return nil, fmt.Errorf("evaluator config is empty")
 	}
 
-	ruleType, _ := config["rule_type"].(string)
+	ruleType, ok := config["rule_type"].(string)
+	if !ok || ruleType == "" {
+		return nil, fmt.Errorf("rule_type is required and must be a string")
+	}
 
 	var passed bool
 	var comment string
 
 	switch ruleType {
 	case "contains":
-		target, _ := config["target"].(string)
-		substring, _ := config["substring"].(string)
+		target, ok := config["target"].(string)
+		if !ok {
+			return nil, fmt.Errorf("'target' must be a string for rule type 'contains'")
+		}
+		substring, ok := config["substring"].(string)
+		if !ok {
+			return nil, fmt.Errorf("'substring' must be a string for rule type 'contains'")
+		}
 		content := w.getTargetContent(target, trace, observation)
 		passed = strings.Contains(content, substring)
 		comment = fmt.Sprintf("Checked if content contains '%s'", substring)
 
 	case "not_contains":
-		target, _ := config["target"].(string)
-		substring, _ := config["substring"].(string)
+		target, ok := config["target"].(string)
+		if !ok {
+			return nil, fmt.Errorf("'target' must be a string for rule type 'not_contains'")
+		}
+		substring, ok := config["substring"].(string)
+		if !ok {
+			return nil, fmt.Errorf("'substring' must be a string for rule type 'not_contains'")
+		}
 		content := w.getTargetContent(target, trace, observation)
 		passed = !strings.Contains(content, substring)
 		comment = fmt.Sprintf("Checked if content does not contain '%s'", substring)
@@ -318,9 +542,12 @@ func (w *EvalWorker) runRuleEvaluation(
 		comment = "Regex match evaluation"
 
 	case "length_check":
-		target, _ := config["target"].(string)
-		minLen, _ := config["min_length"].(float64)
-		maxLen, _ := config["max_length"].(float64)
+		target, ok := config["target"].(string)
+		if !ok {
+			return nil, fmt.Errorf("'target' must be a string for rule type 'length_check'")
+		}
+		minLen, _ := config["min_length"].(float64) // optional, defaults to 0
+		maxLen, _ := config["max_length"].(float64) // optional, defaults to 0 (no max)
 		content := w.getTargetContent(target, trace, observation)
 		length := len(content)
 		passed = float64(length) >= minLen && (maxLen == 0 || float64(length) <= maxLen)
