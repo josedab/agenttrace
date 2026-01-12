@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
+	chrepo "github.com/agenttrace/agenttrace/api/internal/repository/clickhouse"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -34,6 +35,10 @@ type WorkerDependencies struct {
 	ProjectService   *service.ProjectService
 	MinioClient      *minio.Client
 	MinioBucket      string
+	// Repositories for cleanup worker
+	TraceRepo       *chrepo.TraceRepository
+	ObservationRepo *chrepo.ObservationRepository
+	ScoreRepo       *chrepo.ScoreRepository
 }
 
 // NewServer creates a new worker server
@@ -78,6 +83,7 @@ func NewServer(
 
 	evalWorker := NewEvalWorker(
 		logger,
+		cfg,
 		deps.EvalService,
 		deps.ScoreService,
 		deps.QueryService,
@@ -86,6 +92,7 @@ func NewServer(
 	exportWorker := NewExportWorker(
 		logger,
 		deps.QueryService,
+		deps.ScoreService,
 		deps.DatasetService,
 		deps.MinioClient,
 		deps.MinioBucket,
@@ -96,6 +103,9 @@ func NewServer(
 		deps.QueryService,
 		deps.IngestionService,
 		deps.ProjectService,
+		deps.TraceRepo,
+		deps.ObservationRepo,
+		deps.ScoreRepo,
 	)
 
 	// Create mux and register handlers

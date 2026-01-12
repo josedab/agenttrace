@@ -110,7 +110,7 @@ func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.Wor
 	// Initialize services
 	costService := service.NewCostService(logger)
 	queryService := service.NewQueryService(traceRepo, observationRepo, scoreRepo, sessionRepo)
-	ingestionService := service.NewIngestionService(traceRepo, observationRepo, costService, nil)
+	ingestionService := service.NewIngestionService(logger, traceRepo, observationRepo, costService, nil)
 	scoreService := service.NewScoreService(scoreRepo, traceRepo, observationRepo)
 	datasetService := service.NewDatasetService(datasetRepo, traceRepo, scoreRepo)
 	evalService := service.NewEvalService(evaluatorRepo, scoreService)
@@ -127,6 +127,10 @@ func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.Wor
 		ProjectService:   projectService,
 		MinioClient:      minioClient,
 		MinioBucket:      cfg.MinIO.Bucket,
+		// Repositories for cleanup worker
+		TraceRepo:       traceRepo,
+		ObservationRepo: observationRepo,
+		ScoreRepo:       scoreRepo,
 	}
 
 	// Cleanup function
