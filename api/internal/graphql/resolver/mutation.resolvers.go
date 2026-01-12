@@ -125,15 +125,19 @@ func (r *mutationResolver) UpdateTrace(ctx context.Context, id string, input mod
 }
 
 // DeleteTrace deletes a trace
-// Note: IngestionService does not support trace deletion yet
+// Note: This triggers an ALTER TABLE DELETE in ClickHouse which is a heavy operation
 func (r *mutationResolver) DeleteTrace(ctx context.Context, id string) (bool, error) {
-	_, ok := ctx.Value(ContextKeyProjectID).(uuid.UUID)
+	projectID, ok := ctx.Value(ContextKeyProjectID).(uuid.UUID)
 	if !ok {
 		return false, fmt.Errorf("project ID not found in context")
 	}
 
-	// TODO: Implement trace deletion when the service supports it
-	return false, fmt.Errorf("trace deletion is not yet supported")
+	if err := r.queryService.DeleteTrace(ctx, projectID, id); err != nil {
+		r.logger.Error("failed to delete trace", zap.String("trace_id", id), zap.Error(err))
+		return false, err
+	}
+
+	return true, nil
 }
 
 // ======== OBSERVATION MUTATIONS ========

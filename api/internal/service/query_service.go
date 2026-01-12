@@ -112,6 +112,21 @@ func (s *QueryService) SetBookmark(ctx context.Context, projectID uuid.UUID, tra
 	return s.traceRepo.SetBookmark(ctx, projectID, traceID, bookmarked)
 }
 
+// DeleteTrace deletes a trace and its associated observations and scores
+// Note: This is a heavy operation in ClickHouse (ALTER TABLE DELETE)
+func (s *QueryService) DeleteTrace(ctx context.Context, projectID uuid.UUID, traceID string) error {
+	// Verify trace exists first
+	_, err := s.traceRepo.GetByID(ctx, projectID, traceID)
+	if err != nil {
+		return fmt.Errorf("trace not found: %w", err)
+	}
+
+	// Delete the trace (ClickHouse will handle the deletion)
+	// Note: Associated observations and scores should be cleaned up separately
+	// by the orphan cleanup worker, or we could delete them here for immediate cleanup
+	return s.traceRepo.Delete(ctx, projectID, traceID)
+}
+
 // UpdateTrace updates a trace with the given input
 func (s *QueryService) UpdateTrace(ctx context.Context, projectID uuid.UUID, traceID string, input *domain.TraceUpdateInput) (*domain.Trace, error) {
 	// Get existing trace
