@@ -309,3 +309,93 @@ func (r *ScoreRepository) GetDistinctNames(ctx context.Context, projectID uuid.U
 
 	return names, nil
 }
+
+// CountBeforeCutoff counts scores created before the cutoff date for a project
+func (r *ScoreRepository) CountBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
+	query := `
+		SELECT count()
+		FROM scores FINAL
+		WHERE project_id = ? AND created_at < ?
+	`
+
+	var count int64
+	row := r.db.QueryRow(ctx, query, projectID, cutoff)
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count scores: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteBeforeCutoff deletes scores created before the cutoff date for a project
+// Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
+func (r *ScoreRepository) DeleteBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
+	// First count how many we'll delete
+	count, err := r.CountBeforeCutoff(ctx, projectID, cutoff)
+	if err != nil {
+		return 0, err
+	}
+
+	if count == 0 {
+		return 0, nil
+	}
+
+	// ClickHouse uses ALTER TABLE DELETE for mutations
+	query := `ALTER TABLE scores DELETE WHERE project_id = ? AND created_at < ?`
+	if err := r.db.Exec(ctx, query, projectID, cutoff); err != nil {
+		return 0, fmt.Errorf("failed to delete scores: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteByProjectID deletes all scores for a project
+// Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
+func (r *ScoreRepository) DeleteByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	query := `ALTER TABLE scores DELETE WHERE project_id = ?`
+	return r.db.Exec(ctx, query, projectID)
+}
+
+// CountOrphans counts scores that don't have a corresponding trace
+func (r *ScoreRepository) CountOrphans(ctx context.Context) (int64, error) {
+	query := `
+		SELECT count()
+		FROM scores s FINAL
+		WHERE NOT EXISTS (
+			SELECT 1 FROM traces t FINAL
+			WHERE t.id = s.trace_id AND t.project_id = s.project_id
+		)
+	`
+
+	var count int64
+	row := r.db.QueryRow(ctx, query)
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count orphan scores: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteOrphans deletes scores that don't have a corresponding trace
+func (r *ScoreRepository) DeleteOrphans(ctx context.Context) (int64, error) {
+	count, err := r.CountOrphans(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	if count == 0 {
+		return 0, nil
+	}
+
+	query := `
+		ALTER TABLE scores DELETE
+		WHERE (project_id, trace_id) NOT IN (
+			SELECT project_id, id FROM traces FINAL
+		)
+	`
+	if err := r.db.Exec(ctx, query); err != nil {
+		return 0, fmt.Errorf("failed to delete orphan scores: %w", err)
+	}
+
+	return count, nil
+}

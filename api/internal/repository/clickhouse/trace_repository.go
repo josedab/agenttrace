@@ -337,12 +337,11 @@ func (r *TraceRepository) SetBookmark(ctx context.Context, projectID uuid.UUID, 
 	return r.db.Exec(ctx, query, bookmarked, traceID, projectID)
 }
 
-// Delete marks a trace for deletion (soft delete via update)
+// Delete deletes a trace by ID
+// Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
 func (r *TraceRepository) Delete(ctx context.Context, projectID uuid.UUID, traceID string) error {
-	// In ClickHouse with ReplacingMergeTree, we can't truly delete
-	// Instead, we could add a deleted flag or move to a different table
-	// For now, this is a no-op as we rely on retention policies
-	return nil
+	query := `ALTER TABLE traces DELETE WHERE project_id = ? AND id = ?`
+	return r.db.Exec(ctx, query, projectID, traceID)
 }
 
 // GetBySessionID retrieves all traces for a session
@@ -365,4 +364,50 @@ func (r *TraceRepository) GetBySessionID(ctx context.Context, projectID uuid.UUI
 	}
 
 	return traces, nil
+}
+
+// CountBeforeCutoff counts traces created before the cutoff date for a project
+func (r *TraceRepository) CountBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
+	query := `
+		SELECT count()
+		FROM traces FINAL
+		WHERE project_id = ? AND created_at < ?
+	`
+
+	var count int64
+	row := r.db.QueryRow(ctx, query, projectID, cutoff)
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count traces: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteBeforeCutoff deletes traces created before the cutoff date for a project
+// Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
+func (r *TraceRepository) DeleteBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
+	// First count how many we'll delete
+	count, err := r.CountBeforeCutoff(ctx, projectID, cutoff)
+	if err != nil {
+		return 0, err
+	}
+
+	if count == 0 {
+		return 0, nil
+	}
+
+	// ClickHouse uses ALTER TABLE DELETE for mutations
+	query := `ALTER TABLE traces DELETE WHERE project_id = ? AND created_at < ?`
+	if err := r.db.Exec(ctx, query, projectID, cutoff); err != nil {
+		return 0, fmt.Errorf("failed to delete traces: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteByProjectID deletes all traces for a project
+// Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
+func (r *TraceRepository) DeleteByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	query := `ALTER TABLE traces DELETE WHERE project_id = ?`
+	return r.db.Exec(ctx, query, projectID)
 }
