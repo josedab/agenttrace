@@ -38,7 +38,7 @@ var (
 type SSOService struct {
 	ssoRepo   *postgres.SSORepository
 	userRepo  *postgres.UserRepository
-	orgRepo   *postgres.OrganizationRepository
+	orgRepo   *postgres.OrgRepository
 	auditSvc  *AuditService
 	baseURL   string
 }
@@ -46,7 +46,7 @@ type SSOService struct {
 func NewSSOService(
 	ssoRepo *postgres.SSORepository,
 	userRepo *postgres.UserRepository,
-	orgRepo *postgres.OrganizationRepository,
+	orgRepo *postgres.OrgRepository,
 	auditSvc *AuditService,
 	baseURL string,
 ) *SSOService {
@@ -424,7 +424,15 @@ func (s *SSOService) findOrCreateSSOUser(ctx context.Context, config *domain.SSO
 			}
 
 			// Add user to organization
-			if err := s.orgRepo.AddMember(ctx, config.OrganizationID, user.ID, config.DefaultRole); err != nil {
+			member := &domain.OrganizationMember{
+				ID:             uuid.New(),
+				OrganizationID: config.OrganizationID,
+				UserID:         user.ID,
+				Role:           domain.OrgRole(config.DefaultRole),
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+			}
+			if err := s.orgRepo.AddMember(ctx, member); err != nil {
 				return nil, nil, err
 			}
 		}

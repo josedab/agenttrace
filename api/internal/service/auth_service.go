@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -63,6 +62,17 @@ type ProjectRepository interface {
 	GetUserRoleForProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.OrgRole, error)
 }
 
+// AuditLogger defines the interface for audit logging
+type AuditLogger interface {
+	LogLogin(ctx context.Context, orgID uuid.UUID, userID uuid.UUID, email, ipAddress, userAgent string) error
+	LogLoginFailed(ctx context.Context, orgID uuid.UUID, email, ipAddress, userAgent, reason string) error
+	LogLogout(ctx context.Context, orgID uuid.UUID, userID uuid.UUID, email string) error
+	LogSSOLogin(ctx context.Context, orgID uuid.UUID, userID uuid.UUID, email, provider, ipAddress, userAgent string) error
+	LogAPIKeyCreated(ctx context.Context, orgID uuid.UUID, actorID uuid.UUID, actorEmail string, keyID uuid.UUID, keyName string) error
+	LogAPIKeyRevoked(ctx context.Context, orgID uuid.UUID, actorID uuid.UUID, actorEmail string, keyID uuid.UUID, keyName string) error
+	LogUserCreated(ctx context.Context, orgID uuid.UUID, actorID uuid.UUID, actorEmail string, newUserID uuid.UUID, newUserEmail string) error
+}
+
 // AuthService handles authentication and authorization
 type AuthService struct {
 	cfg         *config.Config
@@ -70,6 +80,7 @@ type AuthService struct {
 	apiKeyRepo  APIKeyRepository
 	orgRepo     OrgRepository
 	projectRepo ProjectRepository
+	auditLogger AuditLogger
 }
 
 // NewAuthService creates a new auth service
@@ -87,6 +98,12 @@ func NewAuthService(
 		orgRepo:     orgRepo,
 		projectRepo: projectRepo,
 	}
+}
+
+// SetAuditLogger sets the audit logger for the auth service
+// This allows optional audit logging without making it a required dependency
+func (s *AuthService) SetAuditLogger(logger AuditLogger) {
+	s.auditLogger = logger
 }
 
 // Register creates a new user account
@@ -172,6 +189,13 @@ func (s *AuthService) Register(ctx context.Context, input *domain.RegisterInput)
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
+	// Audit log: user registration
+	if s.auditLogger != nil {
+		go func() {
+			_ = s.auditLogger.LogUserCreated(context.Background(), org.ID, user.ID, user.Email, user.ID, user.Email)
+		}()
+	}
+
 	return &domain.AuthResult{
 		User:         user,
 		AccessToken:  accessToken,
@@ -182,6 +206,11 @@ func (s *AuthService) Register(ctx context.Context, input *domain.RegisterInput)
 
 // Login authenticates a user with email and password
 func (s *AuthService) Login(ctx context.Context, input *domain.LoginInput) (*domain.AuthResult, error) {
+	return s.LoginWithContext(ctx, input, "", "")
+}
+
+// LoginWithContext authenticates a user with email/password and request context for audit logging
+func (s *AuthService) LoginWithContext(ctx context.Context, input *domain.LoginInput, ipAddress, userAgent string) (*domain.AuthResult, error) {
 	user, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
@@ -190,11 +219,32 @@ func (s *AuthService) Login(ctx context.Context, input *domain.LoginInput) (*dom
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	// Get user's primary organization for audit logging
+	var primaryOrgID uuid.UUID
+	if s.auditLogger != nil {
+		orgs, err := s.orgRepo.ListByUserID(ctx, user.ID)
+		if err == nil && len(orgs) > 0 {
+			primaryOrgID = orgs[0].ID
+		}
+	}
+
 	if user.PasswordHash == "" {
+		// Audit log: failed login (OAuth user tried password login)
+		if s.auditLogger != nil && primaryOrgID != uuid.Nil {
+			go func() {
+				_ = s.auditLogger.LogLoginFailed(context.Background(), primaryOrgID, input.Email, ipAddress, userAgent, "OAuth user attempted password login")
+			}()
+		}
 		return nil, apperrors.Unauthorized("please login with your OAuth provider")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+		// Audit log: failed login (invalid password)
+		if s.auditLogger != nil && primaryOrgID != uuid.Nil {
+			go func() {
+				_ = s.auditLogger.LogLoginFailed(context.Background(), primaryOrgID, input.Email, ipAddress, userAgent, "invalid password")
+			}()
+		}
 		return nil, apperrors.Unauthorized("invalid credentials")
 	}
 
@@ -221,6 +271,13 @@ func (s *AuthService) Login(ctx context.Context, input *domain.LoginInput) (*dom
 
 	if err := s.userRepo.CreateSession(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Audit log: successful login
+	if s.auditLogger != nil && primaryOrgID != uuid.Nil {
+		go func() {
+			_ = s.auditLogger.LogLogin(context.Background(), primaryOrgID, user.ID, user.Email, ipAddress, userAgent)
+		}()
 	}
 
 	return &domain.AuthResult{
@@ -262,6 +319,22 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 
 // Logout invalidates a session
 func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+	return s.LogoutWithContext(ctx, refreshToken, uuid.Nil, "")
+}
+
+// LogoutWithContext invalidates a session with audit logging context
+func (s *AuthService) LogoutWithContext(ctx context.Context, refreshToken string, userID uuid.UUID, userEmail string) error {
+	// If we have audit logger and user context, log the logout
+	if s.auditLogger != nil && userID != uuid.Nil {
+		// Get user's primary organization for audit logging
+		orgs, err := s.orgRepo.ListByUserID(ctx, userID)
+		if err == nil && len(orgs) > 0 {
+			go func() {
+				_ = s.auditLogger.LogLogout(context.Background(), orgs[0].ID, userID, userEmail)
+			}()
+		}
+	}
+
 	return s.userRepo.DeleteSession(ctx, refreshToken)
 }
 
@@ -329,6 +402,11 @@ func (s *AuthService) ValidateAPIKeyPublicOnly(ctx context.Context, publicKey st
 
 // CreateAPIKey creates a new API key
 func (s *AuthService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID) (*domain.APIKeyCreateResult, error) {
+	return s.CreateAPIKeyWithContext(ctx, projectID, input, userID, "")
+}
+
+// CreateAPIKeyWithContext creates a new API key with audit logging context
+func (s *AuthService) CreateAPIKeyWithContext(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID, userEmail string) (*domain.APIKeyCreateResult, error) {
 	// Generate keys
 	publicKey, secretKey, err := s.generateAPIKeyPair()
 	if err != nil {
@@ -342,6 +420,15 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, inp
 	secretKeyPreview := secretKey[len(secretKey)-4:]
 
 	now := time.Now()
+
+	// Set default expiration to 1 year if not specified
+	// This prevents permanent API keys which are a security risk if leaked
+	expiresAt := input.ExpiresAt
+	if expiresAt == nil {
+		defaultExpiry := now.AddDate(1, 0, 0) // 1 year from now
+		expiresAt = &defaultExpiry
+	}
+
 	apiKey := &domain.APIKey{
 		ID:               uuid.New(),
 		ProjectID:        projectID,
@@ -350,7 +437,7 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, inp
 		SecretKeyHash:    secretKeyHash,
 		SecretKeyPreview: secretKeyPreview,
 		Scopes:           input.Scopes,
-		ExpiresAt:        input.ExpiresAt,
+		ExpiresAt:        expiresAt,
 		CreatedBy:        &userID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -364,6 +451,17 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, inp
 		return nil, fmt.Errorf("failed to create API key: %w", err)
 	}
 
+	// Audit log: API key created
+	if s.auditLogger != nil && userID != uuid.Nil {
+		// Get organization ID from project
+		project, err := s.projectRepo.GetByID(ctx, projectID)
+		if err == nil && project != nil {
+			go func() {
+				_ = s.auditLogger.LogAPIKeyCreated(context.Background(), project.OrganizationID, userID, userEmail, apiKey.ID, apiKey.Name)
+			}()
+		}
+	}
+
 	return &domain.APIKeyCreateResult{
 		APIKey:    apiKey,
 		SecretKey: secretKey,
@@ -372,7 +470,39 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, inp
 
 // DeleteAPIKey deletes an API key
 func (s *AuthService) DeleteAPIKey(ctx context.Context, id uuid.UUID) error {
-	return s.apiKeyRepo.Delete(ctx, id)
+	return s.DeleteAPIKeyWithContext(ctx, id, uuid.Nil, "")
+}
+
+// DeleteAPIKeyWithContext deletes an API key with audit logging context
+func (s *AuthService) DeleteAPIKeyWithContext(ctx context.Context, id uuid.UUID, actorID uuid.UUID, actorEmail string) error {
+	// Get API key details before deletion for audit logging
+	var apiKey *domain.APIKey
+	var orgID uuid.UUID
+	if s.auditLogger != nil && actorID != uuid.Nil {
+		var err error
+		apiKey, err = s.apiKeyRepo.GetByID(ctx, id)
+		if err == nil && apiKey != nil {
+			// Get organization ID from project
+			project, err := s.projectRepo.GetByID(ctx, apiKey.ProjectID)
+			if err == nil && project != nil {
+				orgID = project.OrganizationID
+			}
+		}
+	}
+
+	// Delete the API key
+	if err := s.apiKeyRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	// Audit log: API key revoked
+	if s.auditLogger != nil && actorID != uuid.Nil && apiKey != nil && orgID != uuid.Nil {
+		go func() {
+			_ = s.auditLogger.LogAPIKeyRevoked(context.Background(), orgID, actorID, actorEmail, apiKey.ID, apiKey.Name)
+		}()
+	}
+
+	return nil
 }
 
 // ListAPIKeys lists API keys for a project
@@ -460,19 +590,30 @@ func (s *AuthService) generateAPIKeyPair() (publicKey, secretKey string, err err
 	return publicKey, secretKey, nil
 }
 
-// hashSecretKey creates a SHA256 hash of the secret key
+// hashSecretKey creates a bcrypt hash of the secret key
 func (s *AuthService) hashSecretKey(secretKey string) string {
-	hash := sha256.Sum256([]byte(secretKey))
-	return hex.EncodeToString(hash[:])
+	hash, err := bcrypt.GenerateFromPassword([]byte(secretKey), bcrypt.DefaultCost)
+	if err != nil {
+		// This should never happen with valid input, but fall back to empty string
+		// which will fail verification
+		return ""
+	}
+	return string(hash)
 }
 
-// verifySecretKey verifies a secret key against its hash
+// verifySecretKey verifies a secret key against its bcrypt hash
 func (s *AuthService) verifySecretKey(secretKey, hash string) bool {
-	return s.hashSecretKey(secretKey) == hash
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(secretKey))
+	return err == nil
 }
 
 // HandleOAuthCallback handles OAuth authentication callback
 func (s *AuthService) HandleOAuthCallback(ctx context.Context, input *domain.OAuthCallbackInput) (*domain.AuthResult, error) {
+	return s.HandleOAuthCallbackWithContext(ctx, input, "", "")
+}
+
+// HandleOAuthCallbackWithContext handles OAuth authentication callback with audit logging context
+func (s *AuthService) HandleOAuthCallbackWithContext(ctx context.Context, input *domain.OAuthCallbackInput, ipAddress, userAgent string) (*domain.AuthResult, error) {
 	// Check if account exists
 	account, err := s.userRepo.GetAccountByProvider(ctx, input.Provider, input.ProviderAccountID)
 	if err != nil && !apperrors.IsNotFound(err) {
@@ -591,6 +732,17 @@ func (s *AuthService) HandleOAuthCallback(ctx context.Context, input *domain.OAu
 
 	if err := s.userRepo.CreateSession(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Audit log: SSO login
+	if s.auditLogger != nil {
+		// Get user's primary organization for audit logging
+		orgs, err := s.orgRepo.ListByUserID(ctx, user.ID)
+		if err == nil && len(orgs) > 0 {
+			go func() {
+				_ = s.auditLogger.LogSSOLogin(context.Background(), orgs[0].ID, user.ID, user.Email, input.Provider, ipAddress, userAgent)
+			}()
+		}
 	}
 
 	return &domain.AuthResult{
