@@ -98,14 +98,15 @@ func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.Wor
 	}
 
 	// Initialize repositories
-	traceRepo := chrepo.NewTraceRepository(chDB)
-	observationRepo := chrepo.NewObservationRepository(chDB)
-	scoreRepo := chrepo.NewScoreRepository(chDB)
+	traceRepo := chrepo.NewTraceRepository(chDB, logger)
+	observationRepo := chrepo.NewObservationRepository(chDB, logger)
+	scoreRepo := chrepo.NewScoreRepository(chDB, logger)
 	sessionRepo := chrepo.NewSessionRepository(chDB)
 	projectRepo := pgrepo.NewProjectRepository(pgDB)
 	datasetRepo := pgrepo.NewDatasetRepository(pgDB)
 	evaluatorRepo := pgrepo.NewEvaluatorRepository(pgDB)
 	orgRepo := pgrepo.NewOrgRepository(pgDB)
+	webhookRepo := pgrepo.NewWebhookRepository(pgDB)
 
 	// Initialize services
 	costService := service.NewCostService(logger)
@@ -115,22 +116,26 @@ func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.Wor
 	datasetService := service.NewDatasetService(datasetRepo, traceRepo, scoreRepo)
 	evalService := service.NewEvalService(evaluatorRepo, scoreService)
 	projectService := service.NewProjectService(projectRepo, orgRepo)
+	notificationService := service.NewNotificationService(logger, "") // Dashboard URL not configured
 
 	// Create dependencies
 	deps := &worker.WorkerDependencies{
-		CostService:      costService,
-		EvalService:      evalService,
-		ScoreService:     scoreService,
-		QueryService:     queryService,
-		IngestionService: ingestionService,
-		DatasetService:   datasetService,
-		ProjectService:   projectService,
-		MinioClient:      minioClient,
-		MinioBucket:      cfg.MinIO.Bucket,
+		CostService:         costService,
+		EvalService:         evalService,
+		ScoreService:        scoreService,
+		QueryService:        queryService,
+		IngestionService:    ingestionService,
+		DatasetService:      datasetService,
+		ProjectService:      projectService,
+		NotificationService: notificationService,
+		MinioClient:         minioClient,
+		MinioBucket:         cfg.MinIO.Bucket,
 		// Repositories for cleanup worker
 		TraceRepo:       traceRepo,
 		ObservationRepo: observationRepo,
 		ScoreRepo:       scoreRepo,
+		// Repositories for notification worker
+		WebhookRepo: webhookRepo,
 	}
 
 	// Cleanup function
