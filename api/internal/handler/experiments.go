@@ -41,7 +41,7 @@ func NewExperimentHandler(
 func (h *ExperimentHandler) ListExperiments(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	filter := domain.ExperimentFilter{
@@ -55,11 +55,14 @@ func (h *ExperimentHandler) ListExperiments(c *fiber.Ctx) error {
 
 	filter.Search = c.Query("search")
 
-	// For now, return empty list - actual implementation would query database
-	result := domain.ExperimentList{
-		Experiments: []domain.Experiment{},
-		TotalCount:  0,
-		HasMore:     false,
+	// Default pagination
+	limit := 50
+	offset := 0
+
+	result, err := h.experimentService.List(c.Context(), filter, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to list experiments", zap.Error(err))
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to list experiments")
 	}
 
 	return c.JSON(result)
@@ -78,11 +81,16 @@ func (h *ExperimentHandler) ListExperiments(c *fiber.Ctx) error {
 func (h *ExperimentHandler) GetExperiment(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
-	h.logger.Debug("Get experiment", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		h.logger.Debug("Experiment not found", zap.String("experimentId", experimentID.String()), zap.Error(err))
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	return c.JSON(experiment)
 }
 
 // CreateExperiment creates a new experiment
@@ -98,30 +106,30 @@ func (h *ExperimentHandler) GetExperiment(c *fiber.Ctx) error {
 func (h *ExperimentHandler) CreateExperiment(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
 
 	var input domain.ExperimentInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	// Validate
 	if input.Name == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Name is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Name is required")
 	}
 	if len(input.Variants) < 2 {
-		return errorResponse(c, fiber.StatusBadRequest, "At least 2 variants are required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "At least 2 variants are required")
 	}
 	if input.TargetMetric == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Target metric is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Target metric is required")
 	}
 
 	experiment, err := h.experimentService.CreateExperiment(c.Context(), projectID, userID, &input)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(experiment)
@@ -142,16 +150,38 @@ func (h *ExperimentHandler) CreateExperiment(c *fiber.Ctx) error {
 func (h *ExperimentHandler) UpdateExperiment(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
 	var input domain.ExperimentUpdateInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	h.logger.Debug("Update experiment", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	// Get existing experiment
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	// Apply updates
+	if input.Name != nil {
+		experiment.Name = *input.Name
+	}
+	if input.Description != nil {
+		experiment.Description = *input.Description
+	}
+	if input.TrafficPercent != nil {
+		experiment.TrafficPercent = *input.TrafficPercent
+	}
+
+	// Save changes
+	if err := h.experimentService.Update(c.Context(), experiment); err != nil {
+		h.logger.Error("Failed to update experiment", zap.Error(err))
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to update experiment")
+	}
+
+	return c.JSON(experiment)
 }
 
 // StartExperiment starts an experiment
@@ -168,11 +198,19 @@ func (h *ExperimentHandler) UpdateExperiment(c *fiber.Ctx) error {
 func (h *ExperimentHandler) StartExperiment(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
-	h.logger.Info("Starting experiment", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	if err := h.experimentService.StartExperiment(c.Context(), experiment); err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(experiment)
 }
 
 // PauseExperiment pauses a running experiment
@@ -189,11 +227,19 @@ func (h *ExperimentHandler) StartExperiment(c *fiber.Ctx) error {
 func (h *ExperimentHandler) PauseExperiment(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
-	h.logger.Info("Pausing experiment", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	if err := h.experimentService.PauseExperiment(c.Context(), experiment); err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(experiment)
 }
 
 // CompleteExperiment completes an experiment and calculates results
@@ -210,11 +256,30 @@ func (h *ExperimentHandler) PauseExperiment(c *fiber.Ctx) error {
 func (h *ExperimentHandler) CompleteExperiment(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
-	h.logger.Info("Completing experiment", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	// Get metrics for analysis
+	results, err := h.experimentService.GetResults(c.Context(), experimentID)
+	if err != nil {
+		h.logger.Warn("Failed to get metrics for completion", zap.Error(err))
+	}
+
+	var metrics []domain.ExperimentMetric
+	if results != nil {
+		// Use existing analysis data
+	}
+
+	if err := h.experimentService.CompleteExperiment(c.Context(), experiment, metrics); err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(experiment)
 }
 
 // GetResults returns the analysis results for an experiment
@@ -230,11 +295,15 @@ func (h *ExperimentHandler) CompleteExperiment(c *fiber.Ctx) error {
 func (h *ExperimentHandler) GetResults(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
-	h.logger.Debug("Get experiment results", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	results, err := h.experimentService.GetResults(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	return c.JSON(results)
 }
 
 // AssignVariant assigns a trace to an experiment variant
@@ -251,21 +320,30 @@ func (h *ExperimentHandler) GetResults(c *fiber.Ctx) error {
 func (h *ExperimentHandler) AssignVariant(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
 	var req AssignVariantRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	h.logger.Debug("Assign variant",
-		zap.String("experimentId", experimentID.String()),
-		zap.String("traceId", req.TraceID.String()),
-	)
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
 
-	// In real implementation, would fetch experiment and call service
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	assignment, err := h.experimentService.AssignVariant(c.Context(), experiment, req.TraceID, req.UserID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	if assignment == nil {
+		// Trace not included in experiment (traffic allocation)
+		return c.Status(fiber.StatusNoContent).JSON(nil)
+	}
+
+	return c.JSON(assignment)
 }
 
 // AssignVariantRequest represents the request to assign a variant
@@ -288,19 +366,32 @@ type AssignVariantRequest struct {
 func (h *ExperimentHandler) RecordMetric(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
 	var req RecordMetricRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	h.logger.Debug("Record metric",
-		zap.String("experimentId", experimentID.String()),
-		zap.String("traceId", req.TraceID.String()),
-		zap.Float64("value", req.Value),
-	)
+	// Get experiment to get target metric name
+	experiment, err := h.experimentService.GetByID(c.Context(), experimentID)
+	if err != nil {
+		return errorResponse(c, fiber.StatusNotFound, "Experiment not found")
+	}
+
+	metric := &domain.ExperimentMetric{
+		ExperimentID: experimentID,
+		VariantID:    req.VariantID,
+		TraceID:      req.TraceID,
+		MetricName:   experiment.TargetMetric,
+		MetricValue:  req.Value,
+	}
+
+	if err := h.experimentService.RecordMetric(c.Context(), metric); err != nil {
+		h.logger.Error("Failed to record metric", zap.Error(err))
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to record metric")
+	}
 
 	return c.SendStatus(fiber.StatusCreated)
 }
@@ -326,9 +417,13 @@ type RecordMetricRequest struct {
 func (h *ExperimentHandler) DeleteExperiment(c *fiber.Ctx) error {
 	experimentID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid experiment ID")
 	}
 
-	h.logger.Info("Delete experiment", zap.String("experimentId", experimentID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Experiment not found", nil)
+	if err := h.experimentService.Delete(c.Context(), experimentID); err != nil {
+		h.logger.Error("Failed to delete experiment", zap.Error(err))
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
 }
