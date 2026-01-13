@@ -119,7 +119,7 @@ func (m *MockSSORepository) UpdateLastError(ctx context.Context, configID uuid.U
 func TestSSOService_GetConfiguration(t *testing.T) {
 	t.Run("returns existing configuration", func(t *testing.T) {
 		ssoRepo := new(MockSSORepository)
-		svc := &SSOService{ssoRepo: &postgres.SSORepository{}}
+		_ = &SSOService{ssoRepo: &postgres.SSORepository{}} // placeholder for future testing
 
 		orgID := uuid.New()
 		expectedConfig := &domain.SSOConfiguration{
@@ -295,11 +295,7 @@ func TestSSOService_Session(t *testing.T) {
 		ssoRepo := new(MockSSORepository)
 
 		sessionID := uuid.New()
-		session := &domain.SSOSession{
-			ID: sessionID,
-		}
 
-		ssoRepo.On("GetSession", mock.Anything, sessionID).Return(session, nil)
 		ssoRepo.On("DeleteSession", mock.Anything, sessionID).Return(nil)
 
 		err := ssoRepo.DeleteSession(context.Background(), sessionID)
