@@ -105,29 +105,79 @@ func (db *ClickHouseDB) PrepareBatch(ctx context.Context, query string) (driver.
 	return db.Conn.PrepareBatch(ctx, query)
 }
 
-// Exec executes a query
+// Exec executes a query with logging and metrics
 func (db *ClickHouseDB) Exec(ctx context.Context, query string, args ...interface{}) error {
-	return db.Conn.Exec(ctx, query, args...)
+	start := time.Now()
+	err := db.Conn.Exec(ctx, query, args...)
+	db.logQuery("exec", query, start, err, len(args))
+	return err
 }
 
-// Select executes a select query and scans results into dest
+// Select executes a select query and scans results into dest with logging
 func (db *ClickHouseDB) Select(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	return db.Conn.Select(ctx, dest, query, args...)
+	start := time.Now()
+	err := db.Conn.Select(ctx, dest, query, args...)
+	db.logQuery("select", query, start, err, len(args))
+	return err
 }
 
 // QueryRow executes a query that returns a single row
 func (db *ClickHouseDB) QueryRow(ctx context.Context, query string, args ...interface{}) driver.Row {
-	return db.Conn.QueryRow(ctx, query, args...)
+	start := time.Now()
+	row := db.Conn.QueryRow(ctx, query, args...)
+	db.logQuery("query_row", query, start, nil, len(args))
+	return row
 }
 
-// Query executes a query
+// Query executes a query with logging
 func (db *ClickHouseDB) Query(ctx context.Context, query string, args ...interface{}) (driver.Rows, error) {
-	return db.Conn.Query(ctx, query, args...)
+	start := time.Now()
+	rows, err := db.Conn.Query(ctx, query, args...)
+	db.logQuery("query", query, start, err, len(args))
+	return rows, err
 }
 
-// AsyncInsert performs an asynchronous insert
+// AsyncInsert performs an asynchronous insert with logging
 func (db *ClickHouseDB) AsyncInsert(ctx context.Context, query string, wait bool, args ...interface{}) error {
-	return db.Conn.AsyncInsert(ctx, query, wait, args...)
+	start := time.Now()
+	err := db.Conn.AsyncInsert(ctx, query, wait, args...)
+	db.logQuery("async_insert", query, start, err, len(args))
+	return err
+}
+
+// logQuery logs query execution details
+func (db *ClickHouseDB) logQuery(operation, query string, start time.Time, err error, argCount int) {
+	duration := time.Since(start)
+
+	// Log errors
+	if err != nil {
+		logger.Error("clickhouse query failed",
+			zap.String("operation", operation),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("query", truncateSQL(query, 300)),
+			zap.Int("arg_count", argCount),
+			zap.Error(err),
+		)
+		return
+	}
+
+	// Log slow queries (> 100ms)
+	if duration > 100*time.Millisecond {
+		logger.Warn("slow clickhouse query",
+			zap.String("operation", operation),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("query", truncateSQL(query, 300)),
+			zap.Int("arg_count", argCount),
+		)
+	} else if logger.IsDebug() {
+		// Debug logging for all queries
+		logger.Debug("clickhouse query executed",
+			zap.String("operation", operation),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("query", truncateSQL(query, 200)),
+			zap.Int("arg_count", argCount),
+		)
+	}
 }
 
 // BatchInsertTraces performs batch insert of traces
@@ -135,6 +185,8 @@ func (db *ClickHouseDB) BatchInsertTraces(ctx context.Context, traces []map[stri
 	if len(traces) == 0 {
 		return nil
 	}
+
+	start := time.Now()
 
 	batch, err := db.PrepareBatch(ctx, `
 		INSERT INTO traces (
@@ -145,6 +197,11 @@ func (db *ClickHouseDB) BatchInsertTraces(ctx context.Context, traces []map[stri
 		)
 	`)
 	if err != nil {
+		logger.Error("clickhouse batch prepare failed",
+			zap.String("operation", "batch_insert_traces"),
+			zap.Int("batch_size", len(traces)),
+			zap.Error(err),
+		)
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
 
@@ -173,12 +230,37 @@ func (db *ClickHouseDB) BatchInsertTraces(ctx context.Context, traces []map[stri
 			trace["created_at"],
 			trace["updated_at"],
 		); err != nil {
+			logger.Error("clickhouse batch append failed",
+				zap.String("operation", "batch_insert_traces"),
+				zap.Error(err),
+			)
 			return fmt.Errorf("failed to append to batch: %w", err)
 		}
 	}
 
 	if err := batch.Send(); err != nil {
+		logger.Error("clickhouse batch send failed",
+			zap.String("operation", "batch_insert_traces"),
+			zap.Int("batch_size", len(traces)),
+			zap.Int64("duration_ms", time.Since(start).Milliseconds()),
+			zap.Error(err),
+		)
 		return fmt.Errorf("failed to send batch: %w", err)
+	}
+
+	duration := time.Since(start)
+	if duration > 100*time.Millisecond {
+		logger.Warn("slow clickhouse batch insert",
+			zap.String("operation", "batch_insert_traces"),
+			zap.Int("batch_size", len(traces)),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+		)
+	} else if logger.IsDebug() {
+		logger.Debug("clickhouse batch insert completed",
+			zap.String("operation", "batch_insert_traces"),
+			zap.Int("batch_size", len(traces)),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+		)
 	}
 
 	return nil

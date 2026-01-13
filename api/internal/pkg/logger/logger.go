@@ -12,6 +12,8 @@ var (
 	Log *zap.Logger
 	// Sugar is the sugared logger for convenience methods
 	Sugar *zap.SugaredLogger
+	// currentLevel stores the current log level for IsDebug checks
+	currentLevel zapcore.Level
 )
 
 // Config holds logger configuration
@@ -26,6 +28,7 @@ func Init(cfg Config) error {
 	if err != nil {
 		level = zapcore.InfoLevel
 	}
+	currentLevel = level
 
 	var encoder zapcore.Encoder
 	encoderConfig := zap.NewProductionEncoderConfig()
@@ -103,4 +106,9 @@ func Error(msg string, fields ...zap.Field) {
 // Fatal logs a fatal message and exits
 func Fatal(msg string, fields ...zap.Field) {
 	Log.Fatal(msg, fields...)
+}
+
+// IsDebug returns true if the logger is configured for debug level
+func IsDebug() bool {
+	return currentLevel <= zapcore.DebugLevel
 }
