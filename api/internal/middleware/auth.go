@@ -228,8 +228,10 @@ func extractAPIKey(c *fiber.Ctx) string {
 	auth := c.Get("Authorization")
 	if strings.HasPrefix(auth, "Bearer ") {
 		token := strings.TrimPrefix(auth, "Bearer ")
-		// API keys start with "at_" prefix
-		if strings.HasPrefix(token, "at_") {
+		// API keys start with "at_", "pk-", or "pk_" prefix
+		if strings.HasPrefix(token, "at_") ||
+			strings.HasPrefix(token, "pk-") ||
+			strings.HasPrefix(token, "pk_") {
 			return token
 		}
 	}
@@ -252,8 +254,12 @@ func extractBearerToken(c *fiber.Ctx) string {
 	auth := c.Get("Authorization")
 	if strings.HasPrefix(auth, "Bearer ") {
 		token := strings.TrimPrefix(auth, "Bearer ")
-		// JWT tokens don't start with "at_"
-		if !strings.HasPrefix(token, "at_") {
+		// JWT tokens don't start with API key prefixes
+		if !strings.HasPrefix(token, "at_") &&
+			!strings.HasPrefix(token, "pk-") &&
+			!strings.HasPrefix(token, "pk_") &&
+			!strings.HasPrefix(token, "sk-") &&
+			!strings.HasPrefix(token, "sk_") {
 			return token
 		}
 	}
@@ -276,6 +282,12 @@ func GetProjectID(c *fiber.Ctx) (uuid.UUID, bool) {
 func GetAPIKeyID(c *fiber.Ctx) (uuid.UUID, bool) {
 	apiKeyID, ok := c.Locals(string(ContextKeyAPIKeyID)).(uuid.UUID)
 	return apiKeyID, ok
+}
+
+// GetOrganizationID gets the organization ID from context
+func GetOrganizationID(c *fiber.Ctx) (uuid.UUID, bool) {
+	orgID, ok := c.Locals(string(ContextKeyOrgID)).(uuid.UUID)
+	return orgID, ok
 }
 
 // GetAuthType gets the authentication type from context
