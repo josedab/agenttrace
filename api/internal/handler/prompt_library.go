@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -61,7 +63,7 @@ func (h *PromptLibraryHandler) ListPrompts(c *fiber.Ctx) error {
 
 	tags := c.Query("tags")
 	if tags != "" {
-		filter.Tags = fiber.AsSplitByComma(tags)
+		filter.Tags = strings.Split(tags, ",")
 	}
 
 	h.logger.Debug("List library prompts",
@@ -92,13 +94,13 @@ func (h *PromptLibraryHandler) ListPrompts(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) GetPrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	h.logger.Debug("Get library prompt", zap.String("promptId", promptID.String()))
 
 	// In real implementation, increment view count
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // GetPromptBySlug returns a library prompt by its slug
@@ -114,12 +116,12 @@ func (h *PromptLibraryHandler) GetPrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) GetPromptBySlug(c *fiber.Ctx) error {
 	slug := c.Params("slug")
 	if slug == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Slug is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Slug is required")
 	}
 
 	h.logger.Debug("Get library prompt by slug", zap.String("slug", slug))
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // CreatePrompt creates a new library prompt
@@ -139,12 +141,12 @@ func (h *PromptLibraryHandler) CreatePrompt(c *fiber.Ctx) error {
 
 	var input domain.LibraryPromptInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	prompt, err := h.promptLibraryService.CreatePrompt(c.Context(), userID, userName, projectID, &input)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(prompt)
@@ -165,17 +167,17 @@ func (h *PromptLibraryHandler) CreatePrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) UpdatePrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	var input domain.LibraryPromptUpdateInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Debug("Update library prompt", zap.String("promptId", promptID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // DeletePrompt deletes a library prompt
@@ -192,12 +194,12 @@ func (h *PromptLibraryHandler) UpdatePrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) DeletePrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	h.logger.Info("Delete library prompt", zap.String("promptId", promptID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // ForkPrompt creates a fork of a library prompt
@@ -215,17 +217,17 @@ func (h *PromptLibraryHandler) DeletePrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) ForkPrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	var input domain.ForkInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Info("Fork library prompt", zap.String("promptId", promptID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // PublishPrompt makes a prompt publicly visible
@@ -242,12 +244,12 @@ func (h *PromptLibraryHandler) ForkPrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) PublishPrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	h.logger.Info("Publish library prompt", zap.String("promptId", promptID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // StarPrompt adds a star to a prompt
@@ -264,14 +266,14 @@ func (h *PromptLibraryHandler) PublishPrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) StarPrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
 
 	star, err := h.promptLibraryService.StarPrompt(c.Context(), promptID, userID)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.JSON(star)
@@ -291,13 +293,13 @@ func (h *PromptLibraryHandler) StarPrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) UnstarPrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
 
 	if err := h.promptLibraryService.UnstarPrompt(c.Context(), promptID, userID); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -319,7 +321,7 @@ func (h *PromptLibraryHandler) UnstarPrompt(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) GetVersions(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	h.logger.Debug("Get prompt versions", zap.String("promptId", promptID.String()))
@@ -348,12 +350,12 @@ func (h *PromptLibraryHandler) GetVersions(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) GetVersion(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	version, err := c.ParamsInt("version")
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid version number", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid version number")
 	}
 
 	h.logger.Debug("Get prompt version",
@@ -361,7 +363,7 @@ func (h *PromptLibraryHandler) GetVersion(c *fiber.Ctx) error {
 		zap.Int("version", version),
 	)
 
-	return errorResponse(c, fiber.StatusNotFound, "Version not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Version not found")
 }
 
 // RunBenchmark runs a benchmark for a prompt
@@ -379,16 +381,16 @@ func (h *PromptLibraryHandler) GetVersion(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) RunBenchmark(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	var input domain.BenchmarkInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	if input.Model == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Model is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Model is required")
 	}
 
 	h.logger.Info("Run prompt benchmark",
@@ -396,7 +398,7 @@ func (h *PromptLibraryHandler) RunBenchmark(c *fiber.Ctx) error {
 		zap.String("model", input.Model),
 	)
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // GetBenchmarks returns benchmarks for a prompt
@@ -413,7 +415,7 @@ func (h *PromptLibraryHandler) RunBenchmark(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) GetBenchmarks(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	h.logger.Debug("Get prompt benchmarks", zap.String("promptId", promptID.String()))
@@ -436,17 +438,17 @@ func (h *PromptLibraryHandler) GetBenchmarks(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) RenderPrompt(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	var req RenderPromptRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Debug("Render prompt", zap.String("promptId", promptID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Prompt not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Prompt not found")
 }
 
 // RenderPromptRequest represents the request to render a prompt
@@ -523,12 +525,12 @@ func (h *PromptLibraryHandler) GetPopularTags(c *fiber.Ctx) error {
 func (h *PromptLibraryHandler) RecordUsage(c *fiber.Ctx) error {
 	promptID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid prompt ID")
 	}
 
 	var req RecordUsageRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
@@ -542,7 +544,7 @@ func (h *PromptLibraryHandler) RecordUsage(c *fiber.Ctx) error {
 		req.TraceID,
 	)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(record)

@@ -223,6 +223,24 @@ func (h *GitHubAppHandler) LinkRepository(c *fiber.Ctx) error {
 	})
 }
 
+// ListUnlinkedInstallations handles GET /v1/admin/github/installations/unlinked
+// Returns installations that were created but not auto-linked to any organization
+func (h *GitHubAppHandler) ListUnlinkedInstallations(c *fiber.Ctx) error {
+	installations, err := h.githubService.GetUnlinkedInstallations(c.Context())
+	if err != nil {
+		h.logger.Error("failed to list unlinked installations", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "Internal Server Error",
+			"message": "Failed to list unlinked installations",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"data":  installations,
+		"count": len(installations),
+	})
+}
+
 // LinkInstallation handles POST /v1/integrations/github/installations/:installationId/link
 func (h *GitHubAppHandler) LinkInstallation(c *fiber.Ctx) error {
 	organizationID, ok := middleware.GetOrganizationID(c)
@@ -288,6 +306,10 @@ func (h *GitHubAppHandler) RegisterRoutes(app *fiber.App, authMiddleware *middle
 	github.Get("/installations/:installationId/repositories", h.ListRepositories)
 	github.Post("/installations/:installationId/link", h.LinkInstallation)
 	github.Post("/repositories/link", h.LinkRepository)
+
+	// Admin routes for managing GitHub installations
+	admin := v1.Group("/admin/github")
+	admin.Get("/installations/unlinked", h.ListUnlinkedInstallations)
 
 	// Project-scoped GitHub routes
 	projects := v1.Group("/projects/:projectId/github", authMiddleware.RequireAPIKey())
