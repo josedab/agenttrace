@@ -41,8 +41,9 @@ func NewPostgres(ctx context.Context, cfg config.PostgresConfig) (*PostgresDB, e
 	poolConfig.MaxConnIdleTime = 30 * time.Minute
 	poolConfig.HealthCheckPeriod = time.Minute
 
-	// Add logging for slow queries in development
-	poolConfig.ConnConfig.Tracer = &queryTracer{}
+	// Add query tracing with logging and metrics
+	// Enable debug logging when log level is debug
+	poolConfig.ConnConfig.Tracer = newQueryTracer(logger.IsDebug())
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -81,15 +82,36 @@ func (db *PostgresDB) BeginTxWithOptions(ctx context.Context, opts pgx.TxOptions
 	return db.Pool.BeginTx(ctx, opts)
 }
 
-// queryTracer implements pgx.QueryTracer for logging
-type queryTracer struct{}
+// QueryMetrics tracks database query metrics
+type QueryMetrics struct {
+	TotalQueries   int64
+	SlowQueries    int64
+	FailedQueries  int64
+	TotalDurationMs int64
+}
+
+// queryTracer implements pgx.QueryTracer for logging and metrics
+type queryTracer struct {
+	enableDebug bool
+	metrics     *QueryMetrics
+}
 
 type queryStartKey struct{}
 type querySQLKey struct{}
+type queryArgsKey struct{}
+
+// newQueryTracer creates a new query tracer
+func newQueryTracer(enableDebug bool) *queryTracer {
+	return &queryTracer{
+		enableDebug: enableDebug,
+		metrics:     &QueryMetrics{},
+	}
+}
 
 func (t *queryTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	ctx = context.WithValue(ctx, queryStartKey{}, time.Now())
 	ctx = context.WithValue(ctx, querySQLKey{}, data.SQL)
+	ctx = context.WithValue(ctx, queryArgsKey{}, len(data.Args))
 	return ctx
 }
 
@@ -100,15 +122,48 @@ func (t *queryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pg
 	}
 
 	duration := time.Since(start)
+	sql, _ := ctx.Value(querySQLKey{}).(string)
+	argCount, _ := ctx.Value(queryArgsKey{}).(int)
+
+	// Update metrics
+	t.metrics.TotalQueries++
+	t.metrics.TotalDurationMs += duration.Milliseconds()
+
+	// Check for errors
+	if data.Err != nil {
+		t.metrics.FailedQueries++
+		logger.Error("postgres query failed",
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("sql", truncateSQL(sql, 300)),
+			zap.Int("arg_count", argCount),
+			zap.Error(data.Err),
+		)
+		return
+	}
 
 	// Log slow queries (> 100ms)
 	if duration > 100*time.Millisecond {
-		sql, _ := ctx.Value(querySQLKey{}).(string)
-		logger.Warn("slow query detected",
+		t.metrics.SlowQueries++
+		logger.Warn("slow postgres query",
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.String("sql", truncateSQL(sql, 300)),
+			zap.Int("arg_count", argCount),
+			zap.Int64("rows_affected", data.CommandTag.RowsAffected()),
+		)
+	} else if t.enableDebug {
+		// Debug logging for all queries in development
+		logger.Debug("postgres query executed",
 			zap.Int64("duration_ms", duration.Milliseconds()),
 			zap.String("sql", truncateSQL(sql, 200)),
+			zap.Int("arg_count", argCount),
+			zap.Int64("rows_affected", data.CommandTag.RowsAffected()),
 		)
 	}
+}
+
+// GetMetrics returns the current query metrics
+func (t *queryTracer) GetMetrics() QueryMetrics {
+	return *t.metrics
 }
 
 func truncateSQL(sql string, maxLen int) string {
