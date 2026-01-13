@@ -316,14 +316,20 @@ func (s *PromptLibraryService) CreateVersion(
 	prompt *domain.LibraryPrompt,
 	createdBy uuid.UUID,
 ) (*domain.PromptVersion, error) {
+	// Extract variable names from PromptVariable structs
+	varNames := make([]string, len(prompt.Variables))
+	for i, v := range prompt.Variables {
+		varNames[i] = v.Name
+	}
+
 	version := &domain.PromptVersion{
-		PromptID:     prompt.ID,
-		Version:      prompt.Version,
-		Template:     prompt.Template,
-		Variables:    prompt.Variables,
-		VersionNotes: prompt.VersionNotes,
-		CreatedAt:    time.Now(),
-		CreatedBy:    createdBy,
+		PromptID:      prompt.ID,
+		Version:       prompt.Version,
+		Content:       prompt.Template,
+		Variables:     varNames,
+		CommitMessage: prompt.VersionNotes,
+		CreatedAt:     time.Now(),
+		CreatedBy:     &createdBy,
 	}
 
 	s.logger.Debug("Created prompt version",

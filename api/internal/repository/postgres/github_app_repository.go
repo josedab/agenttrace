@@ -180,21 +180,65 @@ func (r *GitHubAppRepository) UpdateInstallation(ctx context.Context, installati
 
 	query := `
 		UPDATE github_installations SET
-			repository_selection = $2,
-			permissions = $3,
-			events = $4,
-			suspended_at = $5,
-			suspended_by = $6,
-			updated_at = $7
+			organization_id = $2,
+			repository_selection = $3,
+			permissions = $4,
+			events = $5,
+			suspended_at = $6,
+			suspended_by = $7,
+			updated_at = $8
 		WHERE id = $1`
 
 	_, err := r.db.ExecContext(ctx, query,
-		installation.ID, installation.RepositorySelection,
+		installation.ID, installation.OrganizationID, installation.RepositorySelection,
 		permissions, pq.Array(installation.Events),
 		installation.SuspendedAt, installation.SuspendedBy, installation.UpdatedAt,
 	)
 
 	return err
+}
+
+// ListUnlinkedInstallations retrieves installations not linked to any organization
+func (r *GitHubAppRepository) ListUnlinkedInstallations(ctx context.Context) ([]domain.GitHubInstallation, error) {
+	query := `
+		SELECT id, organization_id, installation_id, account_id, account_login,
+			account_type, target_type, app_id, app_slug, repository_selection,
+			access_tokens_url, repositories_url, html_url, permissions, events,
+			suspended_at, suspended_by, created_at, updated_at
+		FROM github_installations
+		WHERE organization_id = '00000000-0000-0000-0000-000000000000'
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var installations []domain.GitHubInstallation
+	for rows.Next() {
+		var installation domain.GitHubInstallation
+		var permissions []byte
+		var events pq.StringArray
+
+		err := rows.Scan(
+			&installation.ID, &installation.OrganizationID, &installation.InstallationID,
+			&installation.AccountID, &installation.AccountLogin, &installation.AccountType,
+			&installation.TargetType, &installation.AppID, &installation.AppSlug,
+			&installation.RepositorySelection, &installation.AccessTokensURL,
+			&installation.RepositoriesURL, &installation.HTMLURL, &permissions, &events,
+			&installation.SuspendedAt, &installation.SuspendedBy, &installation.CreatedAt, &installation.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		json.Unmarshal(permissions, &installation.Permissions)
+		installation.Events = events
+		installations = append(installations, installation)
+	}
+
+	return installations, nil
 }
 
 // DeleteInstallation removes an installation
