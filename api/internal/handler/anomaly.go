@@ -41,7 +41,7 @@ func NewAnomalyHandler(
 func (h *AnomalyHandler) ListRules(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	h.logger.Debug("List anomaly rules", zap.String("projectId", projectID.String()))
@@ -65,12 +65,12 @@ func (h *AnomalyHandler) ListRules(c *fiber.Ctx) error {
 func (h *AnomalyHandler) GetRule(c *fiber.Ctx) error {
 	ruleID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID")
 	}
 
 	h.logger.Debug("Get anomaly rule", zap.String("ruleId", ruleID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Rule not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Rule not found")
 }
 
 // CreateRule creates a new anomaly detection rule
@@ -86,25 +86,25 @@ func (h *AnomalyHandler) GetRule(c *fiber.Ctx) error {
 func (h *AnomalyHandler) CreateRule(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
 
 	var input domain.AnomalyRuleInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	// Validate
 	if input.Name == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Name is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Name is required")
 	}
 	if input.Type == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Type is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Type is required")
 	}
 	if input.Method == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Method is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Method is required")
 	}
 
 	// Get default config and merge with provided
@@ -164,17 +164,17 @@ func (h *AnomalyHandler) CreateRule(c *fiber.Ctx) error {
 func (h *AnomalyHandler) UpdateRule(c *fiber.Ctx) error {
 	ruleID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID")
 	}
 
 	var input domain.AnomalyRuleInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Debug("Update anomaly rule", zap.String("ruleId", ruleID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Rule not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Rule not found")
 }
 
 // DeleteRule deletes an anomaly detection rule
@@ -190,12 +190,12 @@ func (h *AnomalyHandler) UpdateRule(c *fiber.Ctx) error {
 func (h *AnomalyHandler) DeleteRule(c *fiber.Ctx) error {
 	ruleID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID")
 	}
 
 	h.logger.Info("Delete anomaly rule", zap.String("ruleId", ruleID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Rule not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Rule not found")
 }
 
 // ToggleRule enables or disables an anomaly detection rule
@@ -213,12 +213,12 @@ func (h *AnomalyHandler) DeleteRule(c *fiber.Ctx) error {
 func (h *AnomalyHandler) ToggleRule(c *fiber.Ctx) error {
 	ruleID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID")
 	}
 
 	var req ToggleRuleRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Info("Toggle anomaly rule",
@@ -226,7 +226,7 @@ func (h *AnomalyHandler) ToggleRule(c *fiber.Ctx) error {
 		zap.Bool("enabled", req.Enabled),
 	)
 
-	return errorResponse(c, fiber.StatusNotFound, "Rule not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Rule not found")
 }
 
 // ToggleRuleRequest represents the request to toggle a rule
@@ -254,7 +254,7 @@ type ToggleRuleRequest struct {
 func (h *AnomalyHandler) ListAnomalies(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	filter := domain.AnomalyFilter{
@@ -264,7 +264,7 @@ func (h *AnomalyHandler) ListAnomalies(c *fiber.Ctx) error {
 	if ruleIDStr := c.Query("ruleId"); ruleIDStr != "" {
 		ruleID, err := uuid.Parse(ruleIDStr)
 		if err != nil {
-			return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID", err)
+			return errorResponse(c, fiber.StatusBadRequest, "Invalid rule ID")
 		}
 		filter.RuleID = &ruleID
 	}
@@ -282,7 +282,7 @@ func (h *AnomalyHandler) ListAnomalies(c *fiber.Ctx) error {
 	if startTimeStr := c.Query("startTime"); startTimeStr != "" {
 		startTime, err := time.Parse(time.RFC3339, startTimeStr)
 		if err != nil {
-			return errorResponse(c, fiber.StatusBadRequest, "Invalid start time format", err)
+			return errorResponse(c, fiber.StatusBadRequest, "Invalid start time format")
 		}
 		filter.StartTime = &startTime
 	}
@@ -290,7 +290,7 @@ func (h *AnomalyHandler) ListAnomalies(c *fiber.Ctx) error {
 	if endTimeStr := c.Query("endTime"); endTimeStr != "" {
 		endTime, err := time.Parse(time.RFC3339, endTimeStr)
 		if err != nil {
-			return errorResponse(c, fiber.StatusBadRequest, "Invalid end time format", err)
+			return errorResponse(c, fiber.StatusBadRequest, "Invalid end time format")
 		}
 		filter.EndTime = &endTime
 	}
@@ -319,12 +319,12 @@ func (h *AnomalyHandler) ListAnomalies(c *fiber.Ctx) error {
 func (h *AnomalyHandler) GetAnomaly(c *fiber.Ctx) error {
 	anomalyID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid anomaly ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid anomaly ID")
 	}
 
 	h.logger.Debug("Get anomaly", zap.String("anomalyId", anomalyID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Anomaly not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Anomaly not found")
 }
 
 // ListAlerts returns alerts for a project
@@ -344,7 +344,7 @@ func (h *AnomalyHandler) GetAnomaly(c *fiber.Ctx) error {
 func (h *AnomalyHandler) ListAlerts(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	filter := domain.AlertFilter{
@@ -385,12 +385,12 @@ func (h *AnomalyHandler) ListAlerts(c *fiber.Ctx) error {
 func (h *AnomalyHandler) GetAlert(c *fiber.Ctx) error {
 	alertID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID")
 	}
 
 	h.logger.Debug("Get alert", zap.String("alertId", alertID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Alert not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Alert not found")
 }
 
 // AcknowledgeAlert acknowledges an alert
@@ -407,7 +407,7 @@ func (h *AnomalyHandler) GetAlert(c *fiber.Ctx) error {
 func (h *AnomalyHandler) AcknowledgeAlert(c *fiber.Ctx) error {
 	alertID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
@@ -417,7 +417,7 @@ func (h *AnomalyHandler) AcknowledgeAlert(c *fiber.Ctx) error {
 		zap.String("userId", userID.String()),
 	)
 
-	return errorResponse(c, fiber.StatusNotFound, "Alert not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Alert not found")
 }
 
 // ResolveAlert resolves an alert
@@ -435,12 +435,12 @@ func (h *AnomalyHandler) AcknowledgeAlert(c *fiber.Ctx) error {
 func (h *AnomalyHandler) ResolveAlert(c *fiber.Ctx) error {
 	alertID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID")
 	}
 
 	var req ResolveAlertRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
@@ -450,7 +450,7 @@ func (h *AnomalyHandler) ResolveAlert(c *fiber.Ctx) error {
 		zap.String("userId", userID.String()),
 	)
 
-	return errorResponse(c, fiber.StatusNotFound, "Alert not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Alert not found")
 }
 
 // ResolveAlertRequest represents the request to resolve an alert
@@ -473,16 +473,16 @@ type ResolveAlertRequest struct {
 func (h *AnomalyHandler) AddAlertNote(c *fiber.Ctx) error {
 	alertID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID")
 	}
 
 	var req AddAlertNoteRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	if req.Content == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Note content is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Note content is required")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
@@ -523,7 +523,7 @@ type AddAlertNoteRequest struct {
 func (h *AnomalyHandler) GetStats(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	startTime := time.Now().Add(-24 * time.Hour)
@@ -532,7 +532,7 @@ func (h *AnomalyHandler) GetStats(c *fiber.Ctx) error {
 	if startTimeStr := c.Query("startTime"); startTimeStr != "" {
 		t, err := time.Parse(time.RFC3339, startTimeStr)
 		if err != nil {
-			return errorResponse(c, fiber.StatusBadRequest, "Invalid start time format", err)
+			return errorResponse(c, fiber.StatusBadRequest, "Invalid start time format")
 		}
 		startTime = t
 	}
@@ -540,7 +540,7 @@ func (h *AnomalyHandler) GetStats(c *fiber.Ctx) error {
 	if endTimeStr := c.Query("endTime"); endTimeStr != "" {
 		t, err := time.Parse(time.RFC3339, endTimeStr)
 		if err != nil {
-			return errorResponse(c, fiber.StatusBadRequest, "Invalid end time format", err)
+			return errorResponse(c, fiber.StatusBadRequest, "Invalid end time format")
 		}
 		endTime = t
 	}
@@ -569,11 +569,11 @@ func (h *AnomalyHandler) GetStats(c *fiber.Ctx) error {
 func (h *AnomalyHandler) TestRule(c *fiber.Ctx) error {
 	var req TestRuleRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	if len(req.HistoricalData) == 0 {
-		return errorResponse(c, fiber.StatusBadRequest, "Historical data is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Historical data is required")
 	}
 
 	// Create a temporary rule for testing
@@ -593,7 +593,7 @@ func (h *AnomalyHandler) TestRule(c *fiber.Ctx) error {
 		req.HistoricalData,
 	)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	// Calculate baseline stats
