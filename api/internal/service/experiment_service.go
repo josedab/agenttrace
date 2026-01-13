@@ -15,15 +15,33 @@ import (
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
 
+// ExperimentRepository defines the interface for experiment data operations
+type ExperimentRepository interface {
+	Create(ctx context.Context, experiment *domain.Experiment) error
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Experiment, error)
+	List(ctx context.Context, filter domain.ExperimentFilter, limit, offset int) (*domain.ExperimentList, error)
+	Update(ctx context.Context, experiment *domain.Experiment) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	UpdateVariantStats(ctx context.Context, variantID uuid.UUID, sampleCount int, mean, stdDev, min, max float64) error
+	CreateAssignment(ctx context.Context, assignment *domain.ExperimentAssignment) error
+	GetAssignment(ctx context.Context, experimentID, traceID uuid.UUID) (*domain.ExperimentAssignment, error)
+	CreateMetric(ctx context.Context, metric *domain.ExperimentMetric) error
+	GetMetrics(ctx context.Context, experimentID uuid.UUID, metricName string) ([]domain.ExperimentMetric, error)
+	GetAllMetrics(ctx context.Context, experimentID uuid.UUID) ([]domain.ExperimentMetric, error)
+	IncrementVariantSampleCount(ctx context.Context, variantID uuid.UUID) error
+}
+
 // ExperimentService handles experiment (A/B testing) logic
 type ExperimentService struct {
 	logger *zap.Logger
+	repo   ExperimentRepository
 }
 
 // NewExperimentService creates a new experiment service
-func NewExperimentService(logger *zap.Logger) *ExperimentService {
+func NewExperimentService(logger *zap.Logger, repo ExperimentRepository) *ExperimentService {
 	return &ExperimentService{
 		logger: logger,
+		repo:   repo,
 	}
 }
 
@@ -89,6 +107,13 @@ func (s *ExperimentService) CreateExperiment(
 		}
 	}
 
+	// Persist to database if repository is available
+	if s.repo != nil {
+		if err := s.repo.Create(ctx, experiment); err != nil {
+			return nil, fmt.Errorf("failed to persist experiment: %w", err)
+		}
+	}
+
 	s.logger.Info("Created experiment",
 		zap.String("experimentId", experiment.ID.String()),
 		zap.String("name", experiment.Name),
@@ -96,6 +121,54 @@ func (s *ExperimentService) CreateExperiment(
 	)
 
 	return experiment, nil
+}
+
+// GetByID retrieves an experiment by ID
+func (s *ExperimentService) GetByID(ctx context.Context, id uuid.UUID) (*domain.Experiment, error) {
+	if s.repo == nil {
+		return nil, fmt.Errorf("repository not configured")
+	}
+	return s.repo.GetByID(ctx, id)
+}
+
+// List retrieves experiments for a project with filtering
+func (s *ExperimentService) List(ctx context.Context, filter domain.ExperimentFilter, limit, offset int) (*domain.ExperimentList, error) {
+	if s.repo == nil {
+		return &domain.ExperimentList{
+			Experiments: []domain.Experiment{},
+			TotalCount:  0,
+			HasMore:     false,
+		}, nil
+	}
+	return s.repo.List(ctx, filter, limit, offset)
+}
+
+// Update updates an experiment
+func (s *ExperimentService) Update(ctx context.Context, experiment *domain.Experiment) error {
+	if s.repo == nil {
+		return fmt.Errorf("repository not configured")
+	}
+	return s.repo.Update(ctx, experiment)
+}
+
+// Delete deletes an experiment
+func (s *ExperimentService) Delete(ctx context.Context, id uuid.UUID) error {
+	if s.repo == nil {
+		return fmt.Errorf("repository not configured")
+	}
+
+	// Get experiment to check status
+	experiment, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Only allow deletion of draft or archived experiments
+	if experiment.Status != domain.ExperimentStatusDraft && experiment.Status != domain.ExperimentStatusArchived {
+		return fmt.Errorf("only draft or archived experiments can be deleted")
+	}
+
+	return s.repo.Delete(ctx, id)
 }
 
 // StartExperiment starts an experiment
@@ -111,6 +184,13 @@ func (s *ExperimentService) StartExperiment(
 	experiment.Status = domain.ExperimentStatusRunning
 	experiment.StartedAt = &now
 	experiment.UpdatedAt = now
+
+	// Persist changes
+	if s.repo != nil {
+		if err := s.repo.Update(ctx, experiment); err != nil {
+			return fmt.Errorf("failed to persist experiment start: %w", err)
+		}
+	}
 
 	s.logger.Info("Started experiment",
 		zap.String("experimentId", experiment.ID.String()),
@@ -130,6 +210,17 @@ func (s *ExperimentService) PauseExperiment(
 
 	experiment.Status = domain.ExperimentStatusPaused
 	experiment.UpdatedAt = time.Now()
+
+	// Persist changes
+	if s.repo != nil {
+		if err := s.repo.Update(ctx, experiment); err != nil {
+			return fmt.Errorf("failed to persist experiment pause: %w", err)
+		}
+	}
+
+	s.logger.Info("Paused experiment",
+		zap.String("experimentId", experiment.ID.String()),
+	)
 
 	return nil
 }
@@ -166,6 +257,13 @@ func (s *ExperimentService) CompleteExperiment(
 		}
 	}
 
+	// Persist changes
+	if s.repo != nil {
+		if err := s.repo.Update(ctx, experiment); err != nil {
+			return fmt.Errorf("failed to persist experiment completion: %w", err)
+		}
+	}
+
 	s.logger.Info("Completed experiment",
 		zap.String("experimentId", experiment.ID.String()),
 		zap.Bool("hasWinner", experiment.WinningVariant != nil),
@@ -174,14 +272,64 @@ func (s *ExperimentService) CompleteExperiment(
 	return nil
 }
 
+// GetResults retrieves and analyzes experiment results
+func (s *ExperimentService) GetResults(ctx context.Context, experimentID uuid.UUID) (*domain.ExperimentResults, error) {
+	if s.repo == nil {
+		return nil, fmt.Errorf("repository not configured")
+	}
+
+	experiment, err := s.repo.GetByID(ctx, experimentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// If results already exist (completed experiment), return them
+	if experiment.Results != nil {
+		return experiment.Results, nil
+	}
+
+	// Otherwise, calculate current results from metrics
+	metrics, err := s.repo.GetMetrics(ctx, experimentID, experiment.TargetMetric)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metrics: %w", err)
+	}
+
+	return s.AnalyzeResults(experiment, metrics), nil
+}
+
+// RecordMetric records a metric value for experiment analysis
+func (s *ExperimentService) RecordMetric(ctx context.Context, metric *domain.ExperimentMetric) error {
+	if s.repo == nil {
+		return fmt.Errorf("repository not configured")
+	}
+
+	if err := s.repo.CreateMetric(ctx, metric); err != nil {
+		return fmt.Errorf("failed to record metric: %w", err)
+	}
+
+	return nil
+}
+
 // AssignVariant assigns a trace to a variant using consistent hashing
 func (s *ExperimentService) AssignVariant(
+	ctx context.Context,
 	experiment *domain.Experiment,
 	traceID uuid.UUID,
 	userID string,
 ) (*domain.ExperimentAssignment, error) {
 	if experiment.Status != domain.ExperimentStatusRunning {
 		return nil, fmt.Errorf("experiment is not running")
+	}
+
+	// Check if already assigned
+	if s.repo != nil {
+		existing, err := s.repo.GetAssignment(ctx, experiment.ID, traceID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check existing assignment: %w", err)
+		}
+		if existing != nil {
+			return existing, nil
+		}
 	}
 
 	// Use consistent hashing based on user ID (or trace ID if no user)
@@ -217,13 +365,28 @@ func (s *ExperimentService) AssignVariant(
 		selectedVariant = &experiment.Variants[len(experiment.Variants)-1]
 	}
 
-	return &domain.ExperimentAssignment{
+	assignment := &domain.ExperimentAssignment{
 		ExperimentID:  experiment.ID,
 		VariantID:     selectedVariant.ID,
 		TraceID:       traceID,
 		AssignedAt:    time.Now(),
 		VariantConfig: selectedVariant.Config,
-	}, nil
+	}
+
+	// Persist assignment
+	if s.repo != nil {
+		if err := s.repo.CreateAssignment(ctx, assignment); err != nil {
+			return nil, fmt.Errorf("failed to persist assignment: %w", err)
+		}
+		if err := s.repo.IncrementVariantSampleCount(ctx, selectedVariant.ID); err != nil {
+			s.logger.Warn("Failed to increment variant sample count",
+				zap.String("variantId", selectedVariant.ID.String()),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return assignment, nil
 }
 
 // AnalyzeResults performs statistical analysis on experiment metrics
