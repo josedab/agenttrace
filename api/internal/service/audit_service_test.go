@@ -296,7 +296,7 @@ func TestAuditService_ListAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Len(t, result.Data, 2)
-		assert.Equal(t, int64(2), result.TotalCount)
+		assert.Equal(t, 2, result.TotalCount)
 	})
 
 	t.Run("filters by time range", func(t *testing.T) {
@@ -368,13 +368,13 @@ func TestAuditService_GetAuditSummary(t *testing.T) {
 		orgID := uuid.New()
 		expectedSummary := &domain.AuditSummary{
 			TotalEvents: 150,
-			ActionCounts: map[domain.AuditAction]int64{
+			EventsByAction: map[domain.AuditAction]int{
 				domain.AuditActionLogin:  100,
 				domain.AuditActionLogout: 50,
 			},
-			TopActors: []domain.ActorCount{
-				{ActorEmail: "admin@example.com", Count: 80},
-				{ActorEmail: "user@example.com", Count: 70},
+			TopActors: []domain.AuditActorSummary{
+				{ActorEmail: "admin@example.com", EventCount: 80},
+				{ActorEmail: "user@example.com", EventCount: 70},
 			},
 		}
 
@@ -384,8 +384,8 @@ func TestAuditService_GetAuditSummary(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, int64(150), result.TotalEvents)
-		assert.Equal(t, int64(100), result.ActionCounts[domain.AuditActionLogin])
+		assert.Equal(t, 150, result.TotalEvents)
+		assert.Equal(t, 100, result.EventsByAction[domain.AuditActionLogin])
 	})
 
 	t.Run("returns summary for 7d period", func(t *testing.T) {
@@ -397,7 +397,7 @@ func TestAuditService_GetAuditSummary(t *testing.T) {
 		result, err := auditRepo.GetAuditSummary(context.Background(), orgID, "7d")
 
 		require.NoError(t, err)
-		assert.Equal(t, int64(1000), result.TotalEvents)
+		assert.Equal(t, 1000, result.TotalEvents)
 	})
 }
 
