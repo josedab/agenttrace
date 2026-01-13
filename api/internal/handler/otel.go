@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -46,12 +47,12 @@ func NewOTelHandler(
 func (h *OTelHandler) ReceiveTraces(c *fiber.Ctx) error {
 	var request domain.OTelExportRequest
 	if err := c.BodyParser(&request); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid OTLP request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid OTLP request body")
 	}
 
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	// Process the incoming OTLP data
@@ -132,7 +133,7 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 	}
 
 	// Parse parent span ID
-	var parentID *uuid.UUID
+	var parentID *string
 	if span.ParentSpanID != "" {
 		parentBytes, err := hex.DecodeString(span.ParentSpanID)
 		if err == nil {
@@ -141,14 +142,15 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 			for i := len(parentBytes); i < 16; i++ {
 				pid[i] = byte(i)
 			}
-			parentID = &pid
+			pidStr := pid.String()
+			parentID = &pidStr
 		}
 	}
 
 	// Determine observation type based on attributes
-	obsType := "span"
+	obsType := domain.ObservationTypeSpan
 	if _, ok := span.Attributes[domain.OTelAttrLLMRequestModel]; ok {
-		obsType = "generation"
+		obsType = domain.ObservationTypeGeneration
 	}
 
 	// Convert timestamps
@@ -156,13 +158,13 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 	endTime := time.Unix(0, span.EndTimeUnixNano)
 
 	// Extract model info for generations
-	var model *string
-	var modelParams *map[string]any
-	var usageDetails *map[string]any
+	var model string
+	var modelParams string
+	var usageDetails domain.UsageDetails
 
-	if obsType == "generation" {
+	if obsType == domain.ObservationTypeGeneration {
 		if m, ok := span.Attributes[domain.OTelAttrLLMRequestModel].(string); ok {
-			model = &m
+			model = m
 		}
 
 		params := make(map[string]any)
@@ -173,19 +175,18 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 			params["max_tokens"] = maxTokens
 		}
 		if len(params) > 0 {
-			modelParams = &params
+			if jsonBytes, err := json.Marshal(params); err == nil {
+				modelParams = string(jsonBytes)
+			}
 		}
 
-		usage := make(map[string]any)
-		if input, ok := span.Attributes[domain.OTelAttrLLMUsageInputTokens]; ok {
-			usage["input"] = input
+		if input, ok := span.Attributes[domain.OTelAttrLLMUsageInputTokens].(float64); ok {
+			usageDetails.InputTokens = uint64(input)
 		}
-		if output, ok := span.Attributes[domain.OTelAttrLLMUsageOutputTokens]; ok {
-			usage["output"] = output
+		if output, ok := span.Attributes[domain.OTelAttrLLMUsageOutputTokens].(float64); ok {
+			usageDetails.OutputTokens = uint64(output)
 		}
-		if len(usage) > 0 {
-			usageDetails = &usage
-		}
+		usageDetails.TotalTokens = usageDetails.InputTokens + usageDetails.OutputTokens
 	}
 
 	// Convert attributes to metadata
@@ -208,21 +209,27 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 	}
 
 	// Determine level from status
-	level := "DEFAULT"
-	var statusMessage *string
+	level := domain.LevelDefault
+	var statusMessage string
 	if span.Status.Code == domain.OTelStatusCodeError {
-		level = "ERROR"
-		if span.Status.Message != "" {
-			statusMessage = &span.Status.Message
-		}
+		level = domain.LevelError
+		statusMessage = span.Status.Message
 	}
 
 	// Calculate latency
-	latencyMs := float64(span.EndTimeUnixNano-span.StartTimeUnixNano) / 1e6
+	durationMs := float64(span.EndTimeUnixNano-span.StartTimeUnixNano) / 1e6
+
+	// Convert metadata to JSON string
+	var metadataStr string
+	if len(metadata) > 0 {
+		if jsonBytes, err := json.Marshal(metadata); err == nil {
+			metadataStr = string(jsonBytes)
+		}
+	}
 
 	obs := &domain.Observation{
-		ID:                  obsID,
-		TraceID:             traceID,
+		ID:                  obsID.String(),
+		TraceID:             traceID.String(),
 		ProjectID:           projectID,
 		Type:                obsType,
 		Name:                span.Name,
@@ -233,9 +240,9 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 		Model:               model,
 		ModelParameters:     modelParams,
 		UsageDetails:        usageDetails,
-		Metadata:            metadata,
+		Metadata:            metadataStr,
 		ParentObservationID: parentID,
-		LatencyMs:           &latencyMs,
+		DurationMs:          durationMs,
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 	}
@@ -259,7 +266,7 @@ func (h *OTelHandler) convertOTelSpanToObservation(
 func (h *OTelHandler) ListExporters(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	h.logger.Debug("List OTLP exporters", zap.String("projectId", projectID.String()))
@@ -286,12 +293,12 @@ func (h *OTelHandler) ListExporters(c *fiber.Ctx) error {
 func (h *OTelHandler) GetExporter(c *fiber.Ctx) error {
 	exporterID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID")
 	}
 
 	h.logger.Debug("Get OTLP exporter", zap.String("exporterId", exporterID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Exporter not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Exporter not found")
 }
 
 // CreateExporter creates a new OTLP exporter
@@ -307,19 +314,19 @@ func (h *OTelHandler) GetExporter(c *fiber.Ctx) error {
 func (h *OTelHandler) CreateExporter(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	userID := uuid.New() // In real implementation, get from auth context
 
 	var input domain.OTelExporterInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	exporter, err := h.otelExporterService.CreateExporter(c.Context(), projectID, userID, &input)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, err.Error(), err)
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(exporter)
@@ -340,17 +347,17 @@ func (h *OTelHandler) CreateExporter(c *fiber.Ctx) error {
 func (h *OTelHandler) UpdateExporter(c *fiber.Ctx) error {
 	exporterID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID")
 	}
 
 	var input domain.OTelExporterInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Debug("Update OTLP exporter", zap.String("exporterId", exporterID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Exporter not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Exporter not found")
 }
 
 // DeleteExporter deletes an OTLP exporter
@@ -366,12 +373,12 @@ func (h *OTelHandler) UpdateExporter(c *fiber.Ctx) error {
 func (h *OTelHandler) DeleteExporter(c *fiber.Ctx) error {
 	exporterID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID")
 	}
 
 	h.logger.Info("Delete OTLP exporter", zap.String("exporterId", exporterID.String()))
 
-	return errorResponse(c, fiber.StatusNotFound, "Exporter not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Exporter not found")
 }
 
 // ToggleExporter enables or disables an OTLP exporter
@@ -389,12 +396,12 @@ func (h *OTelHandler) DeleteExporter(c *fiber.Ctx) error {
 func (h *OTelHandler) ToggleExporter(c *fiber.Ctx) error {
 	exporterID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID")
 	}
 
 	var req ToggleExporterRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	h.logger.Info("Toggle OTLP exporter",
@@ -402,7 +409,7 @@ func (h *OTelHandler) ToggleExporter(c *fiber.Ctx) error {
 		zap.Bool("enabled", req.Enabled),
 	)
 
-	return errorResponse(c, fiber.StatusNotFound, "Exporter not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Exporter not found")
 }
 
 // ToggleExporterRequest represents the request to toggle an exporter
@@ -424,13 +431,13 @@ type ToggleExporterRequest struct {
 func (h *OTelHandler) TestExporter(c *fiber.Ctx) error {
 	exporterID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID")
 	}
 
 	h.logger.Info("Test OTLP exporter", zap.String("exporterId", exporterID.String()))
 
 	// In real implementation, fetch exporter and test
-	return errorResponse(c, fiber.StatusNotFound, "Exporter not found", nil)
+	return errorResponse(c, fiber.StatusNotFound, "Exporter not found")
 }
 
 // TestExporterResponse represents the response from testing an exporter
@@ -453,7 +460,7 @@ type TestExporterResponse struct {
 func (h *OTelHandler) GetExporterStats(c *fiber.Ctx) error {
 	exporterID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid exporter ID")
 	}
 
 	h.logger.Debug("Get exporter stats", zap.String("exporterId", exporterID.String()))
@@ -484,7 +491,7 @@ func (h *OTelHandler) GetExporterStats(c *fiber.Ctx) error {
 func (h *OTelHandler) GetDefaultConfig(c *fiber.Ctx) error {
 	backend := c.Query("backend", "")
 	if backend == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Backend parameter is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Backend parameter is required")
 	}
 
 	config := h.otelExporterService.DefaultExporterConfig(backend)
