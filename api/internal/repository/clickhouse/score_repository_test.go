@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
@@ -42,7 +43,7 @@ func TestScoreRepository_Create(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -67,7 +68,7 @@ func TestScoreRepository_CreateBatch(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -96,7 +97,7 @@ func TestScoreRepository_CreateBatch_Empty(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 
 	// Empty batch should not error
@@ -111,7 +112,7 @@ func TestScoreRepository_GetByID(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -147,7 +148,7 @@ func TestScoreRepository_GetByTraceID(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -180,7 +181,7 @@ func TestScoreRepository_List(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -257,7 +258,7 @@ func TestScoreRepository_Update(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -287,7 +288,7 @@ func TestScoreRepository_CategoricalScore(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -323,7 +324,7 @@ func TestScoreRepository_BooleanScore(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -359,7 +360,7 @@ func TestScoreRepository_ScoreWithObservation(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -396,7 +397,7 @@ func TestScoreRepository_CountBeforeCutoff(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewScoreRepository(db)
+	repo := NewScoreRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()

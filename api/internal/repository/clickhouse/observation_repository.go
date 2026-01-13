@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/database"
@@ -14,16 +15,27 @@ import (
 
 // ObservationRepository handles observation data operations in ClickHouse
 type ObservationRepository struct {
-	db *database.ClickHouseDB
+	db     *database.ClickHouseDB
+	logger *zap.Logger
 }
 
 // NewObservationRepository creates a new observation repository
-func NewObservationRepository(db *database.ClickHouseDB) *ObservationRepository {
-	return &ObservationRepository{db: db}
+func NewObservationRepository(db *database.ClickHouseDB, logger *zap.Logger) *ObservationRepository {
+	return &ObservationRepository{
+		db:     db,
+		logger: logger.Named("observation_repository"),
+	}
 }
 
 // Create inserts a new observation
 func (r *ObservationRepository) Create(ctx context.Context, obs *domain.Observation) error {
+	r.logger.Debug("creating observation",
+		zap.String("observation_id", obs.ID),
+		zap.String("trace_id", obs.TraceID),
+		zap.String("project_id", obs.ProjectID.String()),
+		zap.String("type", string(obs.Type)),
+	)
+
 	query := `
 		INSERT INTO observations (
 			id, trace_id, project_id, parent_observation_id, type, name,
@@ -37,7 +49,7 @@ func (r *ObservationRepository) Create(ctx context.Context, obs *domain.Observat
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	return r.db.Exec(ctx, query,
+	err := r.db.Exec(ctx, query,
 		obs.ID,
 		obs.TraceID,
 		obs.ProjectID,
@@ -69,6 +81,14 @@ func (r *ObservationRepository) Create(ctx context.Context, obs *domain.Observat
 		obs.CreatedAt,
 		obs.UpdatedAt,
 	)
+	if err != nil {
+		r.logger.Error("failed to create observation",
+			zap.String("observation_id", obs.ID),
+			zap.String("trace_id", obs.TraceID),
+			zap.Error(err),
+		)
+	}
+	return err
 }
 
 // CreateBatch inserts multiple observations

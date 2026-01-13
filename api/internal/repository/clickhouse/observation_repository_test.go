@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
@@ -51,7 +52,7 @@ func TestObservationRepository_Create(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -76,7 +77,7 @@ func TestObservationRepository_CreateBatch(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -105,7 +106,7 @@ func TestObservationRepository_CreateBatch_Empty(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 
 	// Empty batch should not error
@@ -120,7 +121,7 @@ func TestObservationRepository_GetByID(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -157,7 +158,7 @@ func TestObservationRepository_GetByTraceID(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -189,7 +190,7 @@ func TestObservationRepository_List(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -253,7 +254,7 @@ func TestObservationRepository_Update(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -281,7 +282,7 @@ func TestObservationRepository_Generation(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -320,7 +321,7 @@ func TestObservationRepository_GetTree(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -353,7 +354,7 @@ func TestObservationRepository_GetGenerationsWithoutCost(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -388,7 +389,7 @@ func TestObservationRepository_UpdateCosts(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()
@@ -422,7 +423,7 @@ func TestObservationRepository_CountBeforeCutoff(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewObservationRepository(db)
+	repo := NewObservationRepository(db, zap.NewNop())
 	ctx := context.Background()
 	projectID := uuid.New()
 	traceID := uuid.New().String()

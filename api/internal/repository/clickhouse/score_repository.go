@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/database"
@@ -14,16 +15,27 @@ import (
 
 // ScoreRepository handles score data operations in ClickHouse
 type ScoreRepository struct {
-	db *database.ClickHouseDB
+	db     *database.ClickHouseDB
+	logger *zap.Logger
 }
 
 // NewScoreRepository creates a new score repository
-func NewScoreRepository(db *database.ClickHouseDB) *ScoreRepository {
-	return &ScoreRepository{db: db}
+func NewScoreRepository(db *database.ClickHouseDB, logger *zap.Logger) *ScoreRepository {
+	return &ScoreRepository{
+		db:     db,
+		logger: logger.Named("score_repository"),
+	}
 }
 
 // Create inserts a new score
 func (r *ScoreRepository) Create(ctx context.Context, score *domain.Score) error {
+	r.logger.Debug("creating score",
+		zap.String("score_id", score.ID.String()),
+		zap.String("trace_id", score.TraceID),
+		zap.String("project_id", score.ProjectID.String()),
+		zap.String("name", score.Name),
+	)
+
 	query := `
 		INSERT INTO scores (
 			id, project_id, trace_id, observation_id, name, source,
@@ -32,7 +44,7 @@ func (r *ScoreRepository) Create(ctx context.Context, score *domain.Score) error
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	return r.db.Exec(ctx, query,
+	err := r.db.Exec(ctx, query,
 		score.ID,
 		score.ProjectID,
 		score.TraceID,
@@ -48,6 +60,14 @@ func (r *ScoreRepository) Create(ctx context.Context, score *domain.Score) error
 		score.CreatedAt,
 		score.UpdatedAt,
 	)
+	if err != nil {
+		r.logger.Error("failed to create score",
+			zap.String("score_id", score.ID.String()),
+			zap.String("trace_id", score.TraceID),
+			zap.Error(err),
+		)
+	}
+	return err
 }
 
 // CreateBatch inserts multiple scores
@@ -256,8 +276,22 @@ func (r *ScoreRepository) Update(ctx context.Context, score *domain.Score) error
 }
 
 // Delete deletes a score
+// Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
 func (r *ScoreRepository) Delete(ctx context.Context, projectID, scoreID uuid.UUID) error {
-	// In ClickHouse, we rely on retention; this is a no-op
+	r.logger.Debug("deleting score",
+		zap.String("score_id", scoreID.String()),
+		zap.String("project_id", projectID.String()),
+	)
+
+	query := `ALTER TABLE scores DELETE WHERE project_id = ? AND id = ?`
+	if err := r.db.Exec(ctx, query, projectID, scoreID); err != nil {
+		r.logger.Error("failed to delete score",
+			zap.String("score_id", scoreID.String()),
+			zap.Error(err),
+		)
+		return fmt.Errorf("failed to delete score: %w", err)
+	}
+
 	return nil
 }
 

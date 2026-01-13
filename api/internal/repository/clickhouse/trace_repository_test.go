@@ -9,11 +9,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/database"
 )
+
+// testLogger returns a no-op logger for tests
+func testLogger() *zap.Logger {
+	return zap.NewNop()
+}
 
 // getTestDB returns a database connection for integration tests.
 // Returns nil if the database is not available (skips tests).
@@ -88,7 +94,7 @@ func TestTraceRepository_Create(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -116,7 +122,7 @@ func TestTraceRepository_CreateBatch(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -148,7 +154,7 @@ func TestTraceRepository_CreateBatch_Empty(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 
 	// Empty batch should not error
@@ -163,7 +169,7 @@ func TestTraceRepository_GetByID(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -205,7 +211,7 @@ func TestTraceRepository_List(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -303,7 +309,7 @@ func TestTraceRepository_Update(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -337,7 +343,7 @@ func TestTraceRepository_SetBookmark(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -375,7 +381,7 @@ func TestTraceRepository_Delete(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -403,7 +409,7 @@ func TestTraceRepository_GetBySessionID(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 	sessionID := "test-session-" + uuid.New().String()
@@ -442,7 +448,7 @@ func TestTraceRepository_CountBeforeCutoff(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -481,7 +487,7 @@ func TestTraceRepository_UpdateCosts(t *testing.T) {
 	}
 	defer db.Close()
 
-	repo := NewTraceRepository(db)
+	repo := NewTraceRepository(db, testLogger())
 	ctx := context.Background()
 	projectID := uuid.New()
 

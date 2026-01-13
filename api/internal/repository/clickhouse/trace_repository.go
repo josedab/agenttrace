@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/database"
@@ -14,16 +15,25 @@ import (
 
 // TraceRepository handles trace data operations in ClickHouse
 type TraceRepository struct {
-	db *database.ClickHouseDB
+	db     *database.ClickHouseDB
+	logger *zap.Logger
 }
 
 // NewTraceRepository creates a new trace repository
-func NewTraceRepository(db *database.ClickHouseDB) *TraceRepository {
-	return &TraceRepository{db: db}
+func NewTraceRepository(db *database.ClickHouseDB, logger *zap.Logger) *TraceRepository {
+	return &TraceRepository{
+		db:     db,
+		logger: logger.Named("trace_repository"),
+	}
 }
 
 // Create inserts a new trace
 func (r *TraceRepository) Create(ctx context.Context, trace *domain.Trace) error {
+	r.logger.Debug("creating trace",
+		zap.String("trace_id", trace.ID),
+		zap.String("project_id", trace.ProjectID.String()),
+	)
+
 	query := `
 		INSERT INTO traces (
 			id, project_id, name, user_id, session_id, release, version,
@@ -34,7 +44,7 @@ func (r *TraceRepository) Create(ctx context.Context, trace *domain.Trace) error
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	return r.db.Exec(ctx, query,
+	err := r.db.Exec(ctx, query,
 		trace.ID,
 		trace.ProjectID,
 		trace.Name,
@@ -64,13 +74,24 @@ func (r *TraceRepository) Create(ctx context.Context, trace *domain.Trace) error
 		trace.CreatedAt,
 		trace.UpdatedAt,
 	)
+	if err != nil {
+		r.logger.Error("failed to create trace",
+			zap.String("trace_id", trace.ID),
+			zap.String("project_id", trace.ProjectID.String()),
+			zap.Error(err),
+		)
+	}
+	return err
 }
 
 // CreateBatch inserts multiple traces
 func (r *TraceRepository) CreateBatch(ctx context.Context, traces []*domain.Trace) error {
 	if len(traces) == 0 {
+		r.logger.Debug("skipping empty batch insert")
 		return nil
 	}
+
+	r.logger.Debug("creating traces batch", zap.Int("count", len(traces)))
 
 	batch, err := r.db.PrepareBatch(ctx, `
 		INSERT INTO traces (
@@ -82,6 +103,7 @@ func (r *TraceRepository) CreateBatch(ctx context.Context, traces []*domain.Trac
 		)
 	`)
 	if err != nil {
+		r.logger.Error("failed to prepare batch", zap.Error(err))
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
 
@@ -116,15 +138,28 @@ func (r *TraceRepository) CreateBatch(ctx context.Context, traces []*domain.Trac
 			trace.CreatedAt,
 			trace.UpdatedAt,
 		); err != nil {
+			r.logger.Error("failed to append to batch",
+				zap.String("trace_id", trace.ID),
+				zap.Error(err),
+			)
 			return fmt.Errorf("failed to append to batch: %w", err)
 		}
 	}
 
-	return batch.Send()
+	if err := batch.Send(); err != nil {
+		r.logger.Error("failed to send batch", zap.Int("count", len(traces)), zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 // GetByID retrieves a trace by ID
 func (r *TraceRepository) GetByID(ctx context.Context, projectID uuid.UUID, traceID string) (*domain.Trace, error) {
+	r.logger.Debug("getting trace by ID",
+		zap.String("trace_id", traceID),
+		zap.String("project_id", projectID.String()),
+	)
+
 	var trace domain.Trace
 
 	query := `
@@ -172,6 +207,11 @@ func (r *TraceRepository) GetByID(ctx context.Context, projectID uuid.UUID, trac
 		&trace.UpdatedAt,
 	)
 	if err != nil {
+		r.logger.Warn("trace not found or error",
+			zap.String("trace_id", traceID),
+			zap.String("project_id", projectID.String()),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 
@@ -340,8 +380,21 @@ func (r *TraceRepository) SetBookmark(ctx context.Context, projectID uuid.UUID, 
 // Delete deletes a trace by ID
 // Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
 func (r *TraceRepository) Delete(ctx context.Context, projectID uuid.UUID, traceID string) error {
+	r.logger.Info("deleting trace",
+		zap.String("trace_id", traceID),
+		zap.String("project_id", projectID.String()),
+	)
+
 	query := `ALTER TABLE traces DELETE WHERE project_id = ? AND id = ?`
-	return r.db.Exec(ctx, query, projectID, traceID)
+	if err := r.db.Exec(ctx, query, projectID, traceID); err != nil {
+		r.logger.Error("failed to delete trace",
+			zap.String("trace_id", traceID),
+			zap.String("project_id", projectID.String()),
+			zap.Error(err),
+		)
+		return err
+	}
+	return nil
 }
 
 // GetBySessionID retrieves all traces for a session
@@ -386,6 +439,11 @@ func (r *TraceRepository) CountBeforeCutoff(ctx context.Context, projectID uuid.
 // DeleteBeforeCutoff deletes traces created before the cutoff date for a project
 // Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
 func (r *TraceRepository) DeleteBeforeCutoff(ctx context.Context, projectID uuid.UUID, cutoff time.Time) (int64, error) {
+	r.logger.Info("deleting traces before cutoff",
+		zap.String("project_id", projectID.String()),
+		zap.Time("cutoff", cutoff),
+	)
+
 	// First count how many we'll delete
 	count, err := r.CountBeforeCutoff(ctx, projectID, cutoff)
 	if err != nil {
@@ -393,21 +451,47 @@ func (r *TraceRepository) DeleteBeforeCutoff(ctx context.Context, projectID uuid
 	}
 
 	if count == 0 {
+		r.logger.Debug("no traces to delete before cutoff",
+			zap.String("project_id", projectID.String()),
+			zap.Time("cutoff", cutoff),
+		)
 		return 0, nil
 	}
 
 	// ClickHouse uses ALTER TABLE DELETE for mutations
 	query := `ALTER TABLE traces DELETE WHERE project_id = ? AND created_at < ?`
 	if err := r.db.Exec(ctx, query, projectID, cutoff); err != nil {
+		r.logger.Error("failed to delete traces before cutoff",
+			zap.String("project_id", projectID.String()),
+			zap.Time("cutoff", cutoff),
+			zap.Int64("count", count),
+			zap.Error(err),
+		)
 		return 0, fmt.Errorf("failed to delete traces: %w", err)
 	}
 
+	r.logger.Info("deleted traces before cutoff",
+		zap.String("project_id", projectID.String()),
+		zap.Time("cutoff", cutoff),
+		zap.Int64("count", count),
+	)
 	return count, nil
 }
 
 // DeleteByProjectID deletes all traces for a project
 // Note: ClickHouse ALTER TABLE DELETE is a heavy operation, use with caution
 func (r *TraceRepository) DeleteByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	r.logger.Info("deleting all traces for project",
+		zap.String("project_id", projectID.String()),
+	)
+
 	query := `ALTER TABLE traces DELETE WHERE project_id = ?`
-	return r.db.Exec(ctx, query, projectID)
+	if err := r.db.Exec(ctx, query, projectID); err != nil {
+		r.logger.Error("failed to delete all traces for project",
+			zap.String("project_id", projectID.String()),
+			zap.Error(err),
+		)
+		return err
+	}
+	return nil
 }
