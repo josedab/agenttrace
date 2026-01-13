@@ -35,12 +35,12 @@ func (m *MockAPIKeyService) ListAPIKeys(ctx context.Context, projectID uuid.UUID
 	return args.Get(0).([]domain.APIKey), args.Error(1)
 }
 
-func (m *MockAPIKeyService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID) (*domain.APIKeyResult, error) {
+func (m *MockAPIKeyService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID) (*domain.APIKeyCreateResult, error) {
 	args := m.Called(ctx, projectID, input, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.APIKeyResult), args.Error(1)
+	return args.Get(0).(*domain.APIKeyCreateResult), args.Error(1)
 }
 
 func (m *MockAPIKeyService) DeleteAPIKey(ctx context.Context, keyID uuid.UUID) error {
@@ -291,7 +291,7 @@ func TestAPIKeysHandler_CreateAPIKey(t *testing.T) {
 		app := setupAPIKeysTestApp(mockSvc, &projectID, &userID)
 
 		keyID := uuid.New()
-		expectedResult := &domain.APIKeyResult{
+		expectedResult := &domain.APIKeyCreateResult{
 			APIKey: &domain.APIKey{
 				ID:               keyID,
 				Name:             "New Production Key",

@@ -51,12 +51,12 @@ func (m *MockAuthService) GetUserByID(ctx context.Context, id uuid.UUID) (*domai
 	return args.Get(0).(*domain.User), args.Error(1)
 }
 
-func (m *MockAuthService) RefreshToken(ctx context.Context, refreshToken string) (*domain.TokenResult, error) {
+func (m *MockAuthService) RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthResult, error) {
 	args := m.Called(ctx, refreshToken)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.TokenResult), args.Error(1)
+	return args.Get(0).(*domain.AuthResult), args.Error(1)
 }
 
 func (m *MockAuthService) Logout(ctx context.Context, refreshToken string) error {
@@ -595,7 +595,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
-		expectedResult := &domain.TokenResult{
+		expectedResult := &domain.AuthResult{
 			AccessToken:  "new-access-token",
 			RefreshToken: "new-refresh-token",
 			ExpiresAt:    time.Now().Add(time.Hour),

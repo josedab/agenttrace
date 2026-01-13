@@ -492,7 +492,3 @@ func TestTracesHandler_GetSession(t *testing.T) {
 	})
 }
 
-// Helper function
-func stringPtr(s string) *string {
-	return &s
-}
