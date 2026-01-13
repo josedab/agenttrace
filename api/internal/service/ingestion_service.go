@@ -566,8 +566,15 @@ func (s *IngestionService) IngestBatch(ctx context.Context, projectID uuid.UUID,
 
 		var metadata string
 		if input.Metadata != nil {
-			metadataBytes, _ := json.Marshal(input.Metadata)
-			metadata = string(metadataBytes)
+			metadataBytes, err := json.Marshal(input.Metadata)
+			if err != nil {
+				s.logger.Warn("failed to marshal trace metadata in batch, skipping metadata",
+					zap.String("trace_id", traceID),
+					zap.Error(err),
+				)
+			} else {
+				metadata = string(metadataBytes)
+			}
 		}
 
 		startTime := now
@@ -622,16 +629,37 @@ func (s *IngestionService) IngestBatch(ctx context.Context, projectID uuid.UUID,
 
 		var metadata, inputStr, outputStr string
 		if input.Metadata != nil {
-			metadataBytes, _ := json.Marshal(input.Metadata)
-			metadata = string(metadataBytes)
+			metadataBytes, err := json.Marshal(input.Metadata)
+			if err != nil {
+				s.logger.Warn("failed to marshal observation metadata in batch, skipping metadata",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				metadata = string(metadataBytes)
+			}
 		}
 		if input.Input != nil {
-			inputBytes, _ := json.Marshal(input.Input)
-			inputStr = string(inputBytes)
+			inputBytes, err := json.Marshal(input.Input)
+			if err != nil {
+				s.logger.Warn("failed to marshal observation input in batch, skipping input",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				inputStr = string(inputBytes)
+			}
 		}
 		if input.Output != nil {
-			outputBytes, _ := json.Marshal(input.Output)
-			outputStr = string(outputBytes)
+			outputBytes, err := json.Marshal(input.Output)
+			if err != nil {
+				s.logger.Warn("failed to marshal observation output in batch, skipping output",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				outputStr = string(outputBytes)
+			}
 		}
 
 		startTime := now
@@ -704,20 +732,48 @@ func (s *IngestionService) IngestBatch(ctx context.Context, projectID uuid.UUID,
 
 		var metadata, inputStr, outputStr, modelParams string
 		if input.Metadata != nil {
-			metadataBytes, _ := json.Marshal(input.Metadata)
-			metadata = string(metadataBytes)
+			metadataBytes, err := json.Marshal(input.Metadata)
+			if err != nil {
+				s.logger.Warn("failed to marshal generation metadata in batch, skipping metadata",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				metadata = string(metadataBytes)
+			}
 		}
 		if input.Input != nil {
-			inputBytes, _ := json.Marshal(input.Input)
-			inputStr = string(inputBytes)
+			inputBytes, err := json.Marshal(input.Input)
+			if err != nil {
+				s.logger.Warn("failed to marshal generation input in batch, skipping input",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				inputStr = string(inputBytes)
+			}
 		}
 		if input.Output != nil {
-			outputBytes, _ := json.Marshal(input.Output)
-			outputStr = string(outputBytes)
+			outputBytes, err := json.Marshal(input.Output)
+			if err != nil {
+				s.logger.Warn("failed to marshal generation output in batch, skipping output",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				outputStr = string(outputBytes)
+			}
 		}
 		if input.ModelParameters != nil {
-			paramsBytes, _ := json.Marshal(input.ModelParameters)
-			modelParams = string(paramsBytes)
+			paramsBytes, err := json.Marshal(input.ModelParameters)
+			if err != nil {
+				s.logger.Warn("failed to marshal model parameters in batch, skipping model params",
+					zap.String("observation_id", obsID),
+					zap.Error(err),
+				)
+			} else {
+				modelParams = string(paramsBytes)
+			}
 		}
 
 		startTime := now
@@ -839,7 +895,10 @@ func (s *IngestionService) UpdateTrace(ctx context.Context, projectID uuid.UUID,
 		trace.SessionID = input.SessionID
 	}
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 		trace.Metadata = string(metadataBytes)
 	}
 	if len(input.Tags) > 0 {
@@ -898,11 +957,17 @@ func (s *IngestionService) UpdateObservation(ctx context.Context, projectID uuid
 		obs.DurationMs = float64(input.EndTime.Sub(obs.StartTime).Milliseconds())
 	}
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 		obs.Metadata = string(metadataBytes)
 	}
 	if input.Output != nil {
-		outputBytes, _ := json.Marshal(input.Output)
+		outputBytes, err := json.Marshal(input.Output)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal output: %w", err)
+		}
 		obs.Output = string(outputBytes)
 	}
 	if input.Level != nil {
@@ -951,6 +1016,55 @@ func (s *IngestionService) updateTraceCosts(ctx context.Context, projectID uuid.
 	}
 
 	return s.traceRepo.UpdateCosts(ctx, projectID, traceID, inputCost, outputCost, totalCost)
+}
+
+// UpdateObservationCosts updates the cost fields for an observation.
+//
+// This method is called by the cost worker after asynchronously calculating
+// costs for observations that were ingested without cost data (e.g., when
+// token counts are available but pricing wasn't calculated at ingestion time).
+//
+// After updating the observation's costs, this method also triggers an
+// asynchronous update of the parent trace's aggregated costs.
+//
+// Parameters:
+//   - ctx: Request context for cancellation and deadlines
+//   - projectID: The project the observation belongs to
+//   - observationID: The observation to update costs for
+//   - traceID: The parent trace (for aggregating costs)
+//   - inputCost: Cost for input/prompt tokens
+//   - outputCost: Cost for output/completion tokens
+//   - totalCost: Total cost (inputCost + outputCost)
+//
+// Returns:
+//   - error: Returns error if observation update or trace cost aggregation fails
+func (s *IngestionService) UpdateObservationCosts(
+	ctx context.Context,
+	projectID uuid.UUID,
+	observationID string,
+	traceID string,
+	inputCost, outputCost, totalCost float64,
+) error {
+	// Update the observation's cost fields
+	if err := s.observationRepo.UpdateCosts(ctx, projectID, observationID, inputCost, outputCost, totalCost); err != nil {
+		return fmt.Errorf("failed to update observation costs: %w", err)
+	}
+
+	// Update the trace's aggregated costs asynchronously
+	if traceID != "" {
+		go func() {
+			if err := s.updateTraceCosts(context.Background(), projectID, traceID); err != nil {
+				s.logger.Error("failed to update trace costs after observation cost update",
+					zap.String("trace_id", traceID),
+					zap.String("observation_id", observationID),
+					zap.String("project_id", projectID.String()),
+					zap.Error(err),
+				)
+			}
+		}()
+	}
+
+	return nil
 }
 
 // IngestionBatchInput represents a batch of telemetry items for bulk ingestion.
