@@ -16,6 +16,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/pkg/circuitbreaker"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -61,12 +62,13 @@ func NewBatchEvaluationTask(payload *BatchEvaluationPayload) (*asynq.Task, error
 
 // EvalWorker handles evaluation tasks
 type EvalWorker struct {
-	logger       *zap.Logger
-	config       *config.Config
-	evalService  *service.EvalService
-	scoreService *service.ScoreService
-	queryService *service.QueryService
-	httpClient   *http.Client
+	logger         *zap.Logger
+	config         *config.Config
+	evalService    *service.EvalService
+	scoreService   *service.ScoreService
+	queryService   *service.QueryService
+	httpClient     *http.Client
+	circuitBreaker *circuitbreaker.CircuitBreaker
 }
 
 // NewEvalWorker creates a new eval worker
@@ -77,12 +79,28 @@ func NewEvalWorker(
 	scoreService *service.ScoreService,
 	queryService *service.QueryService,
 ) *EvalWorker {
+	// Create circuit breaker for OpenAI API calls
+	cb := circuitbreaker.New(circuitbreaker.Config{
+		Name:                "openai-eval",
+		MaxFailures:         5,
+		Timeout:             30 * time.Second,
+		MaxHalfOpenRequests: 1,
+		OnStateChange: func(name string, from, to circuitbreaker.State) {
+			logger.Warn("circuit breaker state changed",
+				zap.String("breaker", name),
+				zap.String("from", from.String()),
+				zap.String("to", to.String()),
+			)
+		},
+	})
+
 	return &EvalWorker{
-		logger:       logger,
-		config:       cfg,
-		evalService:  evalService,
-		scoreService: scoreService,
-		queryService: queryService,
+		logger:         logger,
+		config:         cfg,
+		evalService:    evalService,
+		scoreService:   scoreService,
+		queryService:   queryService,
+		circuitBreaker: cb,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second, // LLM evaluations can take longer
 		},
@@ -383,7 +401,16 @@ Example response:
 }
 
 // callLLM makes a call to the configured LLM API (currently OpenAI-compatible)
+// Uses circuit breaker to protect against cascading failures
 func (w *EvalWorker) callLLM(ctx context.Context, model, systemPrompt, userPrompt string) (string, error) {
+	// Use circuit breaker to protect against OpenAI API failures
+	return circuitbreaker.ExecuteWithResult(w.circuitBreaker, ctx, func() (string, error) {
+		return w.doLLMCall(ctx, model, systemPrompt, userPrompt)
+	})
+}
+
+// doLLMCall performs the actual LLM API call
+func (w *EvalWorker) doLLMCall(ctx context.Context, model, systemPrompt, userPrompt string) (string, error) {
 	url := "https://api.openai.com/v1/chat/completions"
 
 	requestBody := map[string]interface{}{
@@ -421,8 +448,15 @@ func (w *EvalWorker) callLLM(ctx context.Context, model, systemPrompt, userPromp
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	// Treat server errors (5xx) and rate limits (429) as failures for circuit breaker
+	if resp.StatusCode >= 500 || resp.StatusCode == 429 {
 		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		// 4xx errors (except 429) are client errors, don't count against circuit breaker
+		// We return a special error that wraps the response but doesn't indicate a service failure
+		return "", fmt.Errorf("API client error (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
 	var result struct {

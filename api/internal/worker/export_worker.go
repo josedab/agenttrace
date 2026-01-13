@@ -301,8 +301,9 @@ func (w *ExportWorker) exportScores(
 		}
 	}
 
-	// Get scores from service
-	scoreList, err := w.scoreService.List(ctx, projectID, filter, 10000, 0)
+	// Set project ID in filter and get scores from service
+	filter.ProjectID = projectID
+	scoreList, err := w.scoreService.List(ctx, filter, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list scores: %w", err)
 	}
