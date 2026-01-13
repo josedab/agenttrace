@@ -10,29 +10,64 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/pkg/circuitbreaker"
 )
 
 // NotificationService handles sending notifications via webhooks
 type NotificationService struct {
-	logger     *zap.Logger
-	httpClient *http.Client
-	dashboardURL string
+	logger           *zap.Logger
+	httpClient       *http.Client
+	dashboardURL     string
+	cbRegistry       *circuitbreaker.Registry
 }
 
 // NewNotificationService creates a new notification service
 func NewNotificationService(logger *zap.Logger, dashboardURL string) *NotificationService {
+	registry := circuitbreaker.NewRegistry()
+
 	return &NotificationService{
 		logger: logger,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		dashboardURL: dashboardURL,
+		cbRegistry:   registry,
+	}
+}
+
+// getCircuitBreakerForHost returns a circuit breaker for the given webhook URL's host
+func (s *NotificationService) getCircuitBreakerForHost(webhookURL string) *circuitbreaker.CircuitBreaker {
+	parsedURL, err := url.Parse(webhookURL)
+	if err != nil {
+		// Fallback to a default circuit breaker if URL parsing fails
+		return s.cbRegistry.Get("webhook:default", s.webhookCircuitBreakerConfig("default"))
+	}
+
+	host := parsedURL.Host
+	return s.cbRegistry.Get("webhook:"+host, s.webhookCircuitBreakerConfig(host))
+}
+
+// webhookCircuitBreakerConfig returns circuit breaker configuration for webhooks
+func (s *NotificationService) webhookCircuitBreakerConfig(name string) circuitbreaker.Config {
+	return circuitbreaker.Config{
+		Name:                "webhook:" + name,
+		MaxFailures:         3,                // Open after 3 consecutive failures
+		Timeout:             60 * time.Second, // Try again after 1 minute
+		MaxHalfOpenRequests: 1,
+		OnStateChange: func(cbName string, from, to circuitbreaker.State) {
+			s.logger.Info("webhook circuit breaker state changed",
+				zap.String("circuit_breaker", cbName),
+				zap.String("from", from.String()),
+				zap.String("to", to.String()),
+			)
+		},
 	}
 }
 
@@ -101,32 +136,51 @@ func (s *NotificationService) SendNotification(
 		req.Header.Set("X-AgentTrace-Signature", signature)
 	}
 
-	// Send the request
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		delivery.Success = false
-		delivery.Error = fmt.Sprintf("request failed: %v", err)
+	// Get circuit breaker for this webhook's host
+	cb := s.getCircuitBreakerForHost(webhook.URL)
+
+	// Send the request with circuit breaker protection
+	err = cb.Execute(ctx, func() error {
+		resp, httpErr := s.httpClient.Do(req)
+		if httpErr != nil {
+			delivery.Success = false
+			delivery.Error = fmt.Sprintf("request failed: %v", httpErr)
+			delivery.Duration = time.Since(start).Milliseconds()
+			return httpErr
+		}
+		defer resp.Body.Close()
+
 		delivery.Duration = time.Since(start).Milliseconds()
-		return delivery, err
-	}
-	defer resp.Body.Close()
+		delivery.StatusCode = resp.StatusCode
 
-	delivery.Duration = time.Since(start).Milliseconds()
-	delivery.StatusCode = resp.StatusCode
+		// Read response body
+		body, _ := io.ReadAll(resp.Body)
+		delivery.Response = string(body)
 
-	// Read response body
-	body, _ := io.ReadAll(resp.Body)
-	delivery.Response = string(body)
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			delivery.Success = true
+			return nil
+		}
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		delivery.Success = true
-	} else {
 		delivery.Success = false
 		delivery.Error = fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
-		return delivery, fmt.Errorf("webhook returned status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("webhook returned status %d: %s", resp.StatusCode, string(body))
+	})
+
+	// Check if the error was due to circuit breaker being open
+	if err == circuitbreaker.ErrCircuitOpen {
+		delivery.Success = false
+		delivery.Error = "circuit breaker open: webhook endpoint temporarily unavailable"
+		s.logger.Warn("webhook call blocked by circuit breaker",
+			zap.String("webhook_url", webhook.URL),
+			zap.String("webhook_id", webhook.ID.String()),
+		)
+	} else if err == circuitbreaker.ErrTooManyRequests {
+		delivery.Success = false
+		delivery.Error = "circuit breaker half-open: too many concurrent requests"
 	}
 
-	return delivery, nil
+	return delivery, err
 }
 
 // computeSignature computes HMAC-SHA256 signature
