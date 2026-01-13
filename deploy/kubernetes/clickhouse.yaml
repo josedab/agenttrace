@@ -1,0 +1,191 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: agenttrace
+  labels:
+    app: clickhouse
+    app.kubernetes.io/name: agenttrace
+    app.kubernetes.io/component: analytics-database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9000
+    targetPort: 9000
+    name: native
+  - port: 8123
+    targetPort: 8123
+    name: http
+  selector:
+    app: clickhouse
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-config
+  namespace: agenttrace
+  labels:
+    app: clickhouse
+data:
+  users.xml: |
+    <?xml version="1.0"?>
+    <clickhouse>
+      <users>
+        <agenttrace>
+          <password_sha256_hex replace="true">PLACEHOLDER_WILL_BE_SET_BY_INIT</password_sha256_hex>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <access_management>1</access_management>
+        </agenttrace>
+      </users>
+    </clickhouse>
+  config.xml: |
+    <?xml version="1.0"?>
+    <clickhouse>
+      <logger>
+        <level>warning</level>
+        <console>1</console>
+      </logger>
+      <http_port>8123</http_port>
+      <tcp_port>9000</tcp_port>
+      <listen_host>::</listen_host>
+      <max_connections>100</max_connections>
+      <max_concurrent_queries>100</max_concurrent_queries>
+      <max_memory_usage>4000000000</max_memory_usage>
+      <max_memory_usage_for_all_queries>6000000000</max_memory_usage_for_all_queries>
+      <merge_tree>
+        <max_suspicious_broken_parts>5</max_suspicious_broken_parts>
+        <parts_to_delay_insert>150</parts_to_delay_insert>
+        <parts_to_throw_insert>300</parts_to_throw_insert>
+      </merge_tree>
+    </clickhouse>
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  namespace: agenttrace
+  labels:
+    app: clickhouse
+    app.kubernetes.io/name: agenttrace
+    app.kubernetes.io/component: analytics-database
+spec:
+  serviceName: clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+        app.kubernetes.io/name: agenttrace
+        app.kubernetes.io/component: analytics-database
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 101
+      initContainers:
+      - name: init-config
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Generate password hash and create users.xml
+          PASSWORD_HASH=$(echo -n "$CLICKHOUSE_PASSWORD" | sha256sum | cut -d' ' -f1)
+          cat > /etc/clickhouse-server/users.d/users.xml << EOF
+          <?xml version="1.0"?>
+          <clickhouse>
+            <users>
+              <agenttrace>
+                <password_sha256_hex>$PASSWORD_HASH</password_sha256_hex>
+                <networks>
+                  <ip>::/0</ip>
+                </networks>
+                <profile>default</profile>
+                <quota>default</quota>
+                <access_management>1</access_management>
+              </agenttrace>
+            </users>
+          </clickhouse>
+          EOF
+        env:
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: clickhouse-password
+        volumeMounts:
+        - name: clickhouse-users
+          mountPath: /etc/clickhouse-server/users.d
+        securityContext:
+          runAsUser: 101
+          allowPrivilegeEscalation: false
+      containers:
+      - name: clickhouse
+        image: clickhouse/clickhouse-server:24.1-alpine
+        ports:
+        - containerPort: 9000
+          name: native
+        - containerPort: 8123
+          name: http
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        volumeMounts:
+        - name: clickhouse-data
+          mountPath: /var/lib/clickhouse
+        - name: clickhouse-users
+          mountPath: /etc/clickhouse-server/users.d
+        - name: clickhouse-config
+          mountPath: /etc/clickhouse-server/config.d
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 8123
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 8123
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: clickhouse-config
+        configMap:
+          name: clickhouse-config
+          items:
+          - key: config.xml
+            path: config.xml
+      - name: clickhouse-users
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+      name: clickhouse-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 100Gi

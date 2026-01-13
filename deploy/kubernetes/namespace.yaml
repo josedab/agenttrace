@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agenttrace
+  labels:
+    app.kubernetes.io/name: agenttrace
+    app.kubernetes.io/component: namespace

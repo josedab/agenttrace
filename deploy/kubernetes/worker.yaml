@@ -1,0 +1,121 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agenttrace-worker
+  namespace: agenttrace
+  labels:
+    app: agenttrace-worker
+    app.kubernetes.io/name: agenttrace
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: agenttrace-worker
+  template:
+    metadata:
+      labels:
+        app: agenttrace-worker
+        app.kubernetes.io/name: agenttrace
+        app.kubernetes.io/component: worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      serviceAccountName: agenttrace
+      containers:
+      - name: worker
+        image: agenttrace/api:latest
+        command: ["/app/worker"]
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: agenttrace-config
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: postgres-password
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: clickhouse-password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: redis-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: jwt-secret
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: encryption-key
+              optional: true
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: openai-api-key
+              optional: true
+        - name: EVAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: openai-api-key
+              optional: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - agenttrace-worker
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agenttrace-worker-pdb
+  namespace: agenttrace
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: agenttrace-worker

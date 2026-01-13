@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agenttrace-config
+  namespace: agenttrace
+  labels:
+    app.kubernetes.io/name: agenttrace
+    app.kubernetes.io/component: config
+data:
+  # Server Configuration
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8080"
+  SERVER_ENV: "production"
+
+  # PostgreSQL Configuration
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "agenttrace"
+  POSTGRES_DB: "agenttrace"
+  POSTGRES_SSL_MODE: "prefer"
+  POSTGRES_MAX_CONNS: "25"
+  POSTGRES_MIN_CONNS: "5"
+
+  # ClickHouse Configuration
+  CLICKHOUSE_HOST: "clickhouse"
+  CLICKHOUSE_PORT: "9000"
+  CLICKHOUSE_HTTP_PORT: "8123"
+  CLICKHOUSE_USER: "agenttrace"
+  CLICKHOUSE_DB: "agenttrace"
+
+  # Redis Configuration
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
+  # JWT Configuration
+  JWT_EXPIRY_HOURS: "24"
+  JWT_REFRESH_EXPIRY_DAYS: "7"
+
+  # Rate Limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_REQUESTS_PER_SECOND: "100"
+  RATE_LIMIT_BURST: "200"
+
+  # Logging
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # Worker Configuration
+  WORKER_CONCURRENCY: "10"
+  WORKER_QUEUE_CRITICAL: "critical"
+  WORKER_QUEUE_DEFAULT: "default"
+  WORKER_QUEUE_LOW: "low"
+
+  # Cost Calculation
+  COST_WORKER_ENABLED: "true"
+  COST_WORKER_BATCH_SIZE: "100"
+
+  # Evaluation
+  EVAL_WORKER_ENABLED: "true"
+  EVAL_DEFAULT_MODEL: "gpt-4o-mini"
+
+  # Data Retention
+  RETENTION_DAYS: "90"
+  RETENTION_WORKER_ENABLED: "true"
