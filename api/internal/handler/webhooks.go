@@ -1,27 +1,34 @@
 package handler
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
+	pgrepo "github.com/agenttrace/agenttrace/api/internal/repository/postgres"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
 // WebhookHandler handles webhook-related HTTP requests
 type WebhookHandler struct {
 	logger              *zap.Logger
+	webhookRepo         *pgrepo.WebhookRepository
 	notificationService *service.NotificationService
 }
 
 // NewWebhookHandler creates a new webhook handler
 func NewWebhookHandler(
 	logger *zap.Logger,
+	webhookRepo *pgrepo.WebhookRepository,
 	notificationService *service.NotificationService,
 ) *WebhookHandler {
 	return &WebhookHandler{
 		logger:              logger,
+		webhookRepo:         webhookRepo,
 		notificationService: notificationService,
 	}
 }
@@ -35,6 +42,8 @@ func NewWebhookHandler(
 // @Param projectId query string true "Project ID"
 // @Param type query string false "Filter by webhook type"
 // @Param enabled query bool false "Filter by enabled status"
+// @Param limit query int false "Limit results" default(50)
+// @Param offset query int false "Offset for pagination" default(0)
 // @Success 200 {object} domain.WebhookList
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
@@ -42,7 +51,7 @@ func NewWebhookHandler(
 func (h *WebhookHandler) ListWebhooks(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	filter := domain.WebhookFilter{
@@ -59,11 +68,16 @@ func (h *WebhookHandler) ListWebhooks(c *fiber.Ctx) error {
 		filter.IsEnabled = &isEnabled
 	}
 
-	// For now, return empty list - actual implementation would query database
-	result := domain.WebhookList{
-		Webhooks:   []domain.Webhook{},
-		TotalCount: 0,
-		HasMore:    false,
+	limit := c.QueryInt("limit", 50)
+	offset := c.QueryInt("offset", 0)
+
+	result, err := h.webhookRepo.List(c.Context(), &filter, limit, offset)
+	if err != nil {
+		h.logger.Error("failed to list webhooks",
+			zap.String("projectId", projectID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to list webhooks")
 	}
 
 	return c.JSON(result)
@@ -82,12 +96,27 @@ func (h *WebhookHandler) ListWebhooks(c *fiber.Ctx) error {
 func (h *WebhookHandler) GetWebhook(c *fiber.Ctx) error {
 	webhookID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID")
 	}
 
-	// For now, return not found - actual implementation would query database
-	h.logger.Debug("Get webhook", zap.String("webhookId", webhookID.String()))
-	return errorResponse(c, fiber.StatusNotFound, "Webhook not found", nil)
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
+	}
+
+	webhook, err := h.webhookRepo.GetByProjectID(c.Context(), projectID, webhookID)
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return errorResponse(c, fiber.StatusNotFound, "Webhook not found")
+		}
+		h.logger.Error("failed to get webhook",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get webhook")
+	}
+
+	return c.JSON(webhook)
 }
 
 // CreateWebhook creates a new webhook
@@ -103,30 +132,37 @@ func (h *WebhookHandler) GetWebhook(c *fiber.Ctx) error {
 func (h *WebhookHandler) CreateWebhook(c *fiber.Ctx) error {
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	var input domain.WebhookInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	// Validate input
 	if input.Name == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Name is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Name is required")
 	}
 	if input.URL == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "URL is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "URL is required")
 	}
 	if len(input.Events) == 0 {
-		return errorResponse(c, fiber.StatusBadRequest, "At least one event type is required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "At least one event type is required")
+	}
+
+	// Set default type if not specified
+	webhookType := input.Type
+	if webhookType == "" {
+		webhookType = domain.WebhookTypeGeneric
 	}
 
 	// Create webhook object
+	now := time.Now()
 	webhook := &domain.Webhook{
 		ID:               uuid.New(),
 		ProjectID:        projectID,
-		Type:             input.Type,
+		Type:             webhookType,
 		Name:             input.Name,
 		URL:              input.URL,
 		Secret:           input.Secret,
@@ -137,10 +173,20 @@ func (h *WebhookHandler) CreateWebhook(c *fiber.Ctx) error {
 		LatencyThreshold: input.LatencyThreshold,
 		ScoreThreshold:   input.ScoreThreshold,
 		RateLimitPerHour: input.RateLimitPerHour,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
-	// For now, return the created webhook - actual implementation would persist to database
-	h.logger.Info("Created webhook",
+	if err := h.webhookRepo.Create(c.Context(), webhook); err != nil {
+		h.logger.Error("failed to create webhook",
+			zap.String("projectId", projectID.String()),
+			zap.String("name", input.Name),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to create webhook")
+	}
+
+	h.logger.Info("created webhook",
 		zap.String("webhookId", webhook.ID.String()),
 		zap.String("projectId", projectID.String()),
 		zap.String("type", string(webhook.Type)),
@@ -164,18 +210,83 @@ func (h *WebhookHandler) CreateWebhook(c *fiber.Ctx) error {
 func (h *WebhookHandler) UpdateWebhook(c *fiber.Ctx) error {
 	webhookID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID")
+	}
+
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
+	}
+
+	// Get existing webhook
+	webhook, err := h.webhookRepo.GetByProjectID(c.Context(), projectID, webhookID)
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return errorResponse(c, fiber.StatusNotFound, "Webhook not found")
+		}
+		h.logger.Error("failed to get webhook for update",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get webhook")
 	}
 
 	var input domain.WebhookUpdateInput
 	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	h.logger.Debug("Update webhook", zap.String("webhookId", webhookID.String()))
+	// Apply updates
+	if input.Name != nil {
+		webhook.Name = *input.Name
+	}
+	if input.URL != nil {
+		webhook.URL = *input.URL
+	}
+	if input.Secret != nil {
+		webhook.Secret = *input.Secret
+	}
+	if input.Events != nil {
+		webhook.Events = input.Events
+	}
+	if input.IsEnabled != nil {
+		webhook.IsEnabled = *input.IsEnabled
+	}
+	if input.Headers != nil {
+		webhook.Headers = input.Headers
+	}
+	if input.Type != nil {
+		webhook.Type = *input.Type
+	}
+	if input.CostThreshold != nil {
+		webhook.CostThreshold = input.CostThreshold
+	}
+	if input.LatencyThreshold != nil {
+		webhook.LatencyThreshold = input.LatencyThreshold
+	}
+	if input.ScoreThreshold != nil {
+		webhook.ScoreThreshold = input.ScoreThreshold
+	}
+	if input.RateLimitPerHour != nil {
+		webhook.RateLimitPerHour = input.RateLimitPerHour
+	}
 
-	// For now, return not found - actual implementation would update in database
-	return errorResponse(c, fiber.StatusNotFound, "Webhook not found", nil)
+	webhook.UpdatedAt = time.Now()
+
+	if err := h.webhookRepo.Update(c.Context(), webhook); err != nil {
+		h.logger.Error("failed to update webhook",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to update webhook")
+	}
+
+	h.logger.Info("updated webhook",
+		zap.String("webhookId", webhookID.String()),
+		zap.String("projectId", projectID.String()),
+	)
+
+	return c.JSON(webhook)
 }
 
 // DeleteWebhook deletes a webhook
@@ -191,13 +302,41 @@ func (h *WebhookHandler) UpdateWebhook(c *fiber.Ctx) error {
 func (h *WebhookHandler) DeleteWebhook(c *fiber.Ctx) error {
 	webhookID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID")
 	}
 
-	h.logger.Info("Deleted webhook", zap.String("webhookId", webhookID.String()))
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
+	}
 
-	// For now, return not found - actual implementation would delete from database
-	return errorResponse(c, fiber.StatusNotFound, "Webhook not found", nil)
+	// Verify webhook exists and belongs to project
+	_, err = h.webhookRepo.GetByProjectID(c.Context(), projectID, webhookID)
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return errorResponse(c, fiber.StatusNotFound, "Webhook not found")
+		}
+		h.logger.Error("failed to get webhook for deletion",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get webhook")
+	}
+
+	if err := h.webhookRepo.Delete(c.Context(), webhookID); err != nil {
+		h.logger.Error("failed to delete webhook",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to delete webhook")
+	}
+
+	h.logger.Info("deleted webhook",
+		zap.String("webhookId", webhookID.String()),
+		zap.String("projectId", projectID.String()),
+	)
+
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // TestWebhook sends a test notification to a webhook
@@ -214,41 +353,45 @@ func (h *WebhookHandler) DeleteWebhook(c *fiber.Ctx) error {
 func (h *WebhookHandler) TestWebhook(c *fiber.Ctx) error {
 	webhookID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID")
 	}
 
 	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
-	// For testing purposes, create a mock webhook
-	// In real implementation, this would fetch from database
-	var input struct {
-		Type string `json:"type"`
-		URL  string `json:"url"`
-		Name string `json:"name"`
-	}
-	if err := c.BodyParser(&input); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
-	}
-
-	webhook := &domain.Webhook{
-		ID:        webhookID,
-		ProjectID: projectID,
-		Type:      domain.WebhookType(input.Type),
-		Name:      input.Name,
-		URL:       input.URL,
-		IsEnabled: true,
+	// Get webhook from database
+	webhook, err := h.webhookRepo.GetByProjectID(c.Context(), projectID, webhookID)
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return errorResponse(c, fiber.StatusNotFound, "Webhook not found")
+		}
+		h.logger.Error("failed to get webhook for test",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get webhook")
 	}
 
 	// Send test notification
 	delivery, err := h.notificationService.TestWebhook(c.Context(), webhook)
 	if err != nil {
-		h.logger.Error("Test webhook failed",
+		h.logger.Error("test webhook failed",
 			zap.String("webhookId", webhookID.String()),
 			zap.Error(err),
 		)
+		// Still return the delivery object to show what happened
+	}
+
+	// Store delivery record
+	if delivery != nil {
+		if err := h.webhookRepo.CreateDelivery(c.Context(), delivery); err != nil {
+			h.logger.Warn("failed to store test delivery record",
+				zap.String("webhookId", webhookID.String()),
+				zap.Error(err),
+			)
+		}
 	}
 
 	return c.JSON(delivery)
@@ -263,6 +406,7 @@ func (h *WebhookHandler) TestWebhook(c *fiber.Ctx) error {
 // @Param id path string true "Webhook ID"
 // @Param success query bool false "Filter by success status"
 // @Param limit query int false "Limit results" default(50)
+// @Param offset query int false "Offset for pagination" default(0)
 // @Success 200 {object} domain.WebhookDeliveryList
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -270,7 +414,25 @@ func (h *WebhookHandler) TestWebhook(c *fiber.Ctx) error {
 func (h *WebhookHandler) ListWebhookDeliveries(c *fiber.Ctx) error {
 	webhookID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid webhook ID")
+	}
+
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
+	}
+
+	// Verify webhook exists and belongs to project
+	_, err = h.webhookRepo.GetByProjectID(c.Context(), projectID, webhookID)
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return errorResponse(c, fiber.StatusNotFound, "Webhook not found")
+		}
+		h.logger.Error("failed to get webhook for deliveries",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get webhook")
 	}
 
 	filter := domain.WebhookDeliveryFilter{
@@ -282,11 +444,16 @@ func (h *WebhookHandler) ListWebhookDeliveries(c *fiber.Ctx) error {
 		filter.Success = &isSuccess
 	}
 
-	// For now, return empty list - actual implementation would query database
-	result := domain.WebhookDeliveryList{
-		Deliveries: []domain.WebhookDelivery{},
-		TotalCount: 0,
-		HasMore:    false,
+	limit := c.QueryInt("limit", 50)
+	offset := c.QueryInt("offset", 0)
+
+	result, err := h.webhookRepo.ListDeliveries(c.Context(), &filter, limit, offset)
+	if err != nil {
+		h.logger.Error("failed to list webhook deliveries",
+			zap.String("webhookId", webhookID.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to list deliveries")
 	}
 
 	return c.JSON(result)
