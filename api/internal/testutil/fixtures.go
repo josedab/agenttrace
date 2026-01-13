@@ -32,12 +32,11 @@ func NewTestOrganization() *domain.Organization {
 // NewTestUser creates a test user with default values.
 func NewTestUser(orgID uuid.UUID) *domain.User {
 	return &domain.User{
-		ID:             uuid.New(),
-		Email:          "test@example.com",
-		Name:           "Test User",
-		OrganizationID: orgID,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		ID:        uuid.New(),
+		Email:     "test@example.com",
+		Name:      "Test User",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 }
 
@@ -80,12 +79,13 @@ func NewTestDataset(projectID uuid.UUID) *domain.Dataset {
 
 // NewTestScore creates a test score with default values.
 func NewTestScore(projectID uuid.UUID, traceID string) *domain.Score {
+	scoreValue := 0.85
 	return &domain.Score{
 		ID:        uuid.New(),
 		ProjectID: projectID,
 		TraceID:   traceID,
 		Name:      "test-score",
-		Value:     0.85,
+		Value:     &scoreValue,
 		Source:    domain.ScoreSourceAPI,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
