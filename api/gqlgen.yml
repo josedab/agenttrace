@@ -8,34 +8,200 @@ exec:
   filename: internal/graphql/generated/generated.go
   package: generated
 
-model:
-  filename: internal/graphql/model/models_gen.go
-  package: model
-
+# Resolver configuration - single file layout to avoid conflicts
 resolver:
-  layout: follow-schema
-  dir: internal/graphql/resolver
+  layout: single-file
+  filename: internal/graphql/resolver/resolvers.go
   package: resolver
-  filename_template: "{name}.resolvers.go"
 
-# Skip generation for types that we want to map to domain types
+# Generation options
+omit_slice_element_pointers: true
+
+# Autobind to find types from these packages
 autobind:
   - "github.com/agenttrace/agenttrace/api/internal/domain"
-  - "github.com/google/uuid"
+  - "github.com/agenttrace/agenttrace/api/internal/graphql/model"
 
 models:
+  # Scalar mappings
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID
   UUID:
     model:
-      - github.com/google/uuid.UUID
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UUID
   DateTime:
     model:
       - github.com/99designs/gqlgen/graphql.Time
   JSON:
     model:
-      - github.com/agenttrace/agenttrace/api/internal/graphql/model.JSON
+      - github.com/99designs/gqlgen/graphql.Map
+
+  # Connection types from model package
+  PageInfo:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.PageInfo
+  TraceConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.TraceConnection
+  TraceEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.TraceEdge
+  ObservationConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ObservationConnection
+  ObservationEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ObservationEdge
+  ScoreConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ScoreConnection
+  ScoreEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ScoreEdge
+  SessionConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.SessionConnection
+  SessionEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.SessionEdge
+  Session:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.Session
+  PromptConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.PromptConnection
+  PromptEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.PromptEdge
+  DatasetConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DatasetConnection
+  DatasetEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DatasetEdge
+  DatasetItemConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DatasetItemConnection
+  DatasetItemEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DatasetItemEdge
+  EvaluatorConnection:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.EvaluatorConnection
+  EvaluatorEdge:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.EvaluatorEdge
+
+  # Input types from model package
+  TracesInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.TracesInput
+  ObservationsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ObservationsInput
+  ScoresInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ScoresInput
+  SessionsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.SessionsInput
+  PromptsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.PromptsInput
+  DatasetsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DatasetsInput
+  EvaluatorsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.EvaluatorsInput
+  CreateTraceInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateTraceInput
+  UpdateTraceInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateTraceInput
+  CreateObservationInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateObservationInput
+  CreateGenerationInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateGenerationInput
+  UsageInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UsageInput
+  UpdateObservationInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateObservationInput
+  CreateScoreInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateScoreInput
+  UpdateScoreInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateScoreInput
+  CreatePromptInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreatePromptInput
+  UpdatePromptInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdatePromptInput
+  CreateDatasetInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateDatasetInput
+  UpdateDatasetInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateDatasetInput
+  CreateDatasetItemInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateDatasetItemInput
+  UpdateDatasetItemInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateDatasetItemInput
+  CreateDatasetRunInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateDatasetRunInput
+  AddDatasetRunItemInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.AddDatasetRunItemInput
+  CreateEvaluatorInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateEvaluatorInput
+  UpdateEvaluatorInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateEvaluatorInput
+  CreateProjectInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateProjectInput
+  UpdateProjectInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.UpdateProjectInput
+  CreateAPIKeyInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.CreateAPIKeyInput
+  APIKeyWithSecret:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.APIKeyWithSecret
+  MetricsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.MetricsInput
+  DailyCostsInput:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DailyCostsInput
+  Metrics:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.Metrics
+  ModelUsage:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ModelUsage
+  DailyCost:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.DailyCost
+  ModelCost:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.ModelCost
+  TokenUsage:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/graphql/model.TokenUsage
 
   # Map GraphQL types to domain types
   Trace:
@@ -91,6 +257,9 @@ models:
       - github.com/agenttrace/agenttrace/api/internal/domain.APIKey
 
   # Enum mappings
+  SortOrder:
+    model:
+      - github.com/agenttrace/agenttrace/api/internal/domain.SortOrder
   ObservationType:
     model:
       - github.com/agenttrace/agenttrace/api/internal/domain.ObservationType
