@@ -442,13 +442,40 @@ curl http://localhost:8080/health
 
 ## Kubernetes Deployment
 
-For Kubernetes deployments, see the Helm chart in `/deploy/helm/agenttrace/`.
+For Kubernetes deployments, see the manifests in `/deploy/kubernetes/`.
+
+### Quick Start
 
 ```bash
-helm repo add agenttrace https://charts.agenttrace.io
-helm install agenttrace agenttrace/agenttrace \
-  --set postgresql.auth.password=strong-password \
-  --set clickhouse.auth.password=strong-password \
-  --set redis.auth.password=strong-password \
-  --set api.jwt.secret=your-jwt-secret
+# Create namespace and secrets
+kubectl create namespace agenttrace
+kubectl create secret generic agenttrace-secrets \
+  --from-literal=postgres-password=$(openssl rand -base64 32) \
+  --from-literal=clickhouse-password=$(openssl rand -base64 32) \
+  --from-literal=redis-password=$(openssl rand -base64 32) \
+  --from-literal=jwt-secret=$(openssl rand -base64 32) \
+  --from-literal=encryption-key=$(openssl rand -hex 16) \
+  -n agenttrace
+
+# Apply with Kustomize
+kubectl apply -k deploy/kubernetes/
+
+# Or apply manifests individually
+kubectl apply -f deploy/kubernetes/namespace.yaml
+kubectl apply -f deploy/kubernetes/configmap.yaml
+kubectl apply -f deploy/kubernetes/postgres.yaml
+kubectl apply -f deploy/kubernetes/clickhouse.yaml
+kubectl apply -f deploy/kubernetes/redis.yaml
+kubectl apply -f deploy/kubernetes/api.yaml
+kubectl apply -f deploy/kubernetes/worker.yaml
+kubectl apply -f deploy/kubernetes/ingress.yaml
+
+# Run migrations
+kubectl exec -it deployment/agenttrace-api -n agenttrace -- /app/server migrate up
 ```
+
+For production hardening, also apply:
+- `network-policies.yaml` - Network segmentation
+- `hpa.yaml` - Horizontal Pod Autoscaling
+
+See `/deploy/kubernetes/README.md` for the full Kubernetes deployment guide.
