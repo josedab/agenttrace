@@ -21,6 +21,7 @@ type FullProjectRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByOrganizationID(ctx context.Context, orgID uuid.UUID) ([]domain.Project, error)
 	ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Project, error)
+	ListAll(ctx context.Context, limit, offset int) ([]domain.Project, error)
 	AddMember(ctx context.Context, member *domain.ProjectMember) error
 	GetMember(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectMember, error)
 	RemoveMember(ctx context.Context, projectID, userID uuid.UUID) error
@@ -217,4 +218,9 @@ func (s *ProjectService) CheckAccess(ctx context.Context, projectID, userID uuid
 // GetUserRole retrieves the user's role for a project
 func (s *ProjectService) GetUserRole(ctx context.Context, projectID, userID uuid.UUID) (*domain.OrgRole, error) {
 	return s.projectRepo.GetUserRoleForProject(ctx, projectID, userID)
+}
+
+// ListAll retrieves all projects with pagination (for system tasks like cleanup)
+func (s *ProjectService) ListAll(ctx context.Context, limit, offset int) ([]domain.Project, error) {
+	return s.projectRepo.ListAll(ctx, limit, offset)
 }

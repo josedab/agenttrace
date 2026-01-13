@@ -335,3 +335,41 @@ func (r *ProjectRepository) SlugExists(ctx context.Context, orgID uuid.UUID, slu
 
 	return exists, nil
 }
+
+// ListAll retrieves all projects with pagination for scheduled tasks like cleanup
+func (r *ProjectRepository) ListAll(ctx context.Context, limit, offset int) ([]domain.Project, error) {
+	query := `
+		SELECT id, organization_id, name, slug, description, settings, retention_days, rate_limit_per_minute, created_at, updated_at
+		FROM projects
+		ORDER BY created_at
+		LIMIT $1 OFFSET $2
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all projects: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []domain.Project
+	for rows.Next() {
+		var project domain.Project
+		if err := rows.Scan(
+			&project.ID,
+			&project.OrganizationID,
+			&project.Name,
+			&project.Slug,
+			&project.Description,
+			&project.Settings,
+			&project.RetentionDays,
+			&project.RateLimitPerMin,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+		projects = append(projects, project)
+	}
+
+	return projects, nil
+}

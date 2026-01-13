@@ -16,12 +16,18 @@ import (
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
 
+// OrgLookupRepository defines organization lookup operations for auto-linking
+type OrgLookupRepository interface {
+	GetBySlug(ctx context.Context, slug string) (*domain.Organization, error)
+}
+
 // GitHubAppRepository defines the interface for GitHub App data operations
 type GitHubAppRepository interface {
 	CreateInstallation(ctx context.Context, installation *domain.GitHubInstallation) error
 	GetInstallationByID(ctx context.Context, id uuid.UUID) (*domain.GitHubInstallation, error)
 	GetInstallationByInstallationID(ctx context.Context, installationID int64) (*domain.GitHubInstallation, error)
 	ListInstallations(ctx context.Context, organizationID uuid.UUID) ([]domain.GitHubInstallation, error)
+	ListUnlinkedInstallations(ctx context.Context) ([]domain.GitHubInstallation, error)
 	UpdateInstallation(ctx context.Context, installation *domain.GitHubInstallation) error
 	DeleteInstallation(ctx context.Context, id uuid.UUID) error
 
@@ -45,6 +51,7 @@ type GitHubAppRepository interface {
 type GitHubAppService struct {
 	repo          GitHubAppRepository
 	gitLinkRepo   GitLinkRepository
+	orgRepo       OrgLookupRepository
 	logger        *zap.Logger
 	webhookSecret string
 	appID         int64
@@ -54,6 +61,7 @@ type GitHubAppService struct {
 func NewGitHubAppService(
 	repo GitHubAppRepository,
 	gitLinkRepo GitLinkRepository,
+	orgRepo OrgLookupRepository,
 	logger *zap.Logger,
 	webhookSecret string,
 	appID int64,
@@ -61,6 +69,7 @@ func NewGitHubAppService(
 	return &GitHubAppService{
 		repo:          repo,
 		gitLinkRepo:   gitLinkRepo,
+		orgRepo:       orgRepo,
 		logger:        logger,
 		webhookSecret: webhookSecret,
 		appID:         appID,
@@ -157,11 +166,36 @@ func (s *GitHubAppService) handleInstallationEvent(ctx context.Context, payload 
 
 // createInstallation creates a new installation from webhook
 func (s *GitHubAppService) createInstallation(ctx context.Context, event *domain.GitHubInstallationPayload) error {
-	// Note: Organization ID needs to be resolved from account
-	// For now, we'll store with a placeholder and require manual linking
+	// Attempt auto-linking by matching GitHub account login to organization slug
+	var organizationID uuid.UUID
+	autoLinked := false
+
+	if s.orgRepo != nil {
+		// Try to find an organization with a slug matching the GitHub account login
+		// This provides best-effort auto-linking for organizations that use matching names
+		accountSlug := strings.ToLower(event.Installation.Account.Login)
+		org, err := s.orgRepo.GetBySlug(ctx, accountSlug)
+		if err == nil && org != nil {
+			organizationID = org.ID
+			autoLinked = true
+			s.logger.Info("auto-linked GitHub installation to organization",
+				zap.Int64("installation_id", event.Installation.ID),
+				zap.String("github_account", event.Installation.Account.Login),
+				zap.String("org_slug", org.Slug),
+				zap.String("org_id", org.ID.String()),
+			)
+		} else {
+			s.logger.Warn("GitHub installation created without organization link - manual linking required",
+				zap.Int64("installation_id", event.Installation.ID),
+				zap.String("github_account", event.Installation.Account.Login),
+				zap.String("attempted_slug", accountSlug),
+			)
+		}
+	}
+
 	installation := &domain.GitHubInstallation{
 		ID:                  uuid.New(),
-		OrganizationID:      uuid.Nil, // Needs to be linked by user
+		OrganizationID:      organizationID, // Auto-linked if match found, otherwise uuid.Nil
 		InstallationID:      event.Installation.ID,
 		AccountID:           event.Installation.Account.ID,
 		AccountLogin:        event.Installation.Account.Login,
@@ -176,6 +210,8 @@ func (s *GitHubAppService) createInstallation(ctx context.Context, event *domain
 		Permissions:         s.convertPermissions(event.Installation.Permissions),
 		Events:              event.Installation.Events,
 	}
+
+	_ = autoLinked // Used for logging above
 
 	if err := s.repo.CreateInstallation(ctx, installation); err != nil {
 		return fmt.Errorf("failed to create installation: %w", err)
@@ -378,7 +414,7 @@ func (s *GitHubAppService) handlePushEvent(ctx context.Context, payload []byte) 
 			FilesModified:     commit.Modified,
 			FilesDeleted:      commit.Removed,
 			FilesChangedCount: uint32(len(commit.Added) + len(commit.Modified) + len(commit.Removed)),
-			LinkType:          domain.GitLinkTypePush,
+			LinkType:          domain.GitLinkTypeReferenced,
 			CreatedAt:         time.Now(),
 		}
 
@@ -418,6 +454,12 @@ func (s *GitHubAppService) LinkRepositoryToProject(ctx context.Context, input *d
 // GetInstallations retrieves installations for an organization
 func (s *GitHubAppService) GetInstallations(ctx context.Context, organizationID uuid.UUID) ([]domain.GitHubInstallation, error) {
 	return s.repo.ListInstallations(ctx, organizationID)
+}
+
+// GetUnlinkedInstallations retrieves installations not linked to any organization
+// This is useful for admins to find installations that need manual linking
+func (s *GitHubAppService) GetUnlinkedInstallations(ctx context.Context) ([]domain.GitHubInstallation, error) {
+	return s.repo.ListUnlinkedInstallations(ctx)
 }
 
 // GetRepositories retrieves repositories for an installation
