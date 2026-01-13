@@ -75,6 +75,7 @@ type WebhookInput struct {
 
 // WebhookUpdateInput represents input for updating a webhook
 type WebhookUpdateInput struct {
+	Type             *WebhookType      `json:"type,omitempty" validate:"omitempty,oneof=slack discord msteams pagerduty generic"`
 	Name             *string           `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
 	URL              *string           `json:"url,omitempty" validate:"omitempty,url"`
 	Secret           *string           `json:"secret,omitempty"`
