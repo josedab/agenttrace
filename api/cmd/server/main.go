@@ -19,6 +19,8 @@ import (
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
 )
 
+const appVersion = "0.1.0"
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -36,6 +38,37 @@ func main() {
 	}
 	defer logger.Sync()
 
+	// Initialize Sentry if enabled
+	sentryEnabled := cfg.Sentry.Enabled && cfg.Sentry.DSN != ""
+	if sentryEnabled {
+		sentryConfig := middleware.SentryConfig{
+			DSN:              cfg.Sentry.DSN,
+			Environment:      cfg.Sentry.Environment,
+			Release:          cfg.Sentry.Release,
+			Debug:            cfg.Sentry.Debug,
+			SampleRate:       cfg.Sentry.SampleRate,
+			TracesSampleRate: cfg.Sentry.TracesSampleRate,
+			FlushTimeout:     5 * time.Second,
+		}
+		if sentryConfig.Release == "" {
+			sentryConfig.Release = "agenttrace@" + appVersion
+		}
+		if sentryConfig.Environment == "" {
+			sentryConfig.Environment = cfg.Server.Env
+		}
+
+		if err := middleware.InitSentry(sentryConfig); err != nil {
+			logger.Error("failed to initialize Sentry", zap.Error(err))
+			sentryEnabled = false
+		} else {
+			logger.Info("Sentry initialized",
+				zap.String("environment", sentryConfig.Environment),
+				zap.String("release", sentryConfig.Release),
+			)
+			defer middleware.FlushSentry(5 * time.Second)
+		}
+	}
+
 	// Initialize dependencies
 	deps, err := initDependencies(cfg, logger)
 	if err != nil {
@@ -50,7 +83,7 @@ func main() {
 		WriteTimeout:          30 * time.Second,
 		IdleTimeout:           120 * time.Second,
 		DisableStartupMessage: cfg.Server.Env == "production",
-		ErrorHandler:          errorHandler(logger),
+		ErrorHandler:          errorHandler(logger, sentryEnabled),
 	})
 
 	// Apply global middleware
@@ -59,8 +92,13 @@ func main() {
 	loggerMiddleware := middleware.NewLoggerMiddleware(middleware.DefaultLoggerConfig(logger))
 	app.Use(loggerMiddleware.Handler())
 
-	recoverMiddleware := middleware.NewRecoverMiddleware(middleware.DefaultRecoverConfig(logger))
-	app.Use(recoverMiddleware.Handler())
+	// Use Sentry-aware recovery middleware
+	app.Use(middleware.RecoverWithSentry(logger, sentryEnabled))
+
+	// Add Sentry context middleware if enabled
+	if sentryEnabled {
+		app.Use(middleware.SentryMiddleware(true))
+	}
 
 	corsMiddleware := middleware.NewCORSMiddleware(middleware.DefaultCORSConfig())
 	app.Use(corsMiddleware.Handler())
@@ -120,7 +158,7 @@ func setupGraphQL(app *fiber.App, deps *Dependencies, cfg *config.Config) {
 }
 
 // errorHandler creates a custom error handler
-func errorHandler(logger *zap.Logger) fiber.ErrorHandler {
+func errorHandler(logger *zap.Logger, sentryEnabled bool) fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
 		// Default to 500 Internal Server Error
 		code := fiber.StatusInternalServerError
@@ -139,6 +177,11 @@ func errorHandler(logger *zap.Logger) fiber.ErrorHandler {
 			zap.String("path", c.Path()),
 			zap.String("method", c.Method()),
 		)
+
+		// Report to Sentry for 5xx errors
+		if sentryEnabled && code >= 500 {
+			middleware.CaptureError(c, err)
+		}
 
 		// Return JSON error response
 		return c.Status(code).JSON(fiber.Map{

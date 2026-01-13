@@ -142,12 +142,33 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Post("/import/dataset/csv", deps.ImportHandler.ImportDatasetCSV)
 		public.Post("/import/dataset/openai-finetune", deps.ImportHandler.ImportOpenAIFinetune)
 		public.Post("/import/prompt", deps.ImportHandler.ImportPrompt)
+
+		// Webhooks
+		public.Get("/webhooks", deps.WebhookHandler.ListWebhooks)
+		public.Get("/webhooks/:id", deps.WebhookHandler.GetWebhook)
+		public.Post("/webhooks", deps.WebhookHandler.CreateWebhook)
+		public.Patch("/webhooks/:id", deps.WebhookHandler.UpdateWebhook)
+		public.Delete("/webhooks/:id", deps.WebhookHandler.DeleteWebhook)
+		public.Post("/webhooks/:id/test", deps.WebhookHandler.TestWebhook)
+		public.Get("/webhooks/:id/deliveries", deps.WebhookHandler.ListWebhookDeliveries)
+
+		// Replay
+		public.Get("/traces/:traceId/replay", deps.ReplayHandler.GetTimeline)
+		public.Get("/traces/:traceId/replay/export", deps.ReplayHandler.ExportTimeline)
+		public.Get("/traces/:traceId/replay/events", deps.ReplayHandler.GetTimelineEvents)
+		public.Get("/traces/:traceId/replay/events/:eventId", deps.ReplayHandler.GetEventDetails)
+		public.Post("/replay/compare", deps.ReplayHandler.CompareTimelines)
 	}
 
 	// Internal API routes (JWT auth)
 	internal := app.Group("/api/v1")
 	internal.Use(deps.AuthMiddleware.RequireJWT())
+	internal.Use(deps.RateLimitMiddleware.UserRateLimit(100)) // 100 requests per minute per user
+	internal.Use(deps.CSRFMiddleware.Handler())
 	{
+		// CSRF token endpoint for SPAs
+		internal.Get("/csrf-token", deps.CSRFMiddleware.GetToken())
+
 		// Current user
 		internal.Get("/me", deps.AuthHandler.GetCurrentUser)
 

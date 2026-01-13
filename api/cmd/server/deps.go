@@ -48,6 +48,8 @@ type Dependencies struct {
 	PromptRepo          *pgrepo.PromptRepository
 	DatasetRepo         *pgrepo.DatasetRepository
 	EvaluatorRepo       *pgrepo.EvaluatorRepository
+	WebhookRepo         *pgrepo.WebhookRepository
+	ExperimentRepo      *pgrepo.ExperimentRepository
 
 	// Services
 	QueryService           *service.QueryService
@@ -66,6 +68,8 @@ type Dependencies struct {
 	FileOperationService   *service.FileOperationService
 	TerminalCommandService *service.TerminalCommandService
 	CIRunService           *service.CIRunService
+	ReplayService          *service.ReplayService
+	ExperimentService      *service.ExperimentService
 
 	// Handlers
 	HealthHandler           *handler.HealthHandler
@@ -88,10 +92,14 @@ type Dependencies struct {
 	ExportHandler           *handler.ExportHandler
 	ImportHandler           *handler.ImportHandler
 	DocsHandler             *handler.DocsHandler
+	WebhookHandler          *handler.WebhookHandler
+	ReplayHandler           *handler.ReplayHandler
+	ExperimentHandler       *handler.ExperimentHandler
 
 	// Middleware
 	AuthMiddleware      *middleware.AuthMiddleware
 	RateLimitMiddleware *middleware.RateLimitMiddleware
+	CSRFMiddleware      *middleware.CSRFMiddleware
 
 	// GraphQL resolver
 	Resolver *resolver.Resolver
@@ -138,9 +146,9 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 	deps.Minio = minioClient
 
 	// Initialize repositories
-	deps.TraceRepo = chrepo.NewTraceRepository(chDB)
-	deps.ObservationRepo = chrepo.NewObservationRepository(chDB)
-	deps.ScoreRepo = chrepo.NewScoreRepository(chDB)
+	deps.TraceRepo = chrepo.NewTraceRepository(chDB, logger)
+	deps.ObservationRepo = chrepo.NewObservationRepository(chDB, logger)
+	deps.ScoreRepo = chrepo.NewScoreRepository(chDB, logger)
 	deps.SessionRepo = chrepo.NewSessionRepository(chDB)
 	deps.CheckpointRepo = chrepo.NewCheckpointRepository(chDB)
 	deps.GitLinkRepo = chrepo.NewGitLinkRepository(chDB)
@@ -154,6 +162,8 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 	deps.PromptRepo = pgrepo.NewPromptRepository(pgDB)
 	deps.DatasetRepo = pgrepo.NewDatasetRepository(pgDB)
 	deps.EvaluatorRepo = pgrepo.NewEvaluatorRepository(pgDB)
+	deps.WebhookRepo = pgrepo.NewWebhookRepository(pgDB)
+	deps.ExperimentRepo = pgrepo.NewExperimentRepository(pgDB)
 
 	// Initialize Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -228,6 +238,19 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 	)
 	deps.CIRunService = service.NewCIRunService(
 		deps.CIRunRepo,
+	)
+	deps.ReplayService = service.NewReplayService(
+		logger,
+		deps.TraceRepo,
+		deps.ObservationRepo,
+		deps.FileOperationRepo,
+		deps.TerminalCommandRepo,
+		deps.CheckpointRepo,
+		deps.GitLinkRepo,
+	)
+	deps.ExperimentService = service.NewExperimentService(
+		logger,
+		deps.ExperimentRepo,
 	)
 
 	// Initialize handlers
@@ -312,10 +335,28 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 		logger,
 	)
 	deps.DocsHandler = handler.NewDocsHandler()
+	deps.WebhookHandler = handler.NewWebhookHandler(
+		logger,
+		deps.WebhookRepo,
+		nil, // NotificationService - created separately
+	)
+	deps.ReplayHandler = handler.NewReplayHandler(
+		logger,
+		deps.ReplayService,
+	)
+	deps.ExperimentHandler = handler.NewExperimentHandler(
+		logger,
+		deps.ExperimentService,
+	)
 
 	// Initialize middleware
 	deps.AuthMiddleware = middleware.NewAuthMiddleware(deps.AuthService)
 	deps.RateLimitMiddleware = middleware.NewRateLimitMiddleware(redisClient)
+	deps.CSRFMiddleware = middleware.NewCSRFMiddlewareWithConfig(middleware.CSRFConfig{
+		Enabled:        cfg.Server.CSRFEnabled,
+		CookieSecure:   cfg.Server.SecureCookies,
+		CookieSameSite: "Strict",
+	})
 
 	// Initialize GraphQL resolver
 	deps.Resolver = resolver.NewResolver(
