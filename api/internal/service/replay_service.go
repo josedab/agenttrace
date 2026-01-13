@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -11,15 +12,65 @@ import (
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 )
 
+// ReplayTraceRepository defines trace repository operations needed for replay
+type ReplayTraceRepository interface {
+	GetByID(ctx context.Context, projectID uuid.UUID, traceID string) (*domain.Trace, error)
+}
+
+// ReplayObservationRepository defines observation repository operations needed for replay
+type ReplayObservationRepository interface {
+	GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.Observation, error)
+}
+
+// ReplayFileOperationRepository defines file operation repository operations needed for replay
+type ReplayFileOperationRepository interface {
+	GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.FileOperation, error)
+}
+
+// ReplayTerminalCommandRepository defines terminal command repository operations needed for replay
+type ReplayTerminalCommandRepository interface {
+	GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.TerminalCommand, error)
+}
+
+// ReplayCheckpointRepository defines checkpoint repository operations needed for replay
+type ReplayCheckpointRepository interface {
+	GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.Checkpoint, error)
+}
+
+// ReplayGitLinkRepository defines git link repository operations needed for replay
+type ReplayGitLinkRepository interface {
+	GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.GitLink, error)
+}
+
 // ReplayService handles building replay timelines from trace data
 type ReplayService struct {
-	logger *zap.Logger
+	logger              *zap.Logger
+	traceRepo           ReplayTraceRepository
+	observationRepo     ReplayObservationRepository
+	fileOperationRepo   ReplayFileOperationRepository
+	terminalCommandRepo ReplayTerminalCommandRepository
+	checkpointRepo      ReplayCheckpointRepository
+	gitLinkRepo         ReplayGitLinkRepository
 }
 
 // NewReplayService creates a new replay service
-func NewReplayService(logger *zap.Logger) *ReplayService {
+func NewReplayService(
+	logger *zap.Logger,
+	traceRepo ReplayTraceRepository,
+	observationRepo ReplayObservationRepository,
+	fileOperationRepo ReplayFileOperationRepository,
+	terminalCommandRepo ReplayTerminalCommandRepository,
+	checkpointRepo ReplayCheckpointRepository,
+	gitLinkRepo ReplayGitLinkRepository,
+) *ReplayService {
 	return &ReplayService{
-		logger: logger,
+		logger:              logger,
+		traceRepo:           traceRepo,
+		observationRepo:     observationRepo,
+		fileOperationRepo:   fileOperationRepo,
+		terminalCommandRepo: terminalCommandRepo,
+		checkpointRepo:      checkpointRepo,
+		gitLinkRepo:         gitLinkRepo,
 	}
 }
 
@@ -33,8 +84,14 @@ func (s *ReplayService) BuildTimeline(
 	checkpoints []domain.Checkpoint,
 	gitLinks []domain.GitLink,
 ) (*domain.ReplayTimeline, error) {
+	// Parse trace ID string to UUID
+	traceUUID, err := uuid.Parse(trace.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	timeline := &domain.ReplayTimeline{
-		TraceID:   trace.ID,
+		TraceID:   traceUUID,
 		TraceName: trace.Name,
 		StartTime: trace.StartTime,
 		EndTime:   trace.EndTime,
@@ -88,7 +145,7 @@ func (s *ReplayService) BuildTimeline(
 // observationToReplayEvent converts an observation to a replay event
 func (s *ReplayService) observationToReplayEvent(obs domain.Observation) domain.ReplayEvent {
 	event := domain.ReplayEvent{
-		ID:        obs.ID.String(),
+		ID:        obs.ID,
 		Timestamp: obs.StartTime,
 		Title:     obs.Name,
 		Status:    s.observationStatus(obs),
@@ -106,12 +163,12 @@ func (s *ReplayService) observationToReplayEvent(obs domain.Observation) domain.
 		event.Data.Model = obs.Model
 		event.Data.Input = obs.Input
 		event.Data.Output = obs.Output
-		if obs.Usage != nil {
-			event.Data.TokensInput = obs.Usage.PromptTokens
-			event.Data.TokensOutput = obs.Usage.CompletionTokens
+		if obs.UsageDetails.InputTokens > 0 || obs.UsageDetails.OutputTokens > 0 {
+			event.Data.TokensInput = int(obs.UsageDetails.InputTokens)
+			event.Data.TokensOutput = int(obs.UsageDetails.OutputTokens)
 		}
-		if obs.CalculatedCost != nil {
-			event.Data.Cost = *obs.CalculatedCost
+		if obs.CostDetails.TotalCost > 0 {
+			event.Data.Cost = obs.CostDetails.TotalCost
 		}
 
 	case domain.ObservationTypeSpan:
@@ -145,32 +202,34 @@ func (s *ReplayService) observationToReplayEvent(obs domain.Observation) domain.
 
 // fileOpToReplayEvent converts a file operation to a replay event
 func (s *ReplayService) fileOpToReplayEvent(fileOp domain.FileOperation) domain.ReplayEvent {
-	opDescription := map[string]string{
-		"read":   "Read file",
-		"write":  "Write file",
-		"create": "Create file",
-		"delete": "Delete file",
-		"modify": "Modify file",
+	opDescription := map[domain.FileOperationType]string{
+		domain.FileOperationRead:   "Read file",
+		domain.FileOperationUpdate: "Write file",
+		domain.FileOperationCreate: "Create file",
+		domain.FileOperationDelete: "Delete file",
 	}
 
 	desc := opDescription[fileOp.Operation]
 	if desc == "" {
-		desc = fileOp.Operation
+		desc = string(fileOp.Operation)
+	}
+
+	status := "success"
+	if !fileOp.Success {
+		status = "error"
 	}
 
 	return domain.ReplayEvent{
 		ID:          fileOp.ID.String(),
 		Type:        domain.ReplayEventFileOperation,
-		Timestamp:   fileOp.Timestamp,
+		Timestamp:   fileOp.StartedAt,
 		Title:       fileOp.FilePath,
 		Description: desc,
-		Status:      "success",
+		Status:      status,
 		Data: domain.ReplayEventData{
-			FilePath:      fileOp.FilePath,
-			Operation:     fileOp.Operation,
-			Diff:          fileOp.Diff,
-			ContentBefore: fileOp.ContentBefore,
-			ContentAfter:  fileOp.ContentAfter,
+			FilePath:  fileOp.FilePath,
+			Operation: string(fileOp.Operation),
+			Diff:      fileOp.DiffPreview,
 		},
 	}
 }
@@ -178,19 +237,20 @@ func (s *ReplayService) fileOpToReplayEvent(fileOp domain.FileOperation) domain.
 // terminalCmdToReplayEvent converts a terminal command to a replay event
 func (s *ReplayService) terminalCmdToReplayEvent(cmd domain.TerminalCommand) domain.ReplayEvent {
 	status := "success"
-	if cmd.ExitCode != nil && *cmd.ExitCode != 0 {
+	if cmd.ExitCode != 0 {
 		status = "error"
 	}
 
 	var duration int64
-	if cmd.EndTime != nil {
-		duration = cmd.EndTime.Sub(cmd.StartTime).Milliseconds()
+	if cmd.CompletedAt != nil {
+		duration = cmd.CompletedAt.Sub(cmd.StartedAt).Milliseconds()
 	}
 
+	exitCode := int(cmd.ExitCode)
 	return domain.ReplayEvent{
 		ID:          cmd.ID.String(),
 		Type:        domain.ReplayEventTerminalCmd,
-		Timestamp:   cmd.StartTime,
+		Timestamp:   cmd.StartedAt,
 		Duration:    duration,
 		Title:       cmd.Command,
 		Description: "Terminal command",
@@ -198,7 +258,7 @@ func (s *ReplayService) terminalCmdToReplayEvent(cmd domain.TerminalCommand) dom
 		Data: domain.ReplayEventData{
 			Command:    cmd.Command,
 			WorkingDir: cmd.WorkingDirectory,
-			ExitCode:   cmd.ExitCode,
+			ExitCode:   &exitCode,
 			Stdout:     cmd.Stdout,
 			Stderr:     cmd.Stderr,
 		},
@@ -216,9 +276,9 @@ func (s *ReplayService) checkpointToReplayEvent(cp domain.Checkpoint) domain.Rep
 		Status:      "success",
 		Data: domain.ReplayEventData{
 			CheckpointID: cp.ID.String(),
-			FileManifest: cp.FileManifest,
+			FileManifest: cp.FilesChanged,
 			GitBranch:    cp.GitBranch,
-			GitCommit:    cp.GitCommitSHA,
+			GitCommit:    cp.GitCommitSha,
 		},
 	}
 }
@@ -232,20 +292,26 @@ func (s *ReplayService) buildGitContext(gitLinks []domain.GitLink) *domain.Repla
 	// Use the first link for base context
 	first := gitLinks[0]
 	ctx := &domain.ReplayGitContext{
-		Repository:    first.Repository,
-		Branch:        first.Branch,
-		StartCommit:   first.CommitSHA,
-		FilesChanged:  make([]string, 0),
+		Repository:   first.RepoURL,
+		Branch:       first.Branch,
+		StartCommit:  first.CommitSha,
+		FilesChanged: make([]string, 0),
 	}
 
-	// Collect all changed files
+	// Collect all changed files from added, modified, and deleted
 	filesMap := make(map[string]bool)
 	for _, link := range gitLinks {
-		for _, f := range link.ChangedFiles {
+		for _, f := range link.FilesAdded {
 			filesMap[f] = true
 		}
-		if link.CommitSHA != ctx.StartCommit {
-			ctx.EndCommit = link.CommitSHA
+		for _, f := range link.FilesModified {
+			filesMap[f] = true
+		}
+		for _, f := range link.FilesDeleted {
+			filesMap[f] = true
+		}
+		if link.CommitSha != ctx.StartCommit {
+			ctx.EndCommit = link.CommitSha
 		}
 	}
 
@@ -321,18 +387,51 @@ func (s *ReplayService) isToolCall(name string) bool {
 	return false
 }
 
-// GetTimelineForTrace is a convenience method to get a complete timeline
+// GetTimelineForTrace fetches all data and builds a complete timeline for a trace
 func (s *ReplayService) GetTimelineForTrace(
 	ctx context.Context,
-	traceID uuid.UUID,
+	projectID uuid.UUID,
+	traceID string,
 ) (*domain.ReplayTimeline, error) {
-	// This would be called by the handler after fetching all the data
-	// from various repositories. For now, return an empty timeline.
-	return &domain.ReplayTimeline{
-		TraceID:   traceID,
-		Events:    []domain.ReplayEvent{},
-		Summary:   domain.ReplaySummary{},
-	}, nil
+	// Fetch the trace
+	trace, err := s.traceRepo.GetByID(ctx, projectID, traceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trace: %w", err)
+	}
+
+	// Fetch all related data
+	observations, err := s.observationRepo.GetByTraceID(ctx, projectID, traceID)
+	if err != nil {
+		s.logger.Warn("failed to get observations for replay", zap.String("traceId", traceID), zap.Error(err))
+		observations = []domain.Observation{}
+	}
+
+	fileOps, err := s.fileOperationRepo.GetByTraceID(ctx, projectID, traceID)
+	if err != nil {
+		s.logger.Warn("failed to get file operations for replay", zap.String("traceId", traceID), zap.Error(err))
+		fileOps = []domain.FileOperation{}
+	}
+
+	terminalCmds, err := s.terminalCommandRepo.GetByTraceID(ctx, projectID, traceID)
+	if err != nil {
+		s.logger.Warn("failed to get terminal commands for replay", zap.String("traceId", traceID), zap.Error(err))
+		terminalCmds = []domain.TerminalCommand{}
+	}
+
+	checkpoints, err := s.checkpointRepo.GetByTraceID(ctx, projectID, traceID)
+	if err != nil {
+		s.logger.Warn("failed to get checkpoints for replay", zap.String("traceId", traceID), zap.Error(err))
+		checkpoints = []domain.Checkpoint{}
+	}
+
+	gitLinks, err := s.gitLinkRepo.GetByTraceID(ctx, projectID, traceID)
+	if err != nil {
+		s.logger.Warn("failed to get git links for replay", zap.String("traceId", traceID), zap.Error(err))
+		gitLinks = []domain.GitLink{}
+	}
+
+	// Build the timeline
+	return s.BuildTimeline(ctx, trace, observations, fileOps, terminalCmds, checkpoints, gitLinks)
 }
 
 // ExportTimeline exports a timeline in a portable format

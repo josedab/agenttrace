@@ -38,30 +38,30 @@ func NewReplayHandler(
 // @Failure 404 {object} ErrorResponse
 // @Router /api/public/traces/{traceId}/replay [get]
 func (h *ReplayHandler) GetTimeline(c *fiber.Ctx) error {
-	traceID, err := uuid.Parse(c.Params("traceId"))
-	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid trace ID", err)
+	traceID := c.Params("traceId")
+	if traceID == "" {
+		return errorResponse(c, fiber.StatusBadRequest, "Trace ID required")
 	}
 
-	h.logger.Debug("Getting replay timeline", zap.String("traceId", traceID.String()))
+	// Get project ID from context (set by API key middleware)
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
+	}
 
-	// In a real implementation, this would:
-	// 1. Fetch the trace from the trace repository
-	// 2. Fetch all observations for the trace
-	// 3. Fetch file operations
-	// 4. Fetch terminal commands
-	// 5. Fetch checkpoints
-	// 6. Fetch git links
-	// 7. Build the timeline using the replay service
+	h.logger.Debug("Getting replay timeline",
+		zap.String("traceId", traceID),
+		zap.String("projectId", projectID.String()),
+	)
 
-	// For now, return a mock timeline demonstrating the structure
-	timeline := &domain.ReplayTimeline{
-		TraceID:   traceID,
-		TraceName: "sample-agent-run",
-		Events:    []domain.ReplayEvent{},
-		Summary: domain.ReplaySummary{
-			TotalEvents: 0,
-		},
+	// Fetch all data and build timeline
+	timeline, err := h.replayService.GetTimelineForTrace(c.Context(), projectID, traceID)
+	if err != nil {
+		h.logger.Error("failed to get replay timeline",
+			zap.String("traceId", traceID),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to build timeline")
 	}
 
 	return c.JSON(timeline)
@@ -79,24 +79,36 @@ func (h *ReplayHandler) GetTimeline(c *fiber.Ctx) error {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/public/traces/{traceId}/replay/export [get]
 func (h *ReplayHandler) ExportTimeline(c *fiber.Ctx) error {
-	traceID, err := uuid.Parse(c.Params("traceId"))
-	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid trace ID", err)
+	traceID := c.Params("traceId")
+	if traceID == "" {
+		return errorResponse(c, fiber.StatusBadRequest, "Trace ID required")
 	}
 
-	h.logger.Debug("Exporting replay timeline", zap.String("traceId", traceID.String()))
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
+	}
+
+	h.logger.Debug("Exporting replay timeline",
+		zap.String("traceId", traceID),
+		zap.String("projectId", projectID.String()),
+	)
 
 	// Get the timeline first
-	timeline, err := h.replayService.GetTimelineForTrace(c.Context(), traceID)
+	timeline, err := h.replayService.GetTimelineForTrace(c.Context(), projectID, traceID)
 	if err != nil {
-		return errorResponse(c, fiber.StatusInternalServerError, "Failed to build timeline", err)
+		h.logger.Error("failed to get timeline for export",
+			zap.String("traceId", traceID),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to build timeline")
 	}
 
 	// Export it
 	export := h.replayService.ExportTimeline(timeline)
 
 	// Set download headers
-	c.Set("Content-Disposition", "attachment; filename=trace-replay-"+traceID.String()+".json")
+	c.Set("Content-Disposition", "attachment; filename=trace-replay-"+traceID+".json")
 
 	return c.JSON(export)
 }
@@ -115,25 +127,53 @@ func (h *ReplayHandler) ExportTimeline(c *fiber.Ctx) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/public/traces/{traceId}/replay/events [get]
 func (h *ReplayHandler) GetTimelineEvents(c *fiber.Ctx) error {
-	traceID, err := uuid.Parse(c.Params("traceId"))
+	traceID := c.Params("traceId")
+	if traceID == "" {
+		return errorResponse(c, fiber.StatusBadRequest, "Trace ID required")
+	}
+
+	projectID, err := getProjectIDFromContext(c)
 	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid trace ID", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	limit := c.QueryInt("limit", 100)
 	offset := c.QueryInt("offset", 0)
 
 	h.logger.Debug("Getting replay events",
-		zap.String("traceId", traceID.String()),
+		zap.String("traceId", traceID),
+		zap.String("projectId", projectID.String()),
 		zap.Int("limit", limit),
 		zap.Int("offset", offset),
 	)
 
-	// Return empty events for now
+	// Get full timeline first
+	timeline, err := h.replayService.GetTimelineForTrace(c.Context(), projectID, traceID)
+	if err != nil {
+		h.logger.Error("failed to get timeline for events",
+			zap.String("traceId", traceID),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get events")
+	}
+
+	// Apply pagination
+	totalCount := len(timeline.Events)
+	start := offset
+	if start > totalCount {
+		start = totalCount
+	}
+	end := start + limit
+	if end > totalCount {
+		end = totalCount
+	}
+
+	paginatedEvents := timeline.Events[start:end]
+
 	response := ReplayEventsResponse{
-		Events:     []domain.ReplayEvent{},
-		TotalCount: 0,
-		HasMore:    false,
+		Events:     paginatedEvents,
+		TotalCount: totalCount,
+		HasMore:    end < totalCount,
 		Limit:      limit,
 		Offset:     offset,
 	}
@@ -163,23 +203,45 @@ type ReplayEventsResponse struct {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/public/traces/{traceId}/replay/events/{eventId} [get]
 func (h *ReplayHandler) GetEventDetails(c *fiber.Ctx) error {
-	traceID, err := uuid.Parse(c.Params("traceId"))
-	if err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid trace ID", err)
+	traceID := c.Params("traceId")
+	if traceID == "" {
+		return errorResponse(c, fiber.StatusBadRequest, "Trace ID required")
 	}
 
 	eventID := c.Params("eventId")
 	if eventID == "" {
-		return errorResponse(c, fiber.StatusBadRequest, "Event ID required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Event ID required")
+	}
+
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	h.logger.Debug("Getting event details",
-		zap.String("traceId", traceID.String()),
+		zap.String("traceId", traceID),
 		zap.String("eventId", eventID),
+		zap.String("projectId", projectID.String()),
 	)
 
-	// In a real implementation, this would fetch the specific event
-	return errorResponse(c, fiber.StatusNotFound, "Event not found", nil)
+	// Get the full timeline and find the event
+	timeline, err := h.replayService.GetTimelineForTrace(c.Context(), projectID, traceID)
+	if err != nil {
+		h.logger.Error("failed to get timeline for event details",
+			zap.String("traceId", traceID),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get event")
+	}
+
+	// Find the specific event
+	for _, event := range timeline.Events {
+		if event.ID == eventID {
+			return c.JSON(event)
+		}
+	}
+
+	return errorResponse(c, fiber.StatusNotFound, "Event not found")
 }
 
 // CompareTimelines compares two replay timelines
@@ -195,28 +257,154 @@ func (h *ReplayHandler) GetEventDetails(c *fiber.Ctx) error {
 func (h *ReplayHandler) CompareTimelines(c *fiber.Ctx) error {
 	var req CompareTimelinesRequest
 	if err := c.BodyParser(&req); err != nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	if req.TraceID1 == uuid.Nil || req.TraceID2 == uuid.Nil {
-		return errorResponse(c, fiber.StatusBadRequest, "Both trace IDs are required", nil)
+		return errorResponse(c, fiber.StatusBadRequest, "Both trace IDs are required")
+	}
+
+	projectID, err := getProjectIDFromContext(c)
+	if err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
 	h.logger.Debug("Comparing timelines",
 		zap.String("traceId1", req.TraceID1.String()),
 		zap.String("traceId2", req.TraceID2.String()),
+		zap.String("projectId", projectID.String()),
 	)
+
+	// Fetch first timeline
+	timeline1, err := h.replayService.GetTimelineForTrace(c.Context(), projectID, req.TraceID1.String())
+	if err != nil {
+		h.logger.Error("failed to get timeline 1 for comparison",
+			zap.String("traceId", req.TraceID1.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get first timeline")
+	}
+
+	// Fetch second timeline
+	timeline2, err := h.replayService.GetTimelineForTrace(c.Context(), projectID, req.TraceID2.String())
+	if err != nil {
+		h.logger.Error("failed to get timeline 2 for comparison",
+			zap.String("traceId", req.TraceID2.String()),
+			zap.Error(err),
+		)
+		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get second timeline")
+	}
 
 	// Build comparison
 	comparison := TimelineComparison{
 		TraceID1:    req.TraceID1,
 		TraceID2:    req.TraceID2,
-		Summary1:    domain.ReplaySummary{},
-		Summary2:    domain.ReplaySummary{},
-		Differences: []TimelineDifference{},
+		Summary1:    timeline1.Summary,
+		Summary2:    timeline2.Summary,
+		Differences: h.compareTimelineEvents(timeline1.Events, timeline2.Events),
 	}
 
 	return c.JSON(comparison)
+}
+
+// compareTimelineEvents compares events from two timelines and returns differences
+func (h *ReplayHandler) compareTimelineEvents(events1, events2 []domain.ReplayEvent) []TimelineDifference {
+	differences := []TimelineDifference{}
+
+	// Build maps for O(1) lookup by event type and title
+	eventMap1 := make(map[string][]domain.ReplayEvent)
+	eventMap2 := make(map[string][]domain.ReplayEvent)
+
+	for _, e := range events1 {
+		key := string(e.Type) + ":" + e.Title
+		eventMap1[key] = append(eventMap1[key], e)
+	}
+
+	for _, e := range events2 {
+		key := string(e.Type) + ":" + e.Title
+		eventMap2[key] = append(eventMap2[key], e)
+	}
+
+	// Find events in timeline 1 that don't exist in timeline 2
+	for key, eventsIn1 := range eventMap1 {
+		eventsIn2, exists := eventMap2[key]
+		if !exists {
+			// All events of this type/title only exist in timeline 1
+			for _, e := range eventsIn1 {
+				eCopy := e
+				differences = append(differences, TimelineDifference{
+					Type:        "removed",
+					Description: "Event present in first timeline but not in second: " + e.Title,
+					Event1:      &eCopy,
+					Event2:      nil,
+				})
+			}
+		} else if len(eventsIn1) != len(eventsIn2) {
+			// Different count of same event type
+			differences = append(differences, TimelineDifference{
+				Type:        "changed",
+				Description: "Different number of '" + eventsIn1[0].Title + "' events: " +
+					string(rune(len(eventsIn1))) + " vs " + string(rune(len(eventsIn2))),
+				Event1:      nil,
+				Event2:      nil,
+			})
+		} else {
+			// Same count - compare individual events by index
+			for i := range eventsIn1 {
+				e1 := eventsIn1[i]
+				e2 := eventsIn2[i]
+
+				// Check for status differences
+				if e1.Status != e2.Status {
+					e1Copy, e2Copy := e1, e2
+					differences = append(differences, TimelineDifference{
+						Type:        "changed",
+						Description: "Status changed for '" + e1.Title + "': " + e1.Status + " → " + e2.Status,
+						Event1:      &e1Copy,
+						Event2:      &e2Copy,
+					})
+				}
+
+				// Check for significant duration differences (>20%)
+				if e1.Duration > 0 && e2.Duration > 0 {
+					diff := float64(e2.Duration - e1.Duration)
+					percentChange := (diff / float64(e1.Duration)) * 100
+					if percentChange > 20 || percentChange < -20 {
+						e1Copy, e2Copy := e1, e2
+						differences = append(differences, TimelineDifference{
+							Type:        "changed",
+							Description: "Duration significantly changed for '" + e1.Title + "'",
+							Event1:      &e1Copy,
+							Event2:      &e2Copy,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// Find events in timeline 2 that don't exist in timeline 1
+	for key, eventsIn2 := range eventMap2 {
+		_, exists := eventMap1[key]
+		if !exists {
+			// These events only exist in timeline 2
+			for _, e := range eventsIn2 {
+				eCopy := e
+				differences = append(differences, TimelineDifference{
+					Type:        "added",
+					Description: "Event present in second timeline but not in first: " + e.Title,
+					Event1:      nil,
+					Event2:      &eCopy,
+				})
+			}
+		}
+	}
+
+	// Add summary-level differences
+	// Compare total costs
+	// (Summaries are already included in the response for the caller to analyze)
+
+	return differences
 }
 
 // CompareTimelinesRequest represents the request body for comparing timelines
