@@ -160,18 +160,16 @@ func (w *AnomalyWorker) HandleAnomalyAlert(ctx context.Context, t *asynq.Task) e
 		zap.Int("webhookCount", len(payload.WebhookIDs)),
 	)
 
-	// Build notification event
-	event := domain.NotificationEvent{
-		Type:      domain.NotificationEventTypeAnomalyDetected,
-		Timestamp: time.Now(),
-		ProjectID: payload.ProjectID,
-		Payload: map[string]interface{}{
-			"anomalyId": payload.AnomalyID.String(),
-			"ruleId":    payload.RuleID.String(),
-			"title":     payload.AlertTitle,
-			"body":      payload.AlertBody,
-			"severity":  payload.Severity,
-		},
+	// Build notification payload
+	alertPayload := map[string]interface{}{
+		"type":      "anomaly_detected",
+		"timestamp": time.Now(),
+		"projectId": payload.ProjectID.String(),
+		"anomalyId": payload.AnomalyID.String(),
+		"ruleId":    payload.RuleID.String(),
+		"title":     payload.AlertTitle,
+		"body":      payload.AlertBody,
+		"severity":  string(payload.Severity),
 	}
 
 	// In real implementation, send to each webhook
@@ -179,11 +177,11 @@ func (w *AnomalyWorker) HandleAnomalyAlert(ctx context.Context, t *asynq.Task) e
 		w.logger.Debug("Sending alert to webhook",
 			zap.String("webhookId", webhookID.String()),
 			zap.String("anomalyId", payload.AnomalyID.String()),
+			zap.Any("payload", alertPayload),
 		)
 
 		// Fetch webhook and send notification
-		// err := w.notificationService.SendNotification(ctx, &webhook, event)
-		_ = event // Use event
+		// err := w.notificationService.SendNotification(ctx, &webhook, alertPayload)
 	}
 
 	w.logger.Info("Anomaly alerts sent successfully",

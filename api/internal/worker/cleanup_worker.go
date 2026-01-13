@@ -319,30 +319,90 @@ func (w *CleanupWorker) deleteOrphanRecords(ctx context.Context) error {
 type ScheduledCleanupConfig struct {
 	DefaultRetentionDays int
 	CleanupHour          int // Hour of day to run cleanup (0-23)
+	BatchSize            int // Number of projects to process per batch
 }
 
 // ScheduleCleanupTasks schedules cleanup tasks for all projects
-// Note: This is a placeholder - full implementation requires a ListAllProjects method
 func ScheduleCleanupTasks(
 	ctx context.Context,
 	client *asynq.Client,
 	projectService *service.ProjectService,
 	config *ScheduledCleanupConfig,
+	logger *zap.Logger,
 ) error {
-	// TODO: Implement when ProjectService has ListAllProjects method
-	// For now, skip project-based cleanup scheduling
-	_ = ctx
-	_ = projectService
-	_ = config
+	if config.BatchSize <= 0 {
+		config.BatchSize = 100
+	}
+
+	offset := 0
+	totalScheduled := 0
+
+	for {
+		projects, err := projectService.ListAll(ctx, config.BatchSize, offset)
+		if err != nil {
+			return fmt.Errorf("failed to list projects: %w", err)
+		}
+
+		if len(projects) == 0 {
+			break
+		}
+
+		for _, project := range projects {
+			// Use project-specific retention or default
+			retentionDays := project.RetentionDays
+			if retentionDays <= 0 {
+				retentionDays = config.DefaultRetentionDays
+			}
+
+			task, err := NewDataCleanupTask(&DataCleanupPayload{
+				ProjectID:     project.ID,
+				RetentionDays: retentionDays,
+				DryRun:        false,
+			})
+			if err != nil {
+				logger.Error("failed to create cleanup task",
+					zap.String("project_id", project.ID.String()),
+					zap.Error(err),
+				)
+				continue
+			}
+
+			if _, err := client.Enqueue(task); err != nil {
+				logger.Error("failed to enqueue cleanup task",
+					zap.String("project_id", project.ID.String()),
+					zap.Error(err),
+				)
+				continue
+			}
+
+			totalScheduled++
+		}
+
+		offset += len(projects)
+
+		// If we got fewer than batch size, we've reached the end
+		if len(projects) < config.BatchSize {
+			break
+		}
+	}
+
+	logger.Info("scheduled data cleanup tasks",
+		zap.Int("total_projects", totalScheduled),
+	)
 
 	// Schedule orphan cleanup
 	orphanTask, err := NewOrphanCleanupTask(&OrphanCleanupPayload{
 		DryRun: false,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create orphan cleanup task: %w", err)
 	}
 
-	_, err = client.Enqueue(orphanTask)
-	return err
+	if _, err := client.Enqueue(orphanTask); err != nil {
+		return fmt.Errorf("failed to enqueue orphan cleanup task: %w", err)
+	}
+
+	logger.Info("scheduled orphan cleanup task")
+
+	return nil
 }
