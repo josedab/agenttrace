@@ -90,19 +90,8 @@ func ParseUUID(id string) (uuid.UUID, error) {
 	return uuid.Parse(id)
 }
 
-// MustParseUUID parses a UUID string and panics on error.
-// DEPRECATED: Use ParseUUID instead which returns an error.
-// This function should only be used for compile-time constants or tests.
-func MustParseUUID(id string) uuid.UUID {
-	u, err := uuid.Parse(id)
-	if err != nil {
-		panic(fmt.Sprintf("invalid UUID: %s", id))
-	}
-	return u
-}
-
 // ParseUUIDOrNil parses a UUID string, returning uuid.Nil on error.
-// This is a safe alternative to MustParseUUID for user input.
+// This is a safe alternative for user input that doesn't require error handling.
 func ParseUUIDOrNil(id string) uuid.UUID {
 	u, err := uuid.Parse(id)
 	if err != nil {
