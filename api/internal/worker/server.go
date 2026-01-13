@@ -11,6 +11,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	chrepo "github.com/agenttrace/agenttrace/api/internal/repository/clickhouse"
+	pgrepo "github.com/agenttrace/agenttrace/api/internal/repository/postgres"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -26,19 +27,22 @@ type Server struct {
 
 // WorkerDependencies holds dependencies for workers
 type WorkerDependencies struct {
-	CostService      *service.CostService
-	EvalService      *service.EvalService
-	ScoreService     *service.ScoreService
-	QueryService     *service.QueryService
-	IngestionService *service.IngestionService
-	DatasetService   *service.DatasetService
-	ProjectService   *service.ProjectService
-	MinioClient      *minio.Client
-	MinioBucket      string
+	CostService         *service.CostService
+	EvalService         *service.EvalService
+	ScoreService        *service.ScoreService
+	QueryService        *service.QueryService
+	IngestionService    *service.IngestionService
+	DatasetService      *service.DatasetService
+	ProjectService      *service.ProjectService
+	NotificationService *service.NotificationService
+	MinioClient         *minio.Client
+	MinioBucket         string
 	// Repositories for cleanup worker
 	TraceRepo       *chrepo.TraceRepository
 	ObservationRepo *chrepo.ObservationRepository
 	ScoreRepo       *chrepo.ScoreRepository
+	// Repositories for notification worker
+	WebhookRepo *pgrepo.WebhookRepository
 }
 
 // NewServer creates a new worker server
@@ -59,9 +63,10 @@ func NewServer(
 		asynq.Config{
 			Concurrency: cfg.Worker.Concurrency,
 			Queues: map[string]int{
-				"critical": 6,
-				"default":  3,
-				"low":      1,
+				"critical":      6,
+				"notifications": 4,
+				"default":       3,
+				"low":           1,
 			},
 			ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
 				logger.Error("task processing failed",
@@ -72,6 +77,9 @@ func NewServer(
 			Logger: &asynqLogger{logger: logger},
 		},
 	)
+
+	// Create client for enqueuing tasks (needed by notification worker)
+	client := asynq.NewClient(redisOpt)
 
 	// Create workers
 	costWorker := NewCostWorker(
@@ -108,6 +116,14 @@ func NewServer(
 		deps.ScoreRepo,
 	)
 
+	notificationWorker := NewNotificationWorker(
+		logger,
+		deps.NotificationService,
+		deps.WebhookRepo,
+		deps.QueryService,
+		client,
+	)
+
 	// Create mux and register handlers
 	mux := asynq.NewServeMux()
 
@@ -129,11 +145,11 @@ func NewServer(
 	mux.HandleFunc(TypeProjectCleanup, cleanupWorker.ProcessProjectCleanupTask)
 	mux.HandleFunc(TypeOrphanCleanup, cleanupWorker.ProcessOrphanCleanupTask)
 
+	// Notification workers
+	notificationWorker.RegisterHandlers(mux)
+
 	// Create scheduler for periodic tasks
 	scheduler := asynq.NewScheduler(redisOpt, nil)
-
-	// Create client for enqueuing tasks
-	client := asynq.NewClient(redisOpt)
 
 	return &Server{
 		logger:    logger,
