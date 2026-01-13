@@ -17,13 +17,16 @@ type Config struct {
 	Eval       EvalConfig
 	Retention  RetentionConfig
 	OTel       OTelConfig
+	Sentry     SentryConfig
 }
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-	Env  string `mapstructure:"env"`
+	Host          string `mapstructure:"host"`
+	Port          int    `mapstructure:"port"`
+	Env           string `mapstructure:"env"`
+	CSRFEnabled   bool   `mapstructure:"csrf_enabled"`
+	SecureCookies bool   `mapstructure:"secure_cookies"`
 }
 
 // PostgresConfig holds PostgreSQL configuration
@@ -100,6 +103,7 @@ type RateLimitConfig struct {
 	Enabled           bool `mapstructure:"enabled"`
 	RequestsPerSecond int  `mapstructure:"requests_per_second"`
 	Burst             int  `mapstructure:"burst"`
+	UserMaxPerMinute  int  `mapstructure:"user_max_per_minute"`
 }
 
 // WorkerConfig holds background worker configuration
@@ -162,6 +166,17 @@ type OTelConfig struct {
 	// Service name for outbound traces
 	ServiceName    string `mapstructure:"service_name"`
 	ServiceVersion string `mapstructure:"service_version"`
+}
+
+// SentryConfig holds Sentry error tracking configuration
+type SentryConfig struct {
+	Enabled          bool    `mapstructure:"enabled"`
+	DSN              string  `mapstructure:"dsn"`
+	Environment      string  `mapstructure:"environment"`
+	Release          string  `mapstructure:"release"`
+	Debug            bool    `mapstructure:"debug"`
+	SampleRate       float64 `mapstructure:"sample_rate"`
+	TracesSampleRate float64 `mapstructure:"traces_sample_rate"`
 }
 
 // IsDevelopment returns true if running in development mode
