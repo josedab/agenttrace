@@ -306,7 +306,9 @@ func setupAuthTestApp(mockSvc *MockAuthService, userID *uuid.UUID) *fiber.App {
 // --- Login Tests ---
 
 func TestAuthHandler_Login(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully logs in with valid credentials", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -348,6 +350,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	})
 
 	t.Run("returns 400 for missing email", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -367,6 +370,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	})
 
 	t.Run("returns 400 for missing password", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -382,6 +386,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	})
 
 	t.Run("returns 401 for invalid credentials", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -403,6 +408,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	})
 
 	t.Run("returns 500 for service error", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -427,7 +433,9 @@ func TestAuthHandler_Login(t *testing.T) {
 // --- Register Tests ---
 
 func TestAuthHandler_Register(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully registers new user", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -531,7 +539,9 @@ func TestAuthHandler_Register(t *testing.T) {
 // --- GetCurrentUser Tests ---
 
 func TestAuthHandler_GetCurrentUser(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully gets current user", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		userID := uuid.New()
 		app := setupAuthTestApp(mockSvc, &userID)
@@ -591,7 +601,9 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 // --- RefreshToken Tests ---
 
 func TestAuthHandler_RefreshToken(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully refreshes token", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 
@@ -659,7 +671,9 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 // --- Logout Tests ---
 
 func TestAuthHandler_Logout(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully logs out", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockAuthService)
 		app := setupAuthTestApp(mockSvc, nil)
 

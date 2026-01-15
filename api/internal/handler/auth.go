@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/dto"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 	"github.com/agenttrace/agenttrace/api/internal/service"
@@ -26,28 +27,14 @@ func NewAuthHandler(authService *service.AuthService, logger *zap.Logger) *AuthH
 
 // Login handles POST /auth/login
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
-	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Invalid request body: " + err.Error(),
-		})
-	}
-
-	if input.Email == "" || input.Password == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Email and password are required",
-		})
+	var req dto.LoginRequest
+	if err := dto.ParseAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	loginInput := &domain.LoginInput{
-		Email:    input.Email,
-		Password: input.Password,
+		Email:    req.Email,
+		Password: req.Password,
 	}
 
 	result, err := h.authService.Login(c.Context(), loginInput)
@@ -79,37 +66,15 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 // Register handles POST /auth/register
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
-	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Name     string `json:"name"`
-	}
-
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Invalid request body: " + err.Error(),
-		})
-	}
-
-	if input.Email == "" || input.Password == "" || input.Name == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Email, password, and name are required",
-		})
-	}
-
-	if len(input.Password) < 8 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Password must be at least 8 characters",
-		})
+	var req dto.RegisterRequest
+	if err := dto.ParseAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	registerInput := &domain.RegisterInput{
-		Email:    input.Email,
-		Password: input.Password,
-		Name:     input.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		Name:     req.Name,
 	}
 
 	result, err := h.authService.Register(c.Context(), registerInput)
@@ -175,25 +140,12 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 
 // RefreshToken handles POST /auth/refresh
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
-	var input struct {
-		RefreshToken string `json:"refreshToken"`
+	var req dto.RefreshTokenRequest
+	if err := dto.ParseAndValidate(c, &req); err != nil {
+		return err
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Invalid request body: " + err.Error(),
-		})
-	}
-
-	if input.RefreshToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Refresh token is required",
-		})
-	}
-
-	result, err := h.authService.RefreshToken(c.Context(), input.RefreshToken)
+	result, err := h.authService.RefreshToken(c.Context(), req.RefreshToken)
 	if err != nil {
 		if apperrors.IsUnauthorized(err) {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -217,25 +169,12 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 
 // Logout handles POST /auth/logout
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	var input struct {
-		RefreshToken string `json:"refreshToken"`
+	var req dto.LogoutRequest
+	if err := dto.ParseAndValidate(c, &req); err != nil {
+		return err
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Invalid request body: " + err.Error(),
-		})
-	}
-
-	if input.RefreshToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Refresh token is required",
-		})
-	}
-
-	if err := h.authService.Logout(c.Context(), input.RefreshToken); err != nil {
+	if err := h.authService.Logout(c.Context(), req.RefreshToken); err != nil {
 		h.logger.Error("logout failed", zap.Error(err))
 		// Don't expose error details for logout
 	}
