@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/logger"
+	"github.com/agenttrace/agenttrace/api/internal/pkg/metrics"
 )
 
 // PostgresDB wraps a PostgreSQL connection pool
@@ -125,16 +127,24 @@ func (t *queryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pg
 	sql, _ := ctx.Value(querySQLKey{}).(string)
 	argCount, _ := ctx.Value(queryArgsKey{}).(int)
 
-	// Update metrics
+	// Extract operation type from SQL for metrics
+	operation := extractSQLOperation(sql)
+
+	// Update internal metrics
 	t.metrics.TotalQueries++
 	t.metrics.TotalDurationMs += duration.Milliseconds()
+
+	// Record Prometheus metrics for all queries
+	metrics.RecordDBQuery("postgres", operation, duration)
 
 	// Check for errors
 	if data.Err != nil {
 		t.metrics.FailedQueries++
+		metrics.RecordDBError("postgres", operation)
 		logger.Error("postgres query failed",
 			zap.Int64("duration_ms", duration.Milliseconds()),
 			zap.String("sql", truncateSQL(sql, 300)),
+			zap.String("operation", operation),
 			zap.Int("arg_count", argCount),
 			zap.Error(data.Err),
 		)
@@ -147,6 +157,7 @@ func (t *queryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pg
 		logger.Warn("slow postgres query",
 			zap.Int64("duration_ms", duration.Milliseconds()),
 			zap.String("sql", truncateSQL(sql, 300)),
+			zap.String("operation", operation),
 			zap.Int("arg_count", argCount),
 			zap.Int64("rows_affected", data.CommandTag.RowsAffected()),
 		)
@@ -155,6 +166,7 @@ func (t *queryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pg
 		logger.Debug("postgres query executed",
 			zap.Int64("duration_ms", duration.Milliseconds()),
 			zap.String("sql", truncateSQL(sql, 200)),
+			zap.String("operation", operation),
 			zap.Int("arg_count", argCount),
 			zap.Int64("rows_affected", data.CommandTag.RowsAffected()),
 		)
@@ -171,6 +183,57 @@ func truncateSQL(sql string, maxLen int) string {
 		return sql
 	}
 	return sql[:maxLen] + "..."
+}
+
+// extractSQLOperation extracts the SQL operation type from a query
+func extractSQLOperation(sql string) string {
+	sql = strings.TrimSpace(strings.ToUpper(sql))
+
+	// Handle common CTE patterns
+	if strings.HasPrefix(sql, "WITH") {
+		// Find the main operation after the CTE
+		if idx := strings.Index(sql, "SELECT"); idx != -1 {
+			return "select"
+		}
+		if idx := strings.Index(sql, "INSERT"); idx != -1 {
+			return "insert"
+		}
+		if idx := strings.Index(sql, "UPDATE"); idx != -1 {
+			return "update"
+		}
+		if idx := strings.Index(sql, "DELETE"); idx != -1 {
+			return "delete"
+		}
+		return "cte"
+	}
+
+	// Extract first word as operation
+	switch {
+	case strings.HasPrefix(sql, "SELECT"):
+		return "select"
+	case strings.HasPrefix(sql, "INSERT"):
+		return "insert"
+	case strings.HasPrefix(sql, "UPDATE"):
+		return "update"
+	case strings.HasPrefix(sql, "DELETE"):
+		return "delete"
+	case strings.HasPrefix(sql, "CREATE"):
+		return "create"
+	case strings.HasPrefix(sql, "ALTER"):
+		return "alter"
+	case strings.HasPrefix(sql, "DROP"):
+		return "drop"
+	case strings.HasPrefix(sql, "TRUNCATE"):
+		return "truncate"
+	case strings.HasPrefix(sql, "BEGIN"):
+		return "begin"
+	case strings.HasPrefix(sql, "COMMIT"):
+		return "commit"
+	case strings.HasPrefix(sql, "ROLLBACK"):
+		return "rollback"
+	default:
+		return "other"
+	}
 }
 
 // Transaction executes a function within a transaction

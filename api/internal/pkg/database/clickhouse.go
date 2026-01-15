@@ -12,6 +12,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/logger"
+	"github.com/agenttrace/agenttrace/api/internal/pkg/metrics"
 )
 
 // ClickHouseDB wraps a ClickHouse connection
@@ -145,12 +146,16 @@ func (db *ClickHouseDB) AsyncInsert(ctx context.Context, query string, wait bool
 	return err
 }
 
-// logQuery logs query execution details
+// logQuery logs query execution details and records Prometheus metrics
 func (db *ClickHouseDB) logQuery(operation, query string, start time.Time, err error, argCount int) {
 	duration := time.Since(start)
 
-	// Log errors
+	// Record Prometheus metrics for all queries
+	metrics.RecordDBQuery("clickhouse", operation, duration)
+
+	// Log errors and record error metric
 	if err != nil {
+		metrics.RecordDBError("clickhouse", operation)
 		logger.Error("clickhouse query failed",
 			zap.String("operation", operation),
 			zap.Int64("duration_ms", duration.Milliseconds()),
@@ -239,6 +244,8 @@ func (db *ClickHouseDB) BatchInsertTraces(ctx context.Context, traces []map[stri
 	}
 
 	if err := batch.Send(); err != nil {
+		metrics.RecordDBQuery("clickhouse", "batch_insert_traces", time.Since(start))
+		metrics.RecordDBError("clickhouse", "batch_insert_traces")
 		logger.Error("clickhouse batch send failed",
 			zap.String("operation", "batch_insert_traces"),
 			zap.Int("batch_size", len(traces)),
@@ -249,6 +256,8 @@ func (db *ClickHouseDB) BatchInsertTraces(ctx context.Context, traces []map[stri
 	}
 
 	duration := time.Since(start)
+	metrics.RecordDBQuery("clickhouse", "batch_insert_traces", duration)
+
 	if duration > 100*time.Millisecond {
 		logger.Warn("slow clickhouse batch insert",
 			zap.String("operation", "batch_insert_traces"),
