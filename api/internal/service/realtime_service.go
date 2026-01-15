@@ -23,6 +23,7 @@ type Subscriber struct {
 	ProjectID uuid.UUID
 	Channel   chan *RealtimeEvent
 	Done      chan struct{}
+	cancel    context.CancelFunc // For cleanup goroutine lifecycle
 }
 
 // RealtimeService handles real-time event streaming
@@ -43,22 +44,23 @@ func (s *RealtimeService) Subscribe(ctx context.Context, projectID uuid.UUID) *S
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Create a cancellable context for the cleanup goroutine
+	subCtx, cancel := context.WithCancel(ctx)
+
 	sub := &Subscriber{
 		ID:        uuid.New().String(),
 		ProjectID: projectID,
 		Channel:   make(chan *RealtimeEvent, 100),
 		Done:      make(chan struct{}),
+		cancel:    cancel,
 	}
 
 	s.subscribers[sub.ID] = sub
 
-	// Clean up when context is done
+	// Clean up when context is done - goroutine will exit when subCtx is cancelled
 	go func() {
-		select {
-		case <-ctx.Done():
-			s.Unsubscribe(sub.ID)
-		case <-sub.Done:
-		}
+		<-subCtx.Done()
+		s.cleanupSubscriber(sub.ID)
 	}()
 
 	return sub
@@ -67,12 +69,32 @@ func (s *RealtimeService) Subscribe(ctx context.Context, projectID uuid.UUID) *S
 // Unsubscribe removes a subscription
 func (s *RealtimeService) Unsubscribe(id string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	sub, ok := s.subscribers[id]
+	if ok {
+		delete(s.subscribers, id)
+	}
+	s.mu.Unlock()
 
-	if sub, ok := s.subscribers[id]; ok {
+	if ok {
+		// Cancel first to stop the cleanup goroutine, then close channels
+		sub.cancel()
 		close(sub.Done)
 		close(sub.Channel)
+	}
+}
+
+// cleanupSubscriber is called by the cleanup goroutine when context is cancelled
+func (s *RealtimeService) cleanupSubscriber(id string) {
+	s.mu.Lock()
+	sub, ok := s.subscribers[id]
+	if ok {
 		delete(s.subscribers, id)
+	}
+	s.mu.Unlock()
+
+	if ok {
+		close(sub.Done)
+		close(sub.Channel)
 	}
 }
 
