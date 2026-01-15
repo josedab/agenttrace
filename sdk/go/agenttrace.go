@@ -31,11 +31,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+const (
+	// DefaultMaxQueueSize is the maximum number of events in the queue before dropping oldest
+	DefaultMaxQueueSize = 10000
 )
 
 // Config holds the configuration for the AgentTrace client.
@@ -66,17 +72,26 @@ type Config struct {
 
 	// Timeout is the request timeout. Defaults to 10 seconds.
 	Timeout time.Duration
+
+	// MaxQueueSize is the maximum number of events in the queue. Defaults to 10000.
+	// When exceeded, oldest events are dropped.
+	MaxQueueSize int
+
+	// OnError is an optional callback for handling errors that occur during
+	// background operations like flushing. If nil, errors are logged to stderr.
+	OnError func(err error)
 }
 
 // Client is the main AgentTrace client.
 type Client struct {
-	config     Config
-	httpClient *http.Client
-	queue      []map[string]any
-	queueMu    sync.Mutex
-	flushCh    chan struct{}
-	doneCh     chan struct{}
-	wg         sync.WaitGroup
+	config        Config
+	httpClient    *http.Client
+	queue         []map[string]any
+	queueMu       sync.Mutex
+	flushCh       chan struct{}
+	doneCh        chan struct{}
+	wg            sync.WaitGroup
+	droppedEvents int64 // Counter for dropped events due to queue overflow
 }
 
 // New creates a new AgentTrace client.
@@ -100,6 +115,9 @@ func New(config Config) *Client {
 	}
 	if config.Timeout == 0 {
 		config.Timeout = 10 * time.Second
+	}
+	if config.MaxQueueSize == 0 {
+		config.MaxQueueSize = DefaultMaxQueueSize
 	}
 
 	c := &Client{
@@ -206,6 +224,15 @@ func (c *Client) Shutdown() {
 
 func (c *Client) addEvent(event map[string]any) {
 	c.queueMu.Lock()
+
+	// Enforce queue size limit - drop oldest events if necessary
+	if len(c.queue) >= c.config.MaxQueueSize {
+		dropped := len(c.queue) - c.config.MaxQueueSize + 1
+		c.queue = c.queue[dropped:]
+		c.droppedEvents += int64(dropped)
+		c.reportError(fmt.Errorf("agenttrace: queue overflow, dropped %d events (total dropped: %d)", dropped, c.droppedEvents))
+	}
+
 	c.queue = append(c.queue, event)
 	shouldFlush := len(c.queue) >= c.config.FlushAt
 	c.queueMu.Unlock()
@@ -237,6 +264,10 @@ func (c *Client) flushLoop() {
 }
 
 func (c *Client) sendBatch(events []map[string]any) {
+	c.sendBatchWithContext(context.Background(), events)
+}
+
+func (c *Client) sendBatchWithContext(ctx context.Context, events []map[string]any) {
 	if len(events) == 0 {
 		return
 	}
@@ -247,14 +278,27 @@ func (c *Client) sendBatch(events []map[string]any) {
 
 	data, err := json.Marshal(payload)
 	if err != nil {
+		c.reportError(fmt.Errorf("agenttrace: failed to marshal batch: %w", err))
 		return
 	}
 
 	url := c.config.Host + "/api/public/ingestion"
 
+	var lastErr error
 	for attempt := 0; attempt < c.config.MaxRetries; attempt++ {
-		req, err := http.NewRequest("POST", url, bytes.NewReader(data))
+		// Check if context is cancelled
+		if ctx.Err() != nil {
+			c.reportError(fmt.Errorf("agenttrace: context cancelled: %w", ctx.Err()))
+			return
+		}
+
+		// Create a timeout context for this specific request
+		reqCtx, cancel := context.WithTimeout(ctx, c.config.Timeout)
+
+		req, err := http.NewRequestWithContext(reqCtx, "POST", url, bytes.NewReader(data))
 		if err != nil {
+			cancel()
+			lastErr = fmt.Errorf("failed to create request: %w", err)
 			continue
 		}
 
@@ -263,7 +307,15 @@ func (c *Client) sendBatch(events []map[string]any) {
 		req.Header.Set("User-Agent", "agenttrace-go/0.1.0")
 
 		resp, err := c.httpClient.Do(req)
+		cancel() // Always cancel after request completes
+
 		if err != nil {
+			lastErr = fmt.Errorf("request failed: %w", err)
+			// Check if it was a context cancellation
+			if ctx.Err() != nil {
+				c.reportError(fmt.Errorf("agenttrace: context cancelled during request: %w", ctx.Err()))
+				return
+			}
 			time.Sleep(time.Duration(1<<attempt) * 500 * time.Millisecond)
 			continue
 		}
@@ -278,18 +330,42 @@ func (c *Client) sendBatch(events []map[string]any) {
 			if h := resp.Header.Get("Retry-After"); h != "" {
 				fmt.Sscanf(h, "%d", &retryAfter)
 			}
+			lastErr = fmt.Errorf("rate limited (429), retry after %ds", retryAfter)
 			time.Sleep(time.Duration(retryAfter) * time.Second)
 			continue
 		}
 
 		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("server error: %d", resp.StatusCode)
 			time.Sleep(time.Duration(1<<attempt) * 500 * time.Millisecond)
 			continue
 		}
 
 		// Client error - don't retry
+		c.reportError(fmt.Errorf("agenttrace: client error %d, not retrying", resp.StatusCode))
 		return
 	}
+
+	// All retries exhausted
+	if lastErr != nil {
+		c.reportError(fmt.Errorf("agenttrace: failed after %d attempts: %w", c.config.MaxRetries, lastErr))
+	}
+}
+
+// reportError reports an error using the configured callback or logs to stderr
+func (c *Client) reportError(err error) {
+	if c.config.OnError != nil {
+		c.config.OnError(err)
+	} else {
+		log.Printf("[agenttrace] %v", err)
+	}
+}
+
+// DroppedEvents returns the total number of events dropped due to queue overflow
+func (c *Client) DroppedEvents() int64 {
+	c.queueMu.Lock()
+	defer c.queueMu.Unlock()
+	return c.droppedEvents
 }
 
 // TraceOptions holds options for creating a trace.
