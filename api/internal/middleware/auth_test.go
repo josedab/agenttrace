@@ -44,6 +44,7 @@ func (m *MockAuthService) CheckProjectAccess(ctx context.Context, projectID, use
 }
 
 func TestExtractAPIKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		setupRequest  func(*http.Request)
@@ -118,6 +119,7 @@ func TestExtractAPIKey(t *testing.T) {
 }
 
 func TestExtractBearerToken(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		setupRequest  func(*http.Request)
@@ -185,7 +187,9 @@ func TestExtractBearerToken(t *testing.T) {
 }
 
 func TestGetUserID(t *testing.T) {
+	t.Parallel()
 	t.Run("returns user ID from context", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 		userID := uuid.New()
 
@@ -203,6 +207,7 @@ func TestGetUserID(t *testing.T) {
 	})
 
 	t.Run("returns false when user ID not in context", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -219,7 +224,9 @@ func TestGetUserID(t *testing.T) {
 }
 
 func TestGetProjectID(t *testing.T) {
+	t.Parallel()
 	t.Run("returns project ID from context", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 		projectID := uuid.New()
 
@@ -237,6 +244,7 @@ func TestGetProjectID(t *testing.T) {
 	})
 
 	t.Run("returns false when project ID not in context", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -253,7 +261,9 @@ func TestGetProjectID(t *testing.T) {
 }
 
 func TestGetAuthType(t *testing.T) {
+	t.Parallel()
 	t.Run("returns API key auth type", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -270,6 +280,7 @@ func TestGetAuthType(t *testing.T) {
 	})
 
 	t.Run("returns JWT auth type", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -286,6 +297,7 @@ func TestGetAuthType(t *testing.T) {
 	})
 
 	t.Run("returns false when auth type not in context", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -302,7 +314,9 @@ func TestGetAuthType(t *testing.T) {
 }
 
 func TestAuthConstants(t *testing.T) {
+	t.Parallel()
 	t.Run("context key values", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, ContextKey("userID"), ContextKeyUserID)
 		assert.Equal(t, ContextKey("projectID"), ContextKeyProjectID)
 		assert.Equal(t, ContextKey("orgID"), ContextKeyOrgID)
@@ -311,13 +325,16 @@ func TestAuthConstants(t *testing.T) {
 	})
 
 	t.Run("auth type values", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, AuthType("api_key"), AuthTypeAPIKey)
 		assert.Equal(t, AuthType("jwt"), AuthTypeJWT)
 	})
 }
 
 func TestNewAuthMiddleware(t *testing.T) {
+	t.Parallel()
 	t.Run("creates auth middleware", func(t *testing.T) {
+		t.Parallel()
 		// Note: In a real test we'd mock the AuthService
 		// For this unit test we just verify the constructor works
 		middleware := NewAuthMiddleware(nil)
@@ -326,11 +343,13 @@ func TestNewAuthMiddleware(t *testing.T) {
 }
 
 func TestRequireAPIKeyHandler(t *testing.T) {
+	t.Parallel()
 	// Note: Full integration tests would require setting up the full
 	// AuthService with database. These tests verify the middleware
 	// returns appropriate error responses when no API key is provided.
 
 	t.Run("returns 401 when no API key provided", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		middleware := NewAuthMiddleware(nil)
@@ -351,7 +370,9 @@ func TestRequireAPIKeyHandler(t *testing.T) {
 }
 
 func TestRequireJWTHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("returns 401 when no JWT provided", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		middleware := NewAuthMiddleware(nil)
@@ -372,7 +393,9 @@ func TestRequireJWTHandler(t *testing.T) {
 }
 
 func TestRequireAuthHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("returns 401 when no auth provided", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		middleware := NewAuthMiddleware(nil)
@@ -393,7 +416,9 @@ func TestRequireAuthHandler(t *testing.T) {
 }
 
 func TestOptionalAuthHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("continues without auth", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 
 		middleware := NewAuthMiddleware(nil)

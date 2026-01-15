@@ -13,7 +13,9 @@ import (
 )
 
 func TestHealthStatus(t *testing.T) {
+	t.Parallel()
 	t.Run("structure validation", func(t *testing.T) {
+		t.Parallel()
 		status := HealthStatus{
 			Status:    "healthy",
 			Version:   "1.0.0",
@@ -34,7 +36,9 @@ func TestHealthStatus(t *testing.T) {
 }
 
 func TestNewHealthHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("creates handler with correct initialization", func(t *testing.T) {
+		t.Parallel()
 		handler := NewHealthHandler(nil, nil, nil, "1.2.3")
 
 		require.NotNil(t, handler)
@@ -43,6 +47,7 @@ func TestNewHealthHandler(t *testing.T) {
 	})
 
 	t.Run("start time is set to creation time", func(t *testing.T) {
+		t.Parallel()
 		before := time.Now()
 		handler := NewHealthHandler(nil, nil, nil, "1.0.0")
 		after := time.Now()
@@ -53,7 +58,9 @@ func TestNewHealthHandler(t *testing.T) {
 }
 
 func TestHealthHandler_Liveness(t *testing.T) {
+	t.Parallel()
 	t.Run("returns alive status", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 		handler := NewHealthHandler(nil, nil, nil, "1.0.0")
 
@@ -73,7 +80,9 @@ func TestHealthHandler_Liveness(t *testing.T) {
 }
 
 func TestHealthHandler_Version(t *testing.T) {
+	t.Parallel()
 	t.Run("returns version and uptime", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 		handler := NewHealthHandler(nil, nil, nil, "2.1.0")
 
@@ -98,7 +107,9 @@ func TestHealthHandler_Version(t *testing.T) {
 }
 
 func TestHealthHandler_RegisterRoutes(t *testing.T) {
+	t.Parallel()
 	t.Run("registers all health routes", func(t *testing.T) {
+		t.Parallel()
 		app := fiber.New()
 		handler := NewHealthHandler(nil, nil, nil, "1.0.0")
 

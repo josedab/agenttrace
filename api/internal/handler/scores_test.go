@@ -378,7 +378,9 @@ func setupScoresTestApp(mockSvc *MockScoreService, projectID uuid.UUID) *fiber.A
 }
 
 func TestScoresHandler_ListScores(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully lists scores", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -421,7 +423,9 @@ func TestScoresHandler_ListScores(t *testing.T) {
 }
 
 func TestScoresHandler_GetScore(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully gets score", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -458,6 +462,7 @@ func TestScoresHandler_GetScore(t *testing.T) {
 	})
 
 	t.Run("returns 404 for non-existent score", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -477,7 +482,9 @@ func TestScoresHandler_GetScore(t *testing.T) {
 }
 
 func TestScoresHandler_CreateScore(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully creates score", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -561,7 +568,9 @@ func TestScoresHandler_CreateScore(t *testing.T) {
 }
 
 func TestScoresHandler_UpdateScore(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully updates score", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -605,7 +614,9 @@ func TestScoresHandler_UpdateScore(t *testing.T) {
 }
 
 func TestScoresHandler_GetTraceScores(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully gets trace scores", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -650,7 +661,9 @@ func TestScoresHandler_GetTraceScores(t *testing.T) {
 }
 
 func TestScoresHandler_BatchCreateScores(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully batch creates scores", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -703,6 +716,7 @@ func TestScoresHandler_BatchCreateScores(t *testing.T) {
 	})
 
 	t.Run("returns 400 for empty scores array", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -722,7 +736,9 @@ func TestScoresHandler_BatchCreateScores(t *testing.T) {
 }
 
 func TestScoresHandler_GetScoreStats(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully gets score stats", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -758,6 +774,7 @@ func TestScoresHandler_GetScoreStats(t *testing.T) {
 	})
 
 	t.Run("returns 400 for missing name", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -771,7 +788,9 @@ func TestScoresHandler_GetScoreStats(t *testing.T) {
 }
 
 func TestScoresHandler_SubmitFeedback(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully submits feedback", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)
@@ -814,6 +833,7 @@ func TestScoresHandler_SubmitFeedback(t *testing.T) {
 	})
 
 	t.Run("returns 400 for missing traceId", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockScoreService)
 		projectID := uuid.New()
 		app := setupScoresTestApp(mockSvc, projectID)

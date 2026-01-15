@@ -343,7 +343,9 @@ func setupProjectsTestApp(mockSvc *MockProjectService, userID *uuid.UUID) *fiber
 // --- ListProjects Tests ---
 
 func TestProjectsHandler_ListProjects(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully lists projects for user", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -382,6 +384,7 @@ func TestProjectsHandler_ListProjects(t *testing.T) {
 	})
 
 	t.Run("successfully lists projects by organization", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -408,6 +411,7 @@ func TestProjectsHandler_ListProjects(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid organization ID", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -420,6 +424,7 @@ func TestProjectsHandler_ListProjects(t *testing.T) {
 	})
 
 	t.Run("returns 401 when user ID not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		app := setupProjectsTestApp(mockSvc, nil) // No user ID
 
@@ -431,6 +436,7 @@ func TestProjectsHandler_ListProjects(t *testing.T) {
 	})
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -450,7 +456,9 @@ func TestProjectsHandler_ListProjects(t *testing.T) {
 // --- GetProject Tests ---
 
 func TestProjectsHandler_GetProject(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully gets project", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -479,6 +487,7 @@ func TestProjectsHandler_GetProject(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid project ID", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -491,6 +500,7 @@ func TestProjectsHandler_GetProject(t *testing.T) {
 	})
 
 	t.Run("returns 404 when project not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -511,7 +521,9 @@ func TestProjectsHandler_GetProject(t *testing.T) {
 // --- CreateProject Tests ---
 
 func TestProjectsHandler_CreateProject(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully creates project", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -549,6 +561,7 @@ func TestProjectsHandler_CreateProject(t *testing.T) {
 	})
 
 	t.Run("returns 400 for missing organizationId", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -569,6 +582,7 @@ func TestProjectsHandler_CreateProject(t *testing.T) {
 	})
 
 	t.Run("returns 400 for missing name", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -589,6 +603,7 @@ func TestProjectsHandler_CreateProject(t *testing.T) {
 	})
 
 	t.Run("returns 401 when user ID not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		app := setupProjectsTestApp(mockSvc, nil) // No user ID
 
@@ -605,6 +620,7 @@ func TestProjectsHandler_CreateProject(t *testing.T) {
 	})
 
 	t.Run("returns 404 when organization not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -631,7 +647,9 @@ func TestProjectsHandler_CreateProject(t *testing.T) {
 // --- UpdateProject Tests ---
 
 func TestProjectsHandler_UpdateProject(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully updates project", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -659,6 +677,7 @@ func TestProjectsHandler_UpdateProject(t *testing.T) {
 	})
 
 	t.Run("returns 404 when project not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -684,7 +703,9 @@ func TestProjectsHandler_UpdateProject(t *testing.T) {
 // --- DeleteProject Tests ---
 
 func TestProjectsHandler_DeleteProject(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully deletes project", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -702,6 +723,7 @@ func TestProjectsHandler_DeleteProject(t *testing.T) {
 	})
 
 	t.Run("returns 404 when project not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -722,7 +744,9 @@ func TestProjectsHandler_DeleteProject(t *testing.T) {
 // --- GetUserRole Tests ---
 
 func TestProjectsHandler_GetUserRole(t *testing.T) {
+	t.Parallel()
 	t.Run("successfully gets user role", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -745,6 +769,7 @@ func TestProjectsHandler_GetUserRole(t *testing.T) {
 	})
 
 	t.Run("returns 404 when user not a member", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		userID := uuid.New()
 		app := setupProjectsTestApp(mockSvc, &userID)
@@ -762,6 +787,7 @@ func TestProjectsHandler_GetUserRole(t *testing.T) {
 	})
 
 	t.Run("returns 401 when user ID not found", func(t *testing.T) {
+		t.Parallel()
 		mockSvc := new(MockProjectService)
 		app := setupProjectsTestApp(mockSvc, nil) // No user ID
 
