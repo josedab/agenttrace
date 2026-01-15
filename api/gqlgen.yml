@@ -8,11 +8,13 @@ exec:
   filename: internal/graphql/generated/generated.go
   package: generated
 
-# Resolver configuration - single file layout to avoid conflicts
+# Resolver configuration - follow-schema layout splits resolvers by schema file
+# Run `go generate ./...` to regenerate with split files
 resolver:
-  layout: single-file
-  filename: internal/graphql/resolver/resolvers.go
+  layout: follow-schema
+  dir: internal/graphql/resolver
   package: resolver
+  filename_template: "{name}_resolvers.go"
 
 # Generation options
 omit_slice_element_pointers: true
