@@ -18,9 +18,19 @@ const SpanIDLength = 8
 
 var (
 	randReader = rand.Reader
-	bufPool    = sync.Pool{
-		New: func() interface{} {
+
+	// traceIDPool reuses buffers for trace ID generation (16 bytes)
+	traceIDPool = sync.Pool{
+		New: func() any {
 			b := make([]byte, TraceIDLength)
+			return &b
+		},
+	}
+
+	// spanIDPool reuses buffers for span ID generation (8 bytes)
+	spanIDPool = sync.Pool{
+		New: func() any {
+			b := make([]byte, SpanIDLength)
 			return &b
 		},
 	}
@@ -28,8 +38,8 @@ var (
 
 // NewTraceID generates a new W3C-compliant trace ID (32 hex characters)
 func NewTraceID() string {
-	bufPtr := bufPool.Get().(*[]byte)
-	defer bufPool.Put(bufPtr)
+	bufPtr := traceIDPool.Get().(*[]byte)
+	defer traceIDPool.Put(bufPtr)
 	buf := *bufPtr
 
 	if _, err := randReader.Read(buf); err != nil {
@@ -42,7 +52,10 @@ func NewTraceID() string {
 
 // NewSpanID generates a new W3C-compliant span ID (16 hex characters)
 func NewSpanID() string {
-	buf := make([]byte, SpanIDLength)
+	bufPtr := spanIDPool.Get().(*[]byte)
+	defer spanIDPool.Put(bufPtr)
+	buf := *bufPtr
+
 	if _, err := randReader.Read(buf); err != nil {
 		// Fallback to time-based ID if random fails
 		return fmt.Sprintf("%016x", time.Now().UnixNano())
