@@ -7,7 +7,7 @@ toolchain go1.24.4
 require (
 	github.com/99designs/gqlgen v0.17.85
 	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
-	github.com/getsentry/sentry-go v0.40.0
+	github.com/getsentry/sentry-go v0.41.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/golang-jwt/jwt/v5 v5.3.0
