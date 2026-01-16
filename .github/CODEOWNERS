@@ -1,0 +1,22 @@
+# Default owners for everything in the repo
+* @josedab
+
+# Backend
+/api/ @josedab
+
+# Frontend
+/web/ @josedab
+
+# SDKs
+/sdk/python/ @josedab
+/sdk/typescript/ @josedab
+/sdk/go/ @josedab
+/sdk/cli/ @josedab
+
+# Documentation
+/docs/ @josedab
+
+# Infrastructure & CI
+/deploy/ @josedab
+/.github/ @josedab
+/ci/ @josedab
