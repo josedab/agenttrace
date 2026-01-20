@@ -32,9 +32,13 @@ func main() {
 	// Initialize logger
 	var logger *zap.Logger
 	if cfg.Server.Env == "production" {
-		logger, _ = zap.NewProduction()
+		logger, err = zap.NewProduction()
 	} else {
-		logger, _ = zap.NewDevelopment()
+		logger, err = zap.NewDevelopment()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
 	defer logger.Sync()
 
