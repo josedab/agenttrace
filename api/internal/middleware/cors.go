@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -133,7 +134,7 @@ func (m *CORSMiddleware) Handler() fiber.Handler {
 			c.Set("Access-Control-Allow-Headers", allowHeaders)
 
 			if m.config.MaxAge > 0 {
-				c.Set("Access-Control-Max-Age", string(rune(m.config.MaxAge)))
+				c.Set("Access-Control-Max-Age", strconv.Itoa(m.config.MaxAge))
 			}
 
 			c.Set("Content-Length", "0")

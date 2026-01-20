@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -344,7 +346,7 @@ func (h *ReplayHandler) compareTimelineEvents(events1, events2 []domain.ReplayEv
 			differences = append(differences, TimelineDifference{
 				Type:        "changed",
 				Description: "Different number of '" + eventsIn1[0].Title + "' events: " +
-					string(rune(len(eventsIn1))) + " vs " + string(rune(len(eventsIn2))),
+					strconv.Itoa(len(eventsIn1)) + " vs " + strconv.Itoa(len(eventsIn2)),
 				Event1:      nil,
 				Event2:      nil,
 			})

@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Config holds all configuration for the application
 type Config struct {
@@ -44,7 +47,7 @@ type PostgresConfig struct {
 // DSN returns the PostgreSQL connection string
 func (c PostgresConfig) DSN() string {
 	return "postgres://" + c.User + ":" + c.Password + "@" + c.Host + ":" +
-		string(rune(c.Port)) + "/" + c.Database + "?sslmode=" + c.SSLMode
+		strconv.Itoa(c.Port) + "/" + c.Database + "?sslmode=" + c.SSLMode
 }
 
 // ClickHouseConfig holds ClickHouse configuration
@@ -67,7 +70,7 @@ type RedisConfig struct {
 
 // Addr returns the Redis address
 func (c RedisConfig) Addr() string {
-	return c.Host + ":" + string(rune(c.Port))
+	return c.Host + ":" + strconv.Itoa(c.Port)
 }
 
 // MinIOConfig holds MinIO configuration
