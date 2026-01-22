@@ -50,10 +50,11 @@ func initDatabases(ctx context.Context, cfg *config.Config, logger *zap.Logger) 
 	}
 	dbs.Redis = redisClient
 
-	// Initialize MinIO (optional)
+	// Initialize MinIO (optional - nil is safe, checked before use)
 	minioClient, err := initMinio(cfg)
 	if err != nil {
 		logger.Warn("failed to initialize MinIO, file storage will be unavailable", zap.Error(err))
+		minioClient = nil
 	}
 	dbs.Minio = minioClient
 

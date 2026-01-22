@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -30,9 +31,13 @@ func main() {
 	// Initialize logger
 	var logger *zap.Logger
 	if cfg.Server.Env == "production" {
-		logger, _ = zap.NewProduction()
+		logger, err = zap.NewProduction()
 	} else {
-		logger, _ = zap.NewDevelopment()
+		logger, err = zap.NewDevelopment()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
 	defer logger.Sync()
 
@@ -76,7 +81,8 @@ func main() {
 
 // initWorkerDependencies initializes dependencies for the worker
 func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.WorkerDependencies, func(), error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Initialize PostgreSQL using database wrapper
 	pgDB, err := database.NewPostgres(ctx, cfg.Postgres)
