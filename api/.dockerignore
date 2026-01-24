@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+.devcontainer
+*.md
+docs/
+tests/
+coverage.out
+service.test
+bin/
+tmp/
+.env
+.env.*

@@ -29,7 +29,7 @@ linters:
     - dogsled          # Check for too many blank identifiers
     - dupl             # Code clone detection
     - exhaustive       # Check exhaustiveness of enum switch statements
-    - exportloopref    # Check for pointers to loop variables
+
     - gochecknoinits   # Check no init functions
     - goconst          # Find repeated strings that could be constants
     - gocritic         # Comprehensive linter
