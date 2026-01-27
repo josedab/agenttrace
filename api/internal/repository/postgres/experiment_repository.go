@@ -269,6 +269,9 @@ func (r *ExperimentRepository) List(ctx context.Context, filter domain.Experimen
 
 	whereClause := strings.Join(conditions, " AND ")
 
+// SAFETY: whereClause is built from hardcoded column fragments above.
+// User values are passed separately via parameterized args.
+
 	// Count total
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM experiments WHERE %s", whereClause)
 	var totalCount int64

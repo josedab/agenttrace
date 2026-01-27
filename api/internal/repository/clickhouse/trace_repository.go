@@ -300,6 +300,8 @@ func (r *TraceRepository) List(ctx context.Context, filter *domain.TraceFilter, 
 
 	whereClause := strings.Join(conditions, " AND ")
 
+	// NOTE: whereClause is safe from SQL injection — it's built from hardcoded
+	// column-name fragments above, with user values passed as parameterized args.
 	// Get total count
 	countQuery := fmt.Sprintf("SELECT count() FROM traces FINAL WHERE %s", whereClause)
 	var totalCount int64
