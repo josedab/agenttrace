@@ -287,6 +287,9 @@ func (r *ObservationRepository) List(ctx context.Context, filter *domain.Observa
 
 	whereClause := strings.Join(conditions, " AND ")
 
+// SAFETY: whereClause is built from hardcoded column fragments above.
+// User values are passed separately via parameterized args.
+
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM observations FINAL WHERE %s", whereClause)
 	var totalCount int64

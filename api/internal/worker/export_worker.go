@@ -585,6 +585,9 @@ func (w *ExportWorker) uploadToStorage(ctx context.Context, path string, data []
 	}
 
 	// Upload to MinIO
+	if w.minioClient == nil {
+		return fmt.Errorf("MinIO client is not configured, cannot upload export")
+	}
 	reader := bytes.NewReader(data)
 	_, err := w.minioClient.PutObject(ctx, bucket, path, reader, int64(len(data)), minio.PutObjectOptions{
 		ContentType: "application/octet-stream",

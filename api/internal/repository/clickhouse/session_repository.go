@@ -96,6 +96,9 @@ func (r *SessionRepository) List(ctx context.Context, filter *domain.SessionFilt
 
 	whereClause := strings.Join(conditions, " AND ")
 
+// SAFETY: whereClause is built from hardcoded column fragments above.
+// User values are passed separately via parameterized args.
+
 	// Get total count of distinct sessions
 	countQuery := fmt.Sprintf(`
 		SELECT count(DISTINCT session_id)

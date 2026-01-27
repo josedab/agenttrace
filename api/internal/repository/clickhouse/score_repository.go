@@ -235,6 +235,9 @@ func (r *ScoreRepository) List(ctx context.Context, filter *domain.ScoreFilter, 
 
 	whereClause := strings.Join(conditions, " AND ")
 
+// SAFETY: whereClause is built from hardcoded column fragments above.
+// User values are passed separately via parameterized args.
+
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM scores FINAL WHERE %s", whereClause)
 	var totalCount int64

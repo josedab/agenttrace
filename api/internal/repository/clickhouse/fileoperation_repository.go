@@ -176,6 +176,9 @@ func (r *FileOperationRepository) List(ctx context.Context, filter *domain.FileO
 
 	whereClause := strings.Join(conditions, " AND ")
 
+// SAFETY: whereClause is built from hardcoded column fragments above.
+// User values are passed separately via parameterized args.
+
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM file_operations FINAL WHERE %s", whereClause)
 	var totalCount int64
@@ -223,6 +226,9 @@ func (r *FileOperationRepository) GetStats(ctx context.Context, projectID uuid.U
 	}
 
 	whereClause := strings.Join(conditions, " AND ")
+
+// SAFETY: whereClause is built from hardcoded column fragments above.
+// User values are passed separately via parameterized args.
 
 	query := fmt.Sprintf(`
 		SELECT
