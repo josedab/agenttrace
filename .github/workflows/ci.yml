@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  GO_VERSION: "1.21"
+  GO_VERSION: "1.24"
   NODE_VERSION: "20"
   PYTHON_VERSION: "3.11"
 
@@ -75,8 +75,11 @@ jobs:
 
   # Go Backend Tests
   go-backend:
-    name: Go Backend
+    name: Go Backend (${{ matrix.go-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.23", "1.24"]
     services:
       postgres:
         image: postgres:16
@@ -107,17 +110,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: ${{ matrix.go-version }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('api/go.sum') }}
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('api/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
 
       - name: Install dependencies
         working-directory: api
@@ -181,7 +184,7 @@ jobs:
 
       - name: Run type check
         working-directory: web
-        run: npm run typecheck
+        run: npm run type-check
 
       - name: Run tests
         working-directory: web
@@ -204,7 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -264,7 +267,7 @@ jobs:
 
       - name: Run type check
         working-directory: sdk/typescript
-        run: npm run typecheck
+        run: npm run type-check
 
       - name: Run tests
         working-directory: sdk/typescript
@@ -283,8 +286,11 @@ jobs:
 
   # Go SDK Tests
   go-sdk:
-    name: Go SDK
+    name: Go SDK (${{ matrix.go-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.23", "1.24"]
 
     steps:
       - uses: actions/checkout@v4
@@ -292,17 +298,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: ${{ matrix.go-version }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-go-sdk-${{ hashFiles('sdk/go/go.sum') }}
+          key: ${{ runner.os }}-go-sdk-${{ matrix.go-version }}-${{ hashFiles('sdk/go/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-sdk-
+            ${{ runner.os }}-go-sdk-${{ matrix.go-version }}-
 
       - name: Run tests
         working-directory: sdk/go
@@ -341,7 +347,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
@@ -446,7 +452,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
