@@ -5,6 +5,9 @@ updates:
     directory: "/api"
     schedule:
       interval: "weekly"
+    groups:
+      go-deps:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "go"
@@ -15,6 +18,9 @@ updates:
     directory: "/web"
     schedule:
       interval: "weekly"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
     labels:
       - "dependencies"
       - "npm"
@@ -25,6 +31,9 @@ updates:
     directory: "/sdk/python"
     schedule:
       interval: "weekly"
+    groups:
+      python-deps:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "python"
@@ -35,6 +44,9 @@ updates:
     directory: "/sdk/typescript"
     schedule:
       interval: "weekly"
+    groups:
+      ts-sdk-deps:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "npm"
@@ -45,6 +57,9 @@ updates:
     directory: "/sdk/go"
     schedule:
       interval: "weekly"
+    groups:
+      go-sdk-deps:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "go"
@@ -55,6 +70,9 @@ updates:
     directory: "/sdk/cli"
     schedule:
       interval: "weekly"
+    groups:
+      cli-deps:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "go"
@@ -65,6 +83,9 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    groups:
+      actions:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "github-actions"
