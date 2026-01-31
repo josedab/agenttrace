@@ -6,7 +6,7 @@ on:
       - "v*"
 
 env:
-  GO_VERSION: "1.21"
+  GO_VERSION: "1.24"
   NODE_VERSION: "20"
   PYTHON_VERSION: "3.11"
 
@@ -117,6 +117,40 @@ jobs:
           labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Generate SBOM (Software Bill of Materials)
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    needs: create-release
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM for API
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./api
+          artifact-name: sbom-api.spdx.json
+          output-file: sbom-api.spdx.json
+          format: spdx-json
+
+      - name: Generate SBOM for Web
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./web
+          artifact-name: sbom-web.spdx.json
+          output-file: sbom-web.spdx.json
+          format: spdx-json
+
+      - name: Upload SBOMs to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            sbom-api.spdx.json
+            sbom-web.spdx.json
 
   # Publish Python SDK
   python-sdk:
