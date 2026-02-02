@@ -82,6 +82,13 @@ repos:
         files: ^sdk/typescript/.*\.ts$
         pass_filenames: false
 
+      - id: prettier-web
+        name: prettier (web)
+        entry: bash -c 'cd web && npx prettier --check .'
+        language: system
+        files: ^web/.*\.(ts|tsx|js|jsx|css|json)$
+        pass_filenames: false
+
   # General hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
