@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 interface RealtimeEvent {
   type: "trace:created" | "trace:updated" | "observation:created" | "score:created";
-  data: any;
+  data: unknown;
 }
 
 interface UseRealtimeOptions {

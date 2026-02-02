@@ -49,9 +49,9 @@ export function AddItemDialog({ datasetId }: AddItemDialogProps) {
 
   const addMutation = useMutation({
     mutationFn: (data: AddItemFormData) => {
-      let input: any;
-      let expectedOutput: any;
-      let metadata: any;
+      let input: unknown;
+      let expectedOutput: unknown;
+      let metadata: unknown;
 
       try {
         input = JSON.parse(data.input);

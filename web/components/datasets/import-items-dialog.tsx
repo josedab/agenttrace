@@ -32,7 +32,7 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const importMutation = useMutation({
-    mutationFn: async (items: any[]) => {
+    mutationFn: async (items: Record<string, unknown>[]) => {
       // Import items one by one (could be optimized with batch API)
       for (const item of items) {
         await api.datasets.addItem(datasetId, item);

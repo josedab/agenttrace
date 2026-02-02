@@ -43,10 +43,10 @@ interface AnnotationQueue {
 interface AnnotationItem {
   id: string;
   traceId: string;
-  input: any;
-  output: any;
-  expectedOutput?: any;
-  metadata?: Record<string, any>;
+  input: unknown;
+  output: unknown;
+  expectedOutput?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 interface AnnotationInterfaceProps {
