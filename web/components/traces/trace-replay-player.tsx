@@ -42,14 +42,14 @@ interface ReplayEvent {
 
 interface ReplayEventData {
   model?: string;
-  input?: any;
-  output?: any;
+  input?: unknown;
+  output?: unknown;
   tokensInput?: number;
   tokensOutput?: number;
   cost?: number;
   toolName?: string;
-  arguments?: any;
-  result?: any;
+  arguments?: unknown;
+  result?: unknown;
   filePath?: string;
   operation?: string;
   diff?: string;
@@ -208,20 +208,20 @@ export function TraceReplayPlayer({ timeline, onExport }: TraceReplayPlayerProps
           <div className="flex items-center gap-4">
             {/* Control Buttons */}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={handleReset}>
+              <Button variant="outline" size="icon" aria-label="Reset replay" onClick={handleReset}>
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={handleSkipBack}>
+              <Button variant="outline" size="icon" aria-label="Skip back" onClick={handleSkipBack}>
                 <SkipBack className="h-4 w-4" />
               </Button>
-              <Button size="icon" onClick={handlePlayPause}>
+              <Button size="icon" aria-label={isPlaying ? "Pause" : "Play"} onClick={handlePlayPause}>
                 {isPlaying ? (
                   <Pause className="h-4 w-4" />
                 ) : (
                   <Play className="h-4 w-4" />
                 )}
               </Button>
-              <Button variant="outline" size="icon" onClick={handleSkipForward}>
+              <Button variant="outline" size="icon" aria-label="Skip forward" onClick={handleSkipForward}>
                 <SkipForward className="h-4 w-4" />
               </Button>
             </div>

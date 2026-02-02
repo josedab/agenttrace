@@ -34,7 +34,7 @@ export function useEvaluatorRuns(evaluatorId: string) {
     refetchInterval: (query) => {
       // Keep polling if any run is in progress
       const hasRunning = query.state.data?.some(
-        (run: any) => run.status === "RUNNING" || run.status === "PENDING"
+        (run: { status: string }) => run.status === "RUNNING" || run.status === "PENDING"
       );
       return hasRunning ? 3000 : false;
     },

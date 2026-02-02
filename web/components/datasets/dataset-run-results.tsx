@@ -310,7 +310,7 @@ function ScoreDistribution({ scores }: { scores: number[] }) {
   );
 }
 
-function truncateValue(value: any, length: number): string {
+function truncateValue(value: unknown, length: number): string {
   const str = typeof value === "string" ? value : JSON.stringify(value);
   if (str.length <= length) return str;
   return str.slice(0, length) + "...";

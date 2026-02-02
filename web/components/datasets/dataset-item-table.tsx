@@ -255,13 +255,13 @@ function ItemTableSkeleton() {
   );
 }
 
-function truncateJson(value: any, length: number): string {
+function truncateJson(value: unknown, length: number): string {
   const str = typeof value === "string" ? value : JSON.stringify(value);
   if (str.length <= length) return str;
   return str.slice(0, length) + "...";
 }
 
-function formatJson(value: any): string {
+function formatJson(value: unknown): string {
   if (typeof value === "string") {
     try {
       return JSON.stringify(JSON.parse(value), null, 2);

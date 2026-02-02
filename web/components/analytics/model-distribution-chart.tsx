@@ -70,7 +70,7 @@ export function ModelDistributionChart({ data }: ModelDistributionChartProps) {
             layout="vertical"
             verticalAlign="middle"
             align="right"
-            formatter={(value, entry: any) => (
+            formatter={(value, _entry: unknown) => (
               <span className="text-sm">{value}</span>
             )}
           />

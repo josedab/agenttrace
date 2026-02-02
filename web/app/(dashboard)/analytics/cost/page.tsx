@@ -35,6 +35,15 @@ import {
 import { CostBreakdownChart } from "@/components/dashboard/cost-breakdown-chart";
 import { CostTrendChart } from "@/components/analytics/cost-trend-chart";
 
+interface CostBreakdownItem {
+  name: string;
+  traces: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+  percentage: number;
+}
+
 export default function CostAnalyticsPage() {
   const [dateRange, setDateRange] = React.useState("7d");
   const [groupBy, setGroupBy] = React.useState("model");
@@ -220,7 +229,7 @@ export default function CostAnalyticsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {costData?.breakdown?.map((item: any) => (
+                  {costData?.breakdown?.map((item: CostBreakdownItem) => (
                     <TableRow key={item.name}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell className="text-right">

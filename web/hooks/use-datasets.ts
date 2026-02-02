@@ -115,9 +115,9 @@ export function useAddDatasetItem() {
     }: {
       datasetId: string;
       data: {
-        input: any;
-        expectedOutput?: any;
-        metadata?: Record<string, any>;
+        input: unknown;
+        expectedOutput?: unknown;
+        metadata?: Record<string, unknown>;
       };
     }) => api.datasets.addItem(datasetId, data),
     onSuccess: (_, variables) => {
@@ -139,9 +139,9 @@ export function useUpdateDatasetItem() {
       datasetId: string;
       itemId: string;
       data: {
-        input?: any;
-        expectedOutput?: any;
-        metadata?: Record<string, any>;
+        input?: unknown;
+        expectedOutput?: unknown;
+        metadata?: Record<string, unknown>;
       };
     }) => api.datasets.updateItem(datasetId, itemId, data),
     onSuccess: (_, variables) => {

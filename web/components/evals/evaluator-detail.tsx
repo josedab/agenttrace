@@ -237,7 +237,7 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
                     <Select
                       value={scoreDataType}
                       onValueChange={(value) =>
-                        setValue("scoreDataType", value as any, { shouldDirty: true })
+                        setValue("scoreDataType", value as EvaluatorFormData["scoreDataType"], { shouldDirty: true })
                       }
                     >
                       <SelectTrigger>

@@ -36,6 +36,21 @@ import { TraceVolumeChart } from "@/components/dashboard/trace-volume-chart";
 import { TokenUsageChart } from "@/components/analytics/token-usage-chart";
 import { ModelDistributionChart } from "@/components/analytics/model-distribution-chart";
 
+interface ModelDistribution {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+interface TopTrace {
+  id: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cost: number;
+}
+
 export default function UsageAnalyticsPage() {
   const [dateRange, setDateRange] = React.useState("7d");
 
@@ -200,7 +215,7 @@ export default function UsageAnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <ModelDistributionChart data={usageData?.modelDistribution || []} />
               <div className="space-y-3">
-                {usageData?.modelDistribution?.map((model: any) => (
+                {usageData?.modelDistribution?.map((model: ModelDistribution) => (
                   <div key={model.name} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium">{model.name}</span>
@@ -244,7 +259,7 @@ export default function UsageAnalyticsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {usageData?.topTraces?.map((trace: any) => (
+                  {usageData?.topTraces?.map((trace: TopTrace) => (
                     <TableRow key={trace.id}>
                       <TableCell className="font-mono text-sm">
                         {trace.id.slice(0, 12)}...

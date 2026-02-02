@@ -33,6 +33,15 @@ import {
 import { LatencyPercentileChart } from "@/components/dashboard/latency-percentile-chart";
 import { LatencyDistributionChart } from "@/components/analytics/latency-distribution-chart";
 
+interface LatencyBreakdownItem {
+  name: string;
+  requests: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  avg: number;
+}
+
 export default function LatencyAnalyticsPage() {
   const [dateRange, setDateRange] = React.useState("7d");
   const [groupBy, setGroupBy] = React.useState("model");
@@ -237,7 +246,7 @@ export default function LatencyAnalyticsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {latencyData?.breakdown?.map((item: any) => (
+                  {latencyData?.breakdown?.map((item: LatencyBreakdownItem) => (
                     <TableRow key={item.name}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell className="text-right">

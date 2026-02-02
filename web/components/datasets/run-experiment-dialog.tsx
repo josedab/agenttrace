@@ -71,7 +71,7 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
 
   const runMutation = useMutation({
     mutationFn: (data: RunExperimentFormData) => {
-      let metadata: any;
+      let metadata: unknown;
       if (data.metadata) {
         try {
           metadata = JSON.parse(data.metadata);
