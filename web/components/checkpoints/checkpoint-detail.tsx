@@ -252,6 +252,7 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
+                            aria-label="Copy hash"
                             onClick={(e) => {
                               e.stopPropagation();
                               copyHash(file.hash);

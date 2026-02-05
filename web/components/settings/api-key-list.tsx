@@ -120,6 +120,7 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
+                          aria-label="Copy API key"
                           onClick={() => copyKeyPrefix(key.id, key.keyPrefix)}
                         >
                           {copiedId === key.id ? (
@@ -167,7 +168,7 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" aria-label="More options">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>

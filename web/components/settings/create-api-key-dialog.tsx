@@ -156,7 +156,7 @@ export function CreateApiKeyDialog() {
               <code className="flex-1 p-3 bg-muted rounded-md text-sm font-mono break-all">
                 {createdKey}
               </code>
-              <Button variant="outline" size="icon" onClick={copyKey}>
+              <Button variant="outline" size="icon" aria-label="Copy API key" onClick={copyKey}>
                 {copied ? (
                   <Check className="h-4 w-4 text-green-500" />
                 ) : (

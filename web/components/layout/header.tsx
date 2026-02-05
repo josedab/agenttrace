@@ -72,12 +72,12 @@ export function Header({ user }: HeaderProps) {
         </div>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="h-5 w-5" />
         </Button>
 
         {/* Help */}
-        <Button variant="ghost" size="icon" asChild>
+        <Button variant="ghost" size="icon" aria-label="Help" asChild>
           <Link href="/docs">
             <HelpCircle className="h-5 w-5" />
           </Link>
