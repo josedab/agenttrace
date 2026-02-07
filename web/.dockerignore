@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+node_modules
+.next
+.env
+.env.*
+coverage
+e2e
+*.md
+playwright-report
+test-results
