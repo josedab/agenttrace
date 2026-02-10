@@ -28,7 +28,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Prerequisites
 
-- **Go 1.21+** - Backend development
+- **Go 1.24+** - Backend development
 - **Node.js 18+** - Frontend and TypeScript SDK development
 - **Python 3.9+** - Python SDK development
 - **Docker & Docker Compose** - Running local services
@@ -239,15 +239,14 @@ We welcome many types of contributions:
 ### Branching Strategy
 
 - `main` - Stable release branch
-- `develop` - Integration branch for features
 - `feature/*` - Feature branches
 - `fix/*` - Bug fix branches
 - `docs/*` - Documentation branches
 
-Create your branch from `develop`:
+Create your branch from `main`:
 ```bash
-git checkout develop
-git pull origin develop
+git checkout main
+git pull origin main
 git checkout -b feature/your-feature-name
 ```
 
@@ -404,7 +403,7 @@ Fixes #123
 
 ### Review Process
 
-1. Submit your PR against the `develop` branch
+1. Submit your PR against the `main` branch
 2. Automated checks will run (lint, test, build)
 3. A maintainer will review your code
 4. Address any feedback
