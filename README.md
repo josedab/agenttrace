@@ -1,5 +1,10 @@
 # AgentTrace
 
+[![CI](https://github.com/agenttrace/agenttrace/actions/workflows/ci.yml/badge.svg)](https://github.com/agenttrace/agenttrace/actions/workflows/ci.yml)
+[![Security](https://github.com/agenttrace/agenttrace/actions/workflows/security.yml/badge.svg)](https://github.com/agenttrace/agenttrace/actions/workflows/security.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/agenttrace/agenttrace?filename=api%2Fgo.mod)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Open-source observability platform for AI coding agents. LLM traces, evaluations, prompt management, and dataset experiments with Langfuse feature parity.
 
 ## Features
@@ -13,6 +18,13 @@ Open-source observability platform for AI coding agents. LLM traces, evaluations
 - **Cost Tracking**: Automatic cost calculation for 400+ LLM models
 
 ## Quick Start
+
+### Deploy with One Click
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/agenttrace)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/agenttrace/agenttrace)
+
+Or deploy locally with Docker Compose:
 
 ### 1. Start the Services
 
@@ -318,7 +330,7 @@ See `deploy/.env.example` for full list.
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.24+
 - Node.js 18+
 - Docker & Docker Compose
 
