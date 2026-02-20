@@ -124,13 +124,18 @@ const config: Config = {
       darkTheme: prismThemes.dracula,
       additionalLanguages: ['bash', 'python', 'go', 'typescript', 'json', 'yaml'],
     },
-    algolia: {
-      appId: 'YOUR_APP_ID',
-      apiKey: 'YOUR_SEARCH_API_KEY',
-      indexName: 'agenttrace',
-      contextualSearch: true,
-    },
   } satisfies Preset.ThemeConfig,
-};
 
+  themes: [
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      /** @type {import("@easyops-cn/docusaurus-search-local").PluginOptions} */
+      ({
+        hashed: true,
+        language: ['en'],
+        docsRouteBasePath: '/',
+      }),
+    ],
+  ],
+};
 export default config;

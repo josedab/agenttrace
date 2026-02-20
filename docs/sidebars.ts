@@ -16,6 +16,8 @@ const sidebars: SidebarsConfig = {
         'getting-started/installation',
         'getting-started/first-trace',
         'getting-started/concepts',
+        'getting-started/comparison',
+        'getting-started/migration-from-langfuse',
       ],
     },
     {
