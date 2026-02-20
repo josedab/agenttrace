@@ -107,6 +107,10 @@ func Load() (*Config, error) {
 	cfg.Retention.Days = v.GetInt("retention_days")
 	cfg.Retention.Enabled = v.GetBool("retention_worker_enabled")
 
+	// OpenTelemetry
+	cfg.OTel.ReceiverEnabled = v.GetBool("otel_receiver_enabled")
+	cfg.OTel.ReceiverGRPCPort = v.GetInt("otel_receiver_grpc_port")
+
 	// Validate required fields
 	if err := validate(&cfg); err != nil {
 		return nil, err
@@ -181,11 +185,72 @@ func setDefaults(v *viper.Viper) {
 	// Retention defaults
 	v.SetDefault("retention_days", 90)
 	v.SetDefault("retention_worker_enabled", true)
+
+	// OpenTelemetry defaults
+	v.SetDefault("otel_receiver_enabled", false)
+	v.SetDefault("otel_receiver_grpc_port", 4317)
 }
 
 func validate(cfg *Config) error {
+	var errs []string
+
+	// JWT secret must not use default in production
 	if cfg.JWT.Secret == "change-me-in-production" && cfg.IsProduction() {
-		return fmt.Errorf("JWT secret must be changed in production")
+		errs = append(errs, "jwt_secret must be changed from default in production")
+	}
+
+	// JWT secret must not be empty
+	if cfg.JWT.Secret == "" {
+		errs = append(errs, "jwt_secret is required")
+	}
+
+	// PostgreSQL validation
+	if cfg.Postgres.Host == "" {
+		errs = append(errs, "postgres_host is required")
+	}
+	if cfg.Postgres.Port <= 0 || cfg.Postgres.Port > 65535 {
+		errs = append(errs, "postgres_port must be between 1 and 65535")
+	}
+	if cfg.Postgres.User == "" {
+		errs = append(errs, "postgres_user is required")
+	}
+	if cfg.Postgres.Database == "" {
+		errs = append(errs, "postgres_db is required")
+	}
+
+	// ClickHouse validation
+	if cfg.ClickHouse.Host == "" {
+		errs = append(errs, "clickhouse_host is required")
+	}
+	if cfg.ClickHouse.Port <= 0 || cfg.ClickHouse.Port > 65535 {
+		errs = append(errs, "clickhouse_port must be between 1 and 65535")
+	}
+
+	// Redis validation
+	if cfg.Redis.Host == "" {
+		errs = append(errs, "redis_host is required")
+	}
+	if cfg.Redis.Port <= 0 || cfg.Redis.Port > 65535 {
+		errs = append(errs, "redis_port must be between 1 and 65535")
+	}
+
+	// Server validation
+	if cfg.Server.Port <= 0 || cfg.Server.Port > 65535 {
+		errs = append(errs, "server_port must be between 1 and 65535")
+	}
+
+	// Production-specific checks
+	if cfg.IsProduction() {
+		if cfg.Postgres.Password == "" {
+			errs = append(errs, "postgres_password is required in production")
+		}
+		if cfg.Postgres.SSLMode == "disable" {
+			errs = append(errs, "postgres_ssl_mode should not be 'disable' in production")
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("configuration validation failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	return nil
 }
