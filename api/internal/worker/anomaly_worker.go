@@ -30,6 +30,7 @@ const (
 
 // AnomalyDetectionPayload is the payload for anomaly detection tasks
 type AnomalyDetectionPayload struct {
+	VersionedPayload
 	ProjectID     uuid.UUID         `json:"projectId"`
 	RuleID        uuid.UUID         `json:"ruleId"`
 	CurrentValue  float64           `json:"currentValue"`
@@ -43,6 +44,7 @@ type AnomalyDetectionPayload struct {
 
 // AnomalyAlertPayload is the payload for anomaly alert tasks
 type AnomalyAlertPayload struct {
+	VersionedPayload
 	AnomalyID   uuid.UUID   `json:"anomalyId"`
 	ProjectID   uuid.UUID   `json:"projectId"`
 	RuleID      uuid.UUID   `json:"ruleId"`
@@ -54,12 +56,14 @@ type AnomalyAlertPayload struct {
 
 // AnomalyCleanupPayload is the payload for anomaly cleanup tasks
 type AnomalyCleanupPayload struct {
+	VersionedPayload
 	ProjectID     uuid.UUID `json:"projectId"`
 	RetentionDays int       `json:"retentionDays"`
 }
 
 // AnomalyScheduledScanPayload is the payload for scheduled scan tasks
 type AnomalyScheduledScanPayload struct {
+	VersionedPayload
 	ProjectID uuid.UUID `json:"projectId"`
 	RuleID    uuid.UUID `json:"ruleId"`
 }

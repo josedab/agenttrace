@@ -21,6 +21,7 @@ const (
 
 // CostCalculationPayload is the payload for cost calculation tasks
 type CostCalculationPayload struct {
+	VersionedPayload
 	ProjectID     string `json:"project_id"`
 	TraceID       string `json:"trace_id"`
 	ObservationID string `json:"observation_id"`
@@ -123,6 +124,7 @@ func (w *CostWorker) ProcessTask(ctx context.Context, t *asynq.Task) error {
 
 // BatchCostCalculationPayload is the payload for batch cost calculation
 type BatchCostCalculationPayload struct {
+	VersionedPayload
 	ProjectID string   `json:"project_id"`
 	TraceID   string   `json:"trace_id"`
 }
@@ -235,6 +237,7 @@ func (w *CostWorker) ProcessBatchCostTask(ctx context.Context, t *asynq.Task) er
 
 // DailyAggregationPayload is the payload for daily cost aggregation
 type DailyAggregationPayload struct {
+	VersionedPayload
 	ProjectID string `json:"project_id"`
 	Date      string `json:"date"` // YYYY-MM-DD format
 }

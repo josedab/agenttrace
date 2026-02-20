@@ -29,6 +29,7 @@ const (
 
 // EvaluationPayload is the payload for evaluation tasks
 type EvaluationPayload struct {
+	VersionedPayload
 	ProjectID     uuid.UUID `json:"project_id"`
 	EvaluatorID   uuid.UUID `json:"evaluator_id"`
 	TraceID       string    `json:"trace_id"`
@@ -46,6 +47,7 @@ func NewEvaluationTask(payload *EvaluationPayload) (*asynq.Task, error) {
 
 // BatchEvaluationPayload is the payload for batch evaluation tasks
 type BatchEvaluationPayload struct {
+	VersionedPayload
 	ProjectID   uuid.UUID `json:"project_id"`
 	EvaluatorID uuid.UUID `json:"evaluator_id"`
 	TraceIDs    []string  `json:"trace_ids"`
