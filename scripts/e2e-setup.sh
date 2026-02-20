@@ -36,13 +36,15 @@ if echo "$SETUP_RESPONSE" | grep -q "apiKey"; then
     echo "AGENTTRACE_API_KEY=$API_KEY" >> "$GITHUB_ENV" 2>/dev/null || true
     echo "$API_KEY"
 else
-    # Fallback: check if setup endpoint exists, if not try to get existing key
+    # Fallback: require AGENTTRACE_API_KEY to be set via environment
     echo "Setup endpoint not available, checking for existing test configuration..."
 
-    # In E2E mode, the API should have a default test key
-    # Use the default test key for E2E mode
-    DEFAULT_KEY="sk-at-e2e-test-key-do-not-use-in-production"
-    echo "Using default E2E test API key"
-    echo "AGENTTRACE_API_KEY=$DEFAULT_KEY" >> "$GITHUB_ENV" 2>/dev/null || true
-    echo "$DEFAULT_KEY"
+    if [ -n "${AGENTTRACE_API_KEY:-}" ]; then
+        echo "Using AGENTTRACE_API_KEY from environment"
+        echo "$AGENTTRACE_API_KEY"
+    else
+        echo "ERROR: E2E setup endpoint failed and AGENTTRACE_API_KEY is not set."
+        echo "Please set AGENTTRACE_API_KEY in your CI environment variables or ensure the API is running in E2E_TEST_MODE."
+        exit 1
+    fi
 fi

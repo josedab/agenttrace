@@ -116,7 +116,7 @@
   extends:
     - .agenttrace-setup
     - .agenttrace-complete
-  image: golang:1.21
+  image: golang:1.24
   before_script:
     - go install github.com/agenttrace/agenttrace/sdk/go@latest
     - !reference [.agenttrace-setup, before_script]
