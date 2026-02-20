@@ -26,6 +26,7 @@ const (
 
 // DataExportPayload is the payload for data export tasks
 type DataExportPayload struct {
+	VersionedPayload
 	JobID       uuid.UUID              `json:"job_id"`
 	ProjectID   uuid.UUID              `json:"project_id"`
 	UserID      uuid.UUID              `json:"user_id"`
@@ -54,6 +55,7 @@ func NewDataExportTask(payload *DataExportPayload) (*asynq.Task, error) {
 
 // DatasetExportPayload is the payload for dataset export tasks
 type DatasetExportPayload struct {
+	VersionedPayload
 	JobID       uuid.UUID           `json:"job_id"`
 	ProjectID   uuid.UUID           `json:"project_id"`
 	DatasetID   uuid.UUID           `json:"dataset_id"`

@@ -27,6 +27,7 @@ const (
 
 // OTelExportPayload is the payload for single trace export tasks
 type OTelExportPayload struct {
+	VersionedPayload
 	ProjectID    uuid.UUID `json:"projectId"`
 	ExporterID   uuid.UUID `json:"exporterId"`
 	TraceID      uuid.UUID `json:"traceId"`
@@ -34,6 +35,7 @@ type OTelExportPayload struct {
 
 // OTelBatchExportPayload is the payload for batch export tasks
 type OTelBatchExportPayload struct {
+	VersionedPayload
 	ProjectID    uuid.UUID              `json:"projectId"`
 	ExporterID   uuid.UUID              `json:"exporterId"`
 	Spans        []domain.OTelSpan      `json:"spans"`
@@ -42,6 +44,7 @@ type OTelBatchExportPayload struct {
 
 // OTelHealthCheckPayload is the payload for health check tasks
 type OTelHealthCheckPayload struct {
+	VersionedPayload
 	ExporterID uuid.UUID `json:"exporterId"`
 }
 

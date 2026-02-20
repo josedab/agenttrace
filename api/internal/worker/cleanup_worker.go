@@ -25,6 +25,7 @@ const (
 
 // DataCleanupPayload is the payload for data cleanup tasks
 type DataCleanupPayload struct {
+	VersionedPayload
 	ProjectID     uuid.UUID `json:"project_id"`
 	RetentionDays int       `json:"retention_days"`
 	DryRun        bool      `json:"dry_run"`
@@ -41,6 +42,7 @@ func NewDataCleanupTask(payload *DataCleanupPayload) (*asynq.Task, error) {
 
 // ProjectCleanupPayload is the payload for project cleanup tasks
 type ProjectCleanupPayload struct {
+	VersionedPayload
 	ProjectID uuid.UUID `json:"project_id"`
 }
 
@@ -55,6 +57,7 @@ func NewProjectCleanupTask(payload *ProjectCleanupPayload) (*asynq.Task, error) 
 
 // OrphanCleanupPayload is the payload for orphan cleanup tasks
 type OrphanCleanupPayload struct {
+	VersionedPayload
 	DryRun bool `json:"dry_run"`
 }
 

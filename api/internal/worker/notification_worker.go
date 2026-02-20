@@ -28,6 +28,7 @@ const (
 
 // NotificationPayload represents the payload for notification tasks
 type NotificationPayload struct {
+	VersionedPayload
 	WebhookID  string           `json:"webhookId"`
 	EventType  domain.EventType `json:"eventType"`
 	Data       map[string]any   `json:"data"`
@@ -36,12 +37,14 @@ type NotificationPayload struct {
 
 // DailyCostReportPayload represents the payload for daily cost reports
 type DailyCostReportPayload struct {
+	VersionedPayload
 	ProjectID string `json:"projectId"`
 	Date      string `json:"date"`
 }
 
 // ThresholdCheckPayload represents the payload for threshold checks
 type ThresholdCheckPayload struct {
+	VersionedPayload
 	TraceID   string `json:"traceId"`
 	ProjectID string `json:"projectId"`
 }
