@@ -1,0 +1,88 @@
+{
+  "benchmarks": [
+    {
+      "id": "code-generation",
+      "name": "Code Generation",
+      "description": "Generate correct code from natural language descriptions",
+      "category": "code_generation",
+      "metrics": [
+        {"name": "correctness", "weight": 0.5, "higherIsBetter": true},
+        {"name": "code_quality", "weight": 0.3, "higherIsBetter": true},
+        {"name": "time_to_solution", "weight": 0.2, "higherIsBetter": false}
+      ],
+      "tasks": [
+        {
+          "input": "Write a Python function that checks if a string is a valid palindrome, ignoring non-alphanumeric characters and case.",
+          "expectedOutput": "def is_palindrome(s: str) -> bool:\n    cleaned = ''.join(c.lower() for c in s if c.isalnum())\n    return cleaned == cleaned[::-1]",
+          "metadata": {"language": "python", "difficulty": "easy"}
+        },
+        {
+          "input": "Write a TypeScript function that flattens a deeply nested array of any depth.",
+          "expectedOutput": "function flatten<T>(arr: (T | T[])[]): T[] {\n  return arr.reduce<T[]>((acc, val) => acc.concat(Array.isArray(val) ? flatten(val) : val), []);\n}",
+          "metadata": {"language": "typescript", "difficulty": "medium"}
+        },
+        {
+          "input": "Write a Go function that finds the longest common prefix among an array of strings.",
+          "expectedOutput": "func longestCommonPrefix(strs []string) string {\n\tif len(strs) == 0 {\n\t\treturn \"\"\n\t}\n\tprefix := strs[0]\n\tfor _, s := range strs[1:] {\n\t\tfor !strings.HasPrefix(s, prefix) {\n\t\t\tprefix = prefix[:len(prefix)-1]\n\t\t}\n\t}\n\treturn prefix\n}",
+          "metadata": {"language": "go", "difficulty": "easy"}
+        },
+        {
+          "input": "Write a Python function that implements binary search on a sorted array and returns the index, or -1 if not found.",
+          "expectedOutput": "def binary_search(arr: list[int], target: int) -> int:\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1",
+          "metadata": {"language": "python", "difficulty": "easy"}
+        },
+        {
+          "input": "Write a TypeScript function that debounces a callback function with a given delay in milliseconds.",
+          "expectedOutput": "function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): (...args: Parameters<T>) => void {\n  let timeoutId: ReturnType<typeof setTimeout>;\n  return (...args: Parameters<T>) => {\n    clearTimeout(timeoutId);\n    timeoutId = setTimeout(() => fn(...args), delay);\n  };\n}",
+          "metadata": {"language": "typescript", "difficulty": "medium"}
+        }
+      ]
+    },
+    {
+      "id": "bug-fixing",
+      "name": "Bug Fixing",
+      "description": "Identify and fix bugs in existing code",
+      "category": "bug_fixing",
+      "metrics": [
+        {"name": "fix_accuracy", "weight": 0.5, "higherIsBetter": true},
+        {"name": "regression_rate", "weight": 0.3, "higherIsBetter": false},
+        {"name": "explanation_quality", "weight": 0.2, "higherIsBetter": true}
+      ],
+      "tasks": [
+        {
+          "input": "Fix the off-by-one error in this function:\n\ndef get_subarray(arr, start, end):\n    return arr[start:end+2]",
+          "expectedOutput": "def get_subarray(arr, start, end):\n    return arr[start:end+1]",
+          "metadata": {"language": "python", "bug_type": "off_by_one", "difficulty": "easy"}
+        },
+        {
+          "input": "Fix the race condition:\n\nvar counter int\n\nfunc increment() {\n    counter++\n}",
+          "expectedOutput": "var (\n    counter int\n    mu      sync.Mutex\n)\n\nfunc increment() {\n    mu.Lock()\n    defer mu.Unlock()\n    counter++\n}",
+          "metadata": {"language": "go", "bug_type": "race_condition", "difficulty": "medium"}
+        },
+        {
+          "input": "Fix the null reference:\n\nfunction getUserName(user?: { profile?: { name?: string } }) {\n    return user.profile.name.toUpperCase();\n}",
+          "expectedOutput": "function getUserName(user?: { profile?: { name?: string } }) {\n    return user?.profile?.name?.toUpperCase() ?? '';\n}",
+          "metadata": {"language": "typescript", "bug_type": "null_reference", "difficulty": "easy"}
+        }
+      ]
+    },
+    {
+      "id": "refactoring",
+      "name": "Code Refactoring",
+      "description": "Improve code quality without changing behavior",
+      "category": "refactoring",
+      "metrics": [
+        {"name": "behavior_preservation", "weight": 0.4, "higherIsBetter": true},
+        {"name": "improvement_score", "weight": 0.4, "higherIsBetter": true},
+        {"name": "readability", "weight": 0.2, "higherIsBetter": true}
+      ],
+      "tasks": [
+        {
+          "input": "Refactor this deeply nested code:\n\ndef process(data):\n    if data:\n        if data.get('items'):\n            if len(data['items']) > 0:\n                for item in data['items']:\n                    if item.get('active'):\n                        if item.get('value') > 0:\n                            print(item['value'])",
+          "expectedOutput": "def process(data):\n    if not data or not data.get('items'):\n        return\n    for item in data['items']:\n        if item.get('active') and item.get('value', 0) > 0:\n            print(item['value'])",
+          "metadata": {"language": "python", "smell": "deep_nesting", "difficulty": "medium"}
+        }
+      ]
+    }
+  ]
+}
