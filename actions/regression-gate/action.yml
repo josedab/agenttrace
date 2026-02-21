@@ -1,0 +1,136 @@
+name: 'AgentTrace Regression Gate'
+description: 'Run regression tests against prompt/model changes and block PRs on quality drops'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  api-key:
+    description: 'AgentTrace API key'
+    required: true
+  api-url:
+    description: 'AgentTrace API URL'
+    required: false
+    default: 'https://api.agenttrace.io'
+  test-ids:
+    description: 'Comma-separated regression test IDs to run'
+    required: true
+  fail-on-regression:
+    description: 'Whether to fail the workflow on regression detection'
+    required: false
+    default: 'true'
+  comment-on-pr:
+    description: 'Post results as a PR comment'
+    required: false
+    default: 'true'
+
+outputs:
+  passed:
+    description: 'Whether all regression tests passed'
+  results-json:
+    description: 'JSON string of detailed regression results'
+  summary:
+    description: 'Human-readable summary of results'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run regression gate
+      shell: bash
+      env:
+        AGENTTRACE_API_KEY: ${{ inputs.api-key }}
+        AGENTTRACE_API_URL: ${{ inputs.api-url }}
+        TEST_IDS: ${{ inputs.test-ids }}
+      run: |
+        set -euo pipefail
+
+        echo "🔍 Running AgentTrace regression gate..."
+
+        # Convert comma-separated IDs to JSON array
+        IDS_JSON=$(echo "$TEST_IDS" | tr ',' '\n' | sed 's/^/"/;s/$/"/' | paste -sd',' - | sed 's/^/[/;s/$/]/')
+
+        # Call the regression gate API
+        RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -X POST "${AGENTTRACE_API_URL}/api/public/regression/gate" \
+          -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+          -H "Content-Type: application/json" \
+          -d "{\"testIds\": ${IDS_JSON}}")
+
+        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+        BODY=$(echo "$RESPONSE" | sed '$d')
+
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "::error::Regression gate API returned HTTP $HTTP_CODE"
+          echo "$BODY"
+          exit 1
+        fi
+
+        # Parse results
+        PASSED=$(echo "$BODY" | jq -r '.passed')
+        RESULTS=$(echo "$BODY" | jq -c '.results')
+
+        echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+        echo "results-json=$RESULTS" >> "$GITHUB_OUTPUT"
+
+        # Build summary
+        TOTAL=$(echo "$BODY" | jq '.results | length')
+        FAILED=$(echo "$BODY" | jq '[.results[] | select(.passed == false)] | length')
+
+        if [ "$PASSED" = "true" ]; then
+          SUMMARY="✅ All $TOTAL regression tests passed"
+        else
+          SUMMARY="❌ $FAILED of $TOTAL regression tests failed"
+        fi
+
+        echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+        echo "$SUMMARY"
+
+        # Print detailed results
+        echo ""
+        echo "📊 Detailed Results:"
+        echo "$BODY" | jq -r '.results[] | "  \(if .passed then "✅" else "❌" end) \(.testName // .testId): \(.failedMetrics | if . then (. | join(", ")) else "all metrics passed" end)"'
+
+    - name: Comment on PR
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        PASSED="${{ steps.run-regression-gate.outputs.passed }}"
+        SUMMARY="${{ steps.run-regression-gate.outputs.summary }}"
+        RESULTS='${{ steps.run-regression-gate.outputs.results-json }}'
+
+        # Build markdown comment
+        if [ "$PASSED" = "true" ]; then
+          ICON="✅"
+          STATUS="All regression tests passed"
+        else
+          ICON="❌"
+          STATUS="Regression detected"
+        fi
+
+        COMMENT="## ${ICON} AgentTrace Regression Gate\n\n**${STATUS}**\n\n"
+        COMMENT+="| Test | Status | Failed Metrics |\n|------|--------|----------------|\n"
+
+        while IFS= read -r line; do
+          COMMENT+="$line\n"
+        done < <(echo "$RESULTS" | jq -r '.[] | "| \(.testName // .testId) | \(if .passed then "✅ Pass" else "❌ Fail" end) | \(.failedMetrics // [] | if length > 0 then join(", ") else "—" end) |"')
+
+        # Post comment
+        COMMENT+="\\n---\\n*Powered by [AgentTrace](https://agenttrace.io) regression detection*"
+
+        curl -s -X POST \
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"body\": \"$(echo -e "$COMMENT")\"}"
+
+    - name: Fail on regression
+      if: ${{ inputs.fail-on-regression == 'true' }}
+      shell: bash
+      run: |
+        PASSED="${{ steps.run-regression-gate.outputs.passed }}"
+        if [ "$PASSED" != "true" ]; then
+          echo "::error::Regression detected — quality gate failed"
+          exit 1
+        fi
