@@ -86,11 +86,12 @@ type SessionRepository interface {
 //
 // The service is safe for concurrent use and designed for high-throughput ingestion.
 type IngestionService struct {
-	traceRepo       TraceRepository
-	observationRepo ObservationRepository
-	costService     *CostService
-	evalService     *EvalService
-	logger          *zap.Logger
+	traceRepo        TraceRepository
+	observationRepo  ObservationRepository
+	costService      *CostService
+	evalService      *EvalService
+	guardrailService *GuardrailService
+	logger           *zap.Logger
 }
 
 // NewIngestionService creates a new IngestionService with the provided dependencies.
@@ -117,6 +118,12 @@ func NewIngestionService(
 		costService:     costService,
 		evalService:     evalService,
 	}
+}
+
+// SetGuardrailService sets the guardrail service for ingestion-time evaluation.
+// Called after service initialization to avoid circular dependencies.
+func (s *IngestionService) SetGuardrailService(gs *GuardrailService) {
+	s.guardrailService = gs
 }
 
 // IngestTrace ingests a single trace into the system.
@@ -189,6 +196,26 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 
 	if err := s.traceRepo.Create(ctx, trace); err != nil {
 		return nil, fmt.Errorf("failed to create trace: %w", err)
+	}
+
+	// Evaluate guardrails asynchronously
+	if s.guardrailService != nil {
+		go func() {
+			result, err := s.guardrailService.Evaluate(context.Background(), projectID, trace, nil)
+			if err != nil {
+				s.logger.Error("failed to evaluate guardrails",
+					zap.String("trace_id", trace.ID),
+					zap.Error(err),
+				)
+				return
+			}
+			if !result.Passed {
+				s.logger.Warn("guardrail violations detected",
+					zap.String("trace_id", trace.ID),
+					zap.Int("violations", len(result.Violations)),
+				)
+			}
+		}()
 	}
 
 	// Trigger evaluators asynchronously
