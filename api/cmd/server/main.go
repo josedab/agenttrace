@@ -16,6 +16,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/graphql/generated"
+	apihandler "github.com/agenttrace/agenttrace/api/internal/handler"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
 )
 
@@ -126,6 +127,17 @@ func main() {
 		}
 	}()
 
+	// Start OTLP gRPC receiver if enabled
+	var otlpGRPC *apihandler.OTLPGRPCServer
+	if cfg.OTel.ReceiverEnabled {
+		otlpGRPC = apihandler.NewOTLPGRPCServer(logger, deps.Services.OTelReceiver, deps.Services.Auth)
+		go func() {
+			if err := otlpGRPC.Start(cfg.OTel.ReceiverGRPCPort); err != nil {
+				logger.Error("OTLP gRPC server failed", zap.Error(err))
+			}
+		}()
+	}
+
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -138,6 +150,11 @@ func main() {
 
 	if err := app.ShutdownWithContext(ctx); err != nil {
 		logger.Error("server shutdown error", zap.Error(err))
+	}
+
+	if otlpGRPC != nil {
+		otlpGRPC.Stop()
+		logger.Info("OTLP gRPC server stopped")
 	}
 
 	logger.Info("server stopped")
