@@ -27,6 +27,26 @@ type Services struct {
 	CIRun           *service.CIRunService
 	Replay          *service.ReplayService
 	Experiment      *service.ExperimentService
+	Debug           *service.DebugService
+	Regression      *service.RegressionService
+	Tenant          *service.TenantService
+	CostOptimizer   *service.CostOptimizerService
+	AgentGraph      *service.AgentGraphService
+	Migration       *service.MigrationService
+	Benchmark       *service.BenchmarkService
+	Collaboration   *service.CollaborationService
+	Guardrail       *service.GuardrailService
+	OTelReceiver    *service.OTelReceiverService
+	Compliance      *service.ComplianceService
+	Billing         *service.BillingService
+	Prediction      *service.PredictionService
+	Reasoning       *service.ReasoningService
+	CostBudget      *service.CostBudgetService
+	Instrumentation *service.InstrumentationService
+	ComplianceExport *service.ComplianceExportService
+	Scorecard       *service.ScorecardService
+	Ticket          *service.TicketService
+	Audit           *service.AuditService
 }
 
 // initServices initializes all services
@@ -140,6 +160,70 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 		logger,
 		repos.Experiment,
 	)
+
+	// Debug service (extends replay with interactive debugging)
+	svcs.Debug = service.NewDebugService(logger, repos.DebugSession, svcs.Replay)
+
+	// Regression detection service
+	svcs.Regression = service.NewRegressionService(logger, repos.Regression, svcs.Dataset, svcs.Eval)
+
+	// Tenant service (multi-tenancy and usage metering)
+	svcs.Tenant = service.NewTenantService(logger, repos.Tenant)
+
+	// Cost optimizer service
+	svcs.CostOptimizer = service.NewCostOptimizerService(logger, repos.CostRecommendation, svcs.Cost, svcs.Query)
+
+	// Agent graph service (multi-agent visualization)
+	svcs.AgentGraph = service.NewAgentGraphService(logger, svcs.Query)
+
+	// Migration service
+	svcs.Migration = service.NewMigrationService(logger, repos.Migration, svcs.Ingestion, svcs.Prompt, svcs.Dataset)
+
+	// Benchmark service
+	svcs.Benchmark = service.NewBenchmarkService(logger, repos.Benchmark, svcs.Dataset, svcs.Eval)
+
+	// Collaboration service (real-time)
+	svcs.Collaboration = service.NewCollaborationService(logger, repos.Collaboration, svcs.Realtime)
+
+	// Guardrail service
+	svcs.Guardrail = service.NewGuardrailService(logger, repos.Guardrail, nil)
+
+	// Wire guardrails into the ingestion pipeline
+	svcs.Ingestion.SetGuardrailService(svcs.Guardrail)
+
+	// OTel receiver service
+	svcs.OTelReceiver = service.NewOTelReceiverService(logger, svcs.Ingestion)
+
+	// Audit service (required by compliance)
+	// Note: AuditRepository uses sqlx.DB — pass nil until migration to pgx
+	svcs.Audit = service.NewAuditService(nil)
+
+	// Compliance service (EU AI Act)
+	svcs.Compliance = service.NewComplianceService(logger, nil, svcs.Audit)
+
+	// Billing service (managed cloud)
+	svcs.Billing = service.NewBillingService(logger, nil, svcs.Tenant)
+
+	// Prediction service (predictive agent health)
+	svcs.Prediction = service.NewPredictionService(logger, nil, svcs.Query, svcs.Cost)
+
+	// Reasoning service (decision tree explorer)
+	svcs.Reasoning = service.NewReasoningService(logger, svcs.Query)
+
+	// Cost budget service
+	svcs.CostBudget = service.NewCostBudgetService(logger, nil, svcs.Query, svcs.Cost)
+
+	// Instrumentation service (framework setup)
+	svcs.Instrumentation = service.NewInstrumentationService(logger)
+
+	// Compliance export service
+	svcs.ComplianceExport = service.NewComplianceExportService(logger, nil, svcs.Compliance, svcs.Audit)
+
+	// Scorecard service
+	svcs.Scorecard = service.NewScorecardService(logger, nil, svcs.Query)
+
+	// Ticket service (trace-to-ticket pipeline)
+	svcs.Ticket = service.NewTicketService(logger, nil, svcs.Query)
 
 	return svcs
 }

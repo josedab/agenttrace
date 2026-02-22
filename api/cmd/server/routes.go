@@ -160,6 +160,106 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Get("/traces/:traceId/replay/events", h.Replay.GetTimelineEvents)
 		public.Get("/traces/:traceId/replay/events/:eventId", h.Replay.GetEventDetails)
 		public.Post("/replay/compare", h.Replay.CompareTimelines)
+
+		// Debug Sessions (extends replay with interactive debugging)
+		public.Post("/debug/sessions", h.Debug.CreateSession)
+		public.Get("/debug/sessions/:sessionId", h.Debug.GetSession)
+		public.Get("/traces/:traceId/debug/step/:stepIndex", h.Debug.GetStepState)
+		public.Post("/debug/sessions/:sessionId/annotations", h.Debug.AddAnnotation)
+
+		// Regression Detection
+		public.Get("/regression/tests", h.Regression.ListTests)
+		public.Post("/regression/tests", h.Regression.CreateTest)
+		public.Post("/regression/tests/:testId/run", h.Regression.RunTest)
+		public.Get("/regression/tests/:testId/results/:resultId", h.Regression.GetResult)
+		public.Post("/regression/gate", h.Regression.CheckGate)
+
+		// Cost Optimization
+		public.Get("/cost-optimizer/analyze", h.CostOptimizer.Analyze)
+		public.Get("/cost-optimizer/recommendations", h.CostOptimizer.GetRecommendations)
+		public.Post("/cost-optimizer/recommendations/:id/apply", h.CostOptimizer.ApplyRecommendation)
+		public.Post("/cost-optimizer/recommendations/:id/dismiss", h.CostOptimizer.DismissRecommendation)
+
+		// Agent Graph (multi-agent visualization)
+		public.Get("/traces/:traceId/graph", h.AgentGraph.BuildGraph)
+		public.Post("/agent-graph/compare", h.AgentGraph.CompareGraphs)
+
+		// Guardrails
+		public.Get("/guardrails", h.Guardrails.ListRules)
+		public.Post("/guardrails", h.Guardrails.CreateRule)
+		public.Put("/guardrails/:ruleId", h.Guardrails.UpdateRule)
+		public.Delete("/guardrails/:ruleId", h.Guardrails.DeleteRule)
+		public.Get("/guardrails/violations", h.Guardrails.ListViolations)
+		public.Get("/guardrails/violations/stats", h.Guardrails.GetViolationStats)
+
+		// Benchmarks
+		public.Get("/benchmarks", h.Benchmarks.ListBenchmarks)
+		public.Get("/benchmarks/:benchmarkId", h.Benchmarks.GetBenchmark)
+		public.Post("/benchmarks/:benchmarkId/submit", h.Benchmarks.Submit)
+		public.Get("/benchmarks/:benchmarkId/leaderboard", h.Benchmarks.GetLeaderboard)
+
+		// Collaboration
+		public.Get("/collaboration/traces/:traceId/presence", h.Collaboration.GetPresence)
+		public.Post("/collaboration/traces/:traceId/annotations", h.Collaboration.AddAnnotation)
+		public.Get("/collaboration/traces/:traceId/annotations", h.Collaboration.ListAnnotations)
+		public.Post("/collaboration/annotations/:annotationId/resolve", h.Collaboration.ResolveAnnotation)
+		public.Post("/collaboration/sessions", h.Collaboration.CreateSharedSession)
+
+		// Migration
+		public.Get("/migrations", h.Migration.ListMigrations)
+		public.Post("/migrations", h.Migration.StartMigration)
+		public.Get("/migrations/:jobId", h.Migration.GetMigration)
+		public.Post("/migrations/validate", h.Migration.ValidateSource)
+
+		// EU AI Act Compliance
+		public.Get("/compliance/assess", h.Compliance.AssessProject)
+		public.Get("/compliance/status", h.Compliance.GetStatus)
+		public.Get("/compliance/audit-trail", h.Compliance.GetAuditTrail)
+		public.Post("/compliance/assessments", h.Compliance.CreateAssessment)
+		public.Get("/compliance/assessments/:id", h.Compliance.GetAssessment)
+		public.Post("/compliance/reports", h.Compliance.GenerateReport)
+
+		// Compliance Export
+		public.Post("/compliance/exports", h.ComplianceExport.StartExport)
+		public.Get("/compliance/exports", h.ComplianceExport.ListExports)
+		public.Get("/compliance/exports/:id", h.ComplianceExport.GetExport)
+		public.Get("/compliance/templates", h.ComplianceExport.GetTemplates)
+
+		// Predictive Agent Health
+		public.Get("/health/analyze", h.Prediction.AnalyzeHealth)
+		public.Get("/health/predictions", h.Prediction.GetPredictions)
+		public.Get("/health/trends/:metricName", h.Prediction.GetTrend)
+
+		// Agent Reasoning Explorer
+		public.Get("/traces/:traceId/reasoning", h.Reasoning.GetReasoningTree)
+		public.Get("/traces/:traceId/reasoning/:nodeId", h.Reasoning.GetNode)
+
+		// Cost Budgets & Forecasting
+		public.Get("/budgets", h.CostBudget.ListBudgets)
+		public.Post("/budgets", h.CostBudget.CreateBudget)
+		public.Get("/budgets/forecast", h.CostBudget.GetForecast)
+		public.Post("/budgets/check", h.CostBudget.CheckBudget)
+		public.Get("/budgets/:id", h.CostBudget.GetBudget)
+		public.Put("/budgets/:id", h.CostBudget.UpdateBudget)
+		public.Delete("/budgets/:id", h.CostBudget.DeleteBudget)
+
+		// Framework Auto-Instrumentation
+		public.Get("/instrumentation/frameworks", h.Instrumentation.ListFrameworks)
+		public.Get("/instrumentation/setup/:framework", h.Instrumentation.GetSetup)
+
+		// Agent Performance Scorecards
+		public.Get("/scorecards", h.Scorecard.ListScorecards)
+		public.Post("/scorecards", h.Scorecard.Generate)
+		public.Get("/scorecards/config", h.Scorecard.GetConfig)
+		public.Post("/scorecards/config", h.Scorecard.ConfigureAuto)
+		public.Get("/scorecards/:id", h.Scorecard.GetScorecard)
+
+		// Trace-to-Ticket Pipeline
+		public.Get("/tickets", h.Tickets.ListTickets)
+		public.Post("/tickets", h.Tickets.CreateTicket)
+		public.Post("/tickets/preview", h.Tickets.PreviewTicket)
+		public.Get("/tickets/integrations", h.Tickets.GetIntegrations)
+		public.Post("/tickets/integrations", h.Tickets.ConfigureIntegration)
 	}
 
 	// Internal API routes (JWT auth)
@@ -214,4 +314,20 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 
 	// User feedback endpoint (special auth - accepts both API key and user token)
 	app.Post("/api/public/feedback", deps.AuthMiddleware.RequireAuth(), h.Scores.SubmitFeedback)
+
+	// OTLP receiver endpoints (API key auth)
+	otlp := app.Group("/v1")
+	otlp.Use(deps.AuthMiddleware.RequireAPIKey())
+	{
+		otlp.Post("/traces", h.OTelReceiver.ReceiveTraces)
+		otlp.Post("/metrics", h.OTelReceiver.ReceiveMetrics)
+		otlp.Post("/logs", h.OTelReceiver.ReceiveLogs)
+	}
+
+	// WebSocket routes for real-time collaboration
+	app.Use("/ws", h.CollaborationWS.UpgradeCheck())
+	app.Get("/ws/collaboration/:traceId", h.CollaborationWS.HandleWebSocket())
+
+	// Billing webhook (no auth — Stripe sends directly with signature)
+	app.Post("/api/billing/webhook", h.Billing.HandleWebhook)
 }

@@ -34,6 +34,25 @@ type Handlers struct {
 	Webhook          *handler.WebhookHandler
 	Replay           *handler.ReplayHandler
 	Experiment       *handler.ExperimentHandler
+	Debug            *handler.DebugHandler
+	Regression       *handler.RegressionHandler
+	CostOptimizer    *handler.CostOptimizerHandler
+	AgentGraph       *handler.AgentGraphHandler
+	Guardrails       *handler.GuardrailsHandler
+	Benchmarks       *handler.BenchmarksHandler
+	Collaboration    *handler.CollaborationHandler
+	Migration        *handler.MigrationHandler
+	OTelReceiver     *handler.OTelReceiverHandler
+	CollaborationWS    *handler.CollaborationWSHandler
+	Compliance         *handler.ComplianceHandler
+	Billing            *handler.BillingHandler
+	Prediction         *handler.PredictionHandler
+	Reasoning          *handler.ReasoningHandler
+	CostBudget         *handler.CostBudgetHandler
+	Instrumentation    *handler.InstrumentationHandler
+	ComplianceExport   *handler.ComplianceExportHandler
+	Scorecard          *handler.ScorecardHandler
+	Tickets            *handler.TicketHandler
 }
 
 // initHandlers initializes all handlers
@@ -141,6 +160,82 @@ func initHandlers(
 		Experiment: handler.NewExperimentHandler(
 			logger,
 			svcs.Experiment,
+		),
+		Debug: handler.NewDebugHandler(
+			svcs.Debug,
+			logger,
+		),
+		Regression: handler.NewRegressionHandler(
+			svcs.Regression,
+			logger,
+		),
+		CostOptimizer: handler.NewCostOptimizerHandler(
+			svcs.CostOptimizer,
+			logger,
+		),
+		AgentGraph: handler.NewAgentGraphHandler(
+			svcs.AgentGraph,
+			logger,
+		),
+		Guardrails: handler.NewGuardrailsHandler(
+			svcs.Guardrail,
+			logger,
+		),
+		Benchmarks: handler.NewBenchmarksHandler(
+			svcs.Benchmark,
+			logger,
+		),
+		Collaboration: handler.NewCollaborationHandler(
+			svcs.Collaboration,
+			logger,
+		),
+		Migration: handler.NewMigrationHandler(
+			svcs.Migration,
+			logger,
+		),
+		OTelReceiver: handler.NewOTelReceiverHandler(
+			svcs.OTelReceiver,
+			logger,
+		),
+		CollaborationWS: handler.NewCollaborationWSHandler(
+			logger,
+			svcs.Collaboration,
+		),
+		Compliance: handler.NewComplianceHandler(
+			svcs.Compliance,
+			logger,
+		),
+		Billing: handler.NewBillingHandler(
+			svcs.Billing,
+			logger,
+		),
+		Prediction: handler.NewPredictionHandler(
+			svcs.Prediction,
+			logger,
+		),
+		Reasoning: handler.NewReasoningHandler(
+			svcs.Reasoning,
+			logger,
+		),
+		CostBudget: handler.NewCostBudgetHandler(
+			svcs.CostBudget,
+			logger,
+		),
+		Instrumentation: handler.NewInstrumentationHandler(
+			svcs.Instrumentation,
+			logger,
+		),
+		ComplianceExport: handler.NewComplianceExportHandler(
+			svcs.ComplianceExport,
+			logger,
+		),
+		Scorecard: handler.NewScorecardHandler(
+			svcs.Scorecard,
+			logger,
+		),
+		Tickets: handler.NewTicketHandler(
+			svcs.Ticket,
+			logger,
 		),
 	}
 }

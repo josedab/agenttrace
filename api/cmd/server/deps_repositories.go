@@ -21,15 +21,23 @@ type Repositories struct {
 	CIRun           *chrepo.CIRunRepository
 
 	// PostgreSQL repositories (relational data)
-	User       *pgrepo.UserRepository
-	Org        *pgrepo.OrgRepository
-	Project    *pgrepo.ProjectRepository
-	APIKey     *pgrepo.APIKeyRepository
-	Prompt     *pgrepo.PromptRepository
-	Dataset    *pgrepo.DatasetRepository
-	Evaluator  *pgrepo.EvaluatorRepository
-	Webhook    *pgrepo.WebhookRepository
-	Experiment *pgrepo.ExperimentRepository
+	User               *pgrepo.UserRepository
+	Org                *pgrepo.OrgRepository
+	Project            *pgrepo.ProjectRepository
+	APIKey             *pgrepo.APIKeyRepository
+	Prompt             *pgrepo.PromptRepository
+	Dataset            *pgrepo.DatasetRepository
+	Evaluator          *pgrepo.EvaluatorRepository
+	Webhook            *pgrepo.WebhookRepository
+	Experiment         *pgrepo.ExperimentRepository
+	Guardrail          *pgrepo.GuardrailRepository
+	Regression         *pgrepo.RegressionRepository
+	Benchmark          *pgrepo.BenchmarkRepository
+	Collaboration      *pgrepo.CollaborationRepository
+	Migration          *pgrepo.MigrationRepository
+	Tenant             *pgrepo.TenantRepository
+	DebugSession       *pgrepo.DebugSessionRepository
+	CostRecommendation *pgrepo.CostRecommendationRepository
 }
 
 // initRepositories initializes all repositories
@@ -56,5 +64,13 @@ func initRepositories(dbs *Databases, logger *zap.Logger) *Repositories {
 		Evaluator:  pgrepo.NewEvaluatorRepository(dbs.Postgres),
 		Webhook:    pgrepo.NewWebhookRepository(dbs.Postgres),
 		Experiment: pgrepo.NewExperimentRepository(dbs.Postgres),
+		Guardrail:          pgrepo.NewGuardrailRepository(dbs.Postgres),
+		Regression:         pgrepo.NewRegressionRepository(dbs.Postgres),
+		Benchmark:          pgrepo.NewBenchmarkRepository(dbs.Postgres),
+		Collaboration:      pgrepo.NewCollaborationRepository(dbs.Postgres),
+		Migration:          pgrepo.NewMigrationRepository(dbs.Postgres),
+		Tenant:             pgrepo.NewTenantRepository(dbs.Postgres),
+		DebugSession:       pgrepo.NewDebugSessionRepository(dbs.Postgres),
+		CostRecommendation: pgrepo.NewCostRecommendationRepository(dbs.Postgres),
 	}
 }
