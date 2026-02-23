@@ -242,6 +242,105 @@ func (s *GuardrailService) ListViolations(ctx context.Context, projectID uuid.UU
 	return violations, nil
 }
 
+// GetPlaybookTemplates returns available playbook templates
+func (s *GuardrailService) GetPlaybookTemplates() []domain.PlaybookTemplate {
+	return []domain.PlaybookTemplate{
+		{
+			Name:        "production-safe",
+			Description: "Strict rules for production environments: cost limits, file restrictions, and pattern blocking",
+			Category:    "security",
+			Rules: []domain.GuardRuleInput{
+				{Name: "Max Cost Per Trace", Type: domain.GuardRuleTypeCostLimit, Config: domain.GuardRuleConfig{MaxCostPerTrace: floatPtr(10.0)}, Action: domain.GuardActionBlock},
+				{Name: "No Sensitive Files", Type: domain.GuardRuleTypeFileRestriction, Config: domain.GuardRuleConfig{RestrictedPaths: []string{".env", "*.pem", "*.key", "*secret*"}}, Action: domain.GuardActionBlock},
+				{Name: "Block Credential Patterns", Type: domain.GuardRuleTypePatternBlock, Config: domain.GuardRuleConfig{BlockedPatterns: []string{"password=", "api_key=", "secret="}}, Action: domain.GuardActionAlert},
+			},
+		},
+		{
+			Name:        "sandbox",
+			Description: "Permissive rules for development: monitoring only, no blocking",
+			Category:    "quality",
+			Rules: []domain.GuardRuleInput{
+				{Name: "High Cost Warning", Type: domain.GuardRuleTypeCostLimit, Config: domain.GuardRuleConfig{MaxCostPerTrace: floatPtr(50.0)}, Action: domain.GuardActionLog},
+				{Name: "Slow Trace Warning", Type: domain.GuardRuleTypeLatencyLimit, Config: domain.GuardRuleConfig{MaxLatencyMs: int64Ptr(300000)}, Action: domain.GuardActionLog},
+			},
+		},
+		{
+			Name:        "compliance-strict",
+			Description: "Compliance-focused rules for regulated industries: audit logging, data restrictions",
+			Category:    "compliance",
+			Rules: []domain.GuardRuleInput{
+				{Name: "Cost Budget Limit", Type: domain.GuardRuleTypeCostLimit, Config: domain.GuardRuleConfig{MaxCostPerTrace: floatPtr(5.0)}, Action: domain.GuardActionBlock},
+				{Name: "No PII in Output", Type: domain.GuardRuleTypePatternBlock, Config: domain.GuardRuleConfig{BlockedPatterns: []string{`\b\d{3}-\d{2}-\d{4}\b`, `\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b`}}, Action: domain.GuardActionBlock},
+				{Name: "Restricted File Access", Type: domain.GuardRuleTypeFileRestriction, Config: domain.GuardRuleConfig{RestrictedPaths: []string{"/etc/*", "/var/*", "~/*"}}, Action: domain.GuardActionBlock},
+			},
+		},
+	}
+}
+
+// CreatePlaybook creates a new guardrail playbook from a template or custom rules
+func (s *GuardrailService) CreatePlaybook(ctx context.Context, projectID uuid.UUID, input *domain.GuardPlaybookInput) (*domain.GuardPlaybook, error) {
+	playbook := &domain.GuardPlaybook{
+		ID:          uuid.New(),
+		ProjectID:   projectID,
+		Name:        input.Name,
+		Description: input.Description,
+		Template:    input.Template,
+		EnforceMode: input.EnforceMode,
+		Enabled:     true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if playbook.EnforceMode == "" {
+		playbook.EnforceMode = "warn"
+	}
+
+	// If template specified, use template rules
+	ruleInputs := input.RuleInputs
+	if input.Template != "" {
+		for _, tmpl := range s.GetPlaybookTemplates() {
+			if tmpl.Name == input.Template {
+				ruleInputs = tmpl.Rules
+				if playbook.Description == "" {
+					playbook.Description = tmpl.Description
+				}
+				break
+			}
+		}
+	}
+
+	// Create rules
+	for _, ri := range ruleInputs {
+		enabled := true
+		if ri.Enabled != nil {
+			enabled = *ri.Enabled
+		}
+		rule := domain.GuardRule{
+			ID:          uuid.New(),
+			ProjectID:   projectID,
+			Name:        ri.Name,
+			Description: ri.Description,
+			Type:        ri.Type,
+			Config:      ri.Config,
+			Action:      ri.Action,
+			Enabled:     enabled,
+			CreatedAt:   time.Now(),
+		}
+		playbook.Rules = append(playbook.Rules, rule)
+	}
+
+	s.logger.Info("created guardrail playbook",
+		zap.String("playbookId", playbook.ID.String()),
+		zap.String("template", playbook.Template),
+		zap.Int("ruleCount", len(playbook.Rules)),
+	)
+
+	return playbook, nil
+}
+
+func floatPtr(f float64) *float64 { return &f }
+func int64Ptr(i int64) *int64     { return &i }
+
 // GetViolationStats computes aggregated violation statistics for a project
 func (s *GuardrailService) GetViolationStats(ctx context.Context, projectID uuid.UUID) (*domain.GuardViolationStats, error) {
 	filter := &domain.GuardViolationFilter{ProjectID: projectID}

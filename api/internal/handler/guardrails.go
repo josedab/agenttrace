@@ -180,6 +180,37 @@ func (h *GuardrailsHandler) ListViolations(c *fiber.Ctx) error {
 	return c.JSON(violations)
 }
 
+// GetPlaybookTemplates handles GET /api/public/guardrails/templates
+func (h *GuardrailsHandler) GetPlaybookTemplates(c *fiber.Ctx) error {
+	templates := h.guardrailService.GetPlaybookTemplates()
+	return c.JSON(fiber.Map{"templates": templates})
+}
+
+// CreatePlaybook handles POST /api/public/guardrails/playbooks
+func (h *GuardrailsHandler) CreatePlaybook(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.GuardPlaybookInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if input.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Playbook name is required"})
+	}
+
+	playbook, err := h.guardrailService.CreatePlaybook(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to create playbook", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create playbook"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(playbook)
+}
+
 // GetViolationStats handles GET /guardrails/violations/stats
 func (h *GuardrailsHandler) GetViolationStats(c *fiber.Ctx) error {
 	projectID, ok := middleware.GetProjectID(c)
