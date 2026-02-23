@@ -135,3 +135,81 @@ func (s *CollaborationService) GetSharedSession(ctx context.Context, sessionID u
 	}
 	return session, nil
 }
+
+// CreateDiscussionThread creates a new discussion thread
+func (s *CollaborationService) CreateDiscussionThread(ctx context.Context, projectID uuid.UUID, userID uuid.UUID, userName string, input *domain.DiscussionInput) (*domain.DiscussionThread, error) {
+	thread := &domain.DiscussionThread{
+		ID:             uuid.New(),
+		TraceID:        input.TraceID,
+		ObservationID:  input.ObservationID,
+		Title:          input.Title,
+		Status:         "open",
+		CreatedBy:      userID,
+		CreatedByName:  userName,
+		ParticipantIDs: []uuid.UUID{userID},
+		Messages: []domain.ThreadMessage{
+			{
+				ID:        uuid.New(),
+				UserID:    userID,
+				UserName:  userName,
+				Content:   input.InitialMessage,
+				CreatedAt: time.Now(),
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	s.logger.Info("created discussion thread",
+		zap.String("threadId", thread.ID.String()),
+		zap.String("traceId", thread.TraceID.String()),
+	)
+
+	return thread, nil
+}
+
+// AddThreadMessage adds a message to a discussion thread
+func (s *CollaborationService) AddThreadMessage(ctx context.Context, threadID, userID uuid.UUID, userName, content string, mentions []uuid.UUID) (*domain.ThreadMessage, error) {
+	msg := &domain.ThreadMessage{
+		ID:        uuid.New(),
+		ThreadID:  threadID,
+		UserID:    userID,
+		UserName:  userName,
+		Content:   content,
+		Mentions:  mentions,
+		CreatedAt: time.Now(),
+	}
+
+	s.logger.Info("added thread message",
+		zap.String("threadId", threadID.String()),
+		zap.String("userId", userID.String()),
+	)
+
+	return msg, nil
+}
+
+// CreateEvalQueue creates a new shared evaluation queue
+func (s *CollaborationService) CreateEvalQueue(ctx context.Context, projectID uuid.UUID, input *domain.EvalQueueInput) (*domain.EvalQueue, error) {
+	queue := &domain.EvalQueue{
+		ID:          uuid.New(),
+		ProjectID:   projectID,
+		Name:        input.Name,
+		Description: input.Description,
+		Assignees:   input.Assignees,
+		TraceIDs:    input.TraceIDs,
+		Status:      "active",
+		Progress: domain.EvalQueueProgress{
+			Total:   len(input.TraceIDs),
+			Pending: len(input.TraceIDs),
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	s.logger.Info("created eval queue",
+		zap.String("queueId", queue.ID.String()),
+		zap.Int("traceCount", len(input.TraceIDs)),
+	)
+
+	return queue, nil
+}

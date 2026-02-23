@@ -166,6 +166,80 @@ func (h *CollaborationHandler) ResolveAnnotation(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "resolved"})
 }
 
+// CreateDiscussion handles POST /api/public/collaboration/discussions
+func (h *CollaborationHandler) CreateDiscussion(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.DiscussionInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if input.Title == "" || input.InitialMessage == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title and initial message are required"})
+	}
+
+	// Use project ID as placeholder for user ID since we have API key auth
+	thread, err := h.collaborationService.CreateDiscussionThread(c.Context(), projectID, projectID, "API User", &input)
+	if err != nil {
+		h.logger.Error("failed to create discussion", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create discussion"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(thread)
+}
+
+// AddMessage handles POST /api/public/collaboration/discussions/:threadId/messages
+func (h *CollaborationHandler) AddMessage(c *fiber.Ctx) error {
+	_, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	threadID, err := uuid.Parse(c.Params("threadId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid thread ID"})
+	}
+
+	var input struct {
+		Content  string      `json:"content"`
+		Mentions []uuid.UUID `json:"mentions"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	msg, err := h.collaborationService.AddThreadMessage(c.Context(), threadID, uuid.New(), "API User", input.Content, input.Mentions)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to add message"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(msg)
+}
+
+// CreateEvalQueue handles POST /api/public/collaboration/eval-queues
+func (h *CollaborationHandler) CreateEvalQueue(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.EvalQueueInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	queue, err := h.collaborationService.CreateEvalQueue(c.Context(), projectID, &input)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create eval queue"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(queue)
+}
+
 // CreateSharedSession handles POST /collaboration/sessions
 func (h *CollaborationHandler) CreateSharedSession(c *fiber.Ctx) error {
 	projectID, ok := middleware.GetProjectID(c)
