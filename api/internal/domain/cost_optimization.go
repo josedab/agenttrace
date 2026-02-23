@@ -51,3 +51,104 @@ type DateRange struct {
 	Start time.Time `json:"start"`
 	End   time.Time `json:"end"`
 }
+
+// CostAutopilotConfig represents autopilot configuration
+type CostAutopilotConfig struct {
+	ID               uuid.UUID `json:"id"`
+	ProjectID        uuid.UUID `json:"projectId"`
+	Enabled          bool      `json:"enabled"`
+	MaxBudgetDaily   float64   `json:"maxBudgetDaily"`
+	MaxBudgetMonthly float64   `json:"maxBudgetMonthly"`
+	OptimizationLevel string   `json:"optimizationLevel"` // conservative, balanced, aggressive
+	AutoApply        bool      `json:"autoApply"`
+	NotifyOnSave     bool      `json:"notifyOnSave"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+}
+
+// CostForecast represents a cost projection
+type CostForecast struct {
+	ProjectID             uuid.UUID         `json:"projectId"`
+	CurrentDailyCost      float64           `json:"currentDailyCost"`
+	ProjectedDaily        float64           `json:"projectedDailyCost"`
+	ProjectedMonthly      float64           `json:"projectedMonthlyCost"`
+	ProjectedYearly       float64           `json:"projectedYearlyCost"`
+	ConfidenceInterval    [2]float64        `json:"confidenceInterval"` // 95% CI
+	DailyProjections      []DailyProjection `json:"dailyProjections"`
+	OptimizationPotential float64           `json:"optimizationPotential"` // percent savings possible
+	BudgetStatus          string            `json:"budgetStatus"`         // within, warning, exceeded
+}
+
+// DailyProjection represents a single day forecast
+type DailyProjection struct {
+	Date      time.Time `json:"date"`
+	Projected float64   `json:"projected"`
+	Low       float64   `json:"low"`
+	High      float64   `json:"high"`
+}
+
+// PromptOptimization represents a prompt compression suggestion
+type PromptOptimization struct {
+	ID               uuid.UUID `json:"id"`
+	TraceID          uuid.UUID `json:"traceId"`
+	ObservationID    uuid.UUID `json:"observationId"`
+	OriginalTokens   int       `json:"originalTokens"`
+	OptimizedTokens  int       `json:"optimizedTokens"`
+	SavingsPercent   float64   `json:"savingsPercent"`
+	OriginalPrompt   string    `json:"originalPrompt,omitempty"`
+	OptimizedPrompt  string    `json:"optimizedPrompt,omitempty"`
+	Technique        string    `json:"technique"` // compression, deduplication, caching, model_routing
+	EstimatedSavings float64   `json:"estimatedMonthlySavings"`
+	QualityImpact    string    `json:"qualityImpact"` // none, minimal, moderate
+}
+
+// CostReport represents a comprehensive cost report
+type CostReport struct {
+	ProjectID          uuid.UUID            `json:"projectId"`
+	Period             DateRange            `json:"period"`
+	TotalCost          float64              `json:"totalCost"`
+	TotalTokens        int64                `json:"totalTokens"`
+	TraceCount         int                  `json:"traceCount"`
+	CostByModel        []ModelCostEntry     `json:"costByModel"`
+	CostByDay          []DailyCostEntry     `json:"costByDay"`
+	TopExpensiveTraces []TraceCostEntry     `json:"topExpensiveTraces"`
+	Recommendations    []CostRecommendation `json:"recommendations"`
+	Optimizations      []PromptOptimization `json:"optimizations"`
+	Forecast           CostForecast         `json:"forecast"`
+	ROI                ROICalculation       `json:"roi"`
+}
+
+// DailyCostEntry represents cost for a single day
+type DailyCostEntry struct {
+	Date   time.Time `json:"date"`
+	Cost   float64   `json:"cost"`
+	Tokens int64     `json:"tokens"`
+	Traces int       `json:"traces"`
+}
+
+// TraceCostEntry represents cost for a single trace
+type TraceCostEntry struct {
+	TraceID   uuid.UUID `json:"traceId"`
+	TraceName string    `json:"traceName"`
+	Cost      float64   `json:"cost"`
+	Tokens    int       `json:"tokens"`
+	Model     string    `json:"model"`
+}
+
+// ROICalculation shows the return on investment from optimizations
+type ROICalculation struct {
+	TotalSavings         float64 `json:"totalSavings"`
+	OptimizationsApplied int     `json:"optimizationsApplied"`
+	CostBefore           float64 `json:"costBefore"`
+	CostAfter            float64 `json:"costAfter"`
+	SavingsPercent       float64 `json:"savingsPercent"`
+}
+
+// AutopilotConfigInput for updating autopilot settings
+type AutopilotConfigInput struct {
+	Enabled           *bool    `json:"enabled,omitempty"`
+	MaxBudgetDaily    *float64 `json:"maxBudgetDaily,omitempty"`
+	MaxBudgetMonthly  *float64 `json:"maxBudgetMonthly,omitempty"`
+	OptimizationLevel string   `json:"optimizationLevel,omitempty"`
+	AutoApply         *bool    `json:"autoApply,omitempty"`
+}

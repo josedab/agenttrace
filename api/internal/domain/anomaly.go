@@ -291,3 +291,67 @@ type DetectionResult struct {
 	Description string          `json:"description"`
 	Stats       BaselineStats   `json:"stats"`
 }
+
+// AlertChannel represents a configured alerting destination
+type AlertChannel struct {
+	ID        uuid.UUID          `json:"id"`
+	ProjectID uuid.UUID          `json:"projectId"`
+	Name      string             `json:"name"`
+	Type      string             `json:"type"` // slack, pagerduty, email, webhook, teams
+	Config    AlertChannelConfig `json:"config"`
+	Enabled   bool               `json:"enabled"`
+	CreatedAt time.Time          `json:"createdAt"`
+}
+
+// AlertChannelConfig contains channel-specific configuration
+type AlertChannelConfig struct {
+	WebhookURL   string          `json:"webhookUrl,omitempty"`
+	Email        string          `json:"email,omitempty"`
+	SlackChannel string          `json:"slackChannel,omitempty"`
+	PagerDutyKey string          `json:"pagerDutyKey,omitempty"`
+	TeamsWebhook string          `json:"teamsWebhook,omitempty"`
+	MinSeverity  AnomalySeverity `json:"minSeverity,omitempty"`
+}
+
+// AlertChannelInput for creating alert channels
+type AlertChannelInput struct {
+	Name    string             `json:"name" validate:"required"`
+	Type    string             `json:"type" validate:"required"`
+	Config  AlertChannelConfig `json:"config"`
+	Enabled *bool              `json:"enabled,omitempty"`
+}
+
+// RootCauseAnalysis represents the analysis of why an anomaly occurred
+type RootCauseAnalysis struct {
+	AnomalyID        uuid.UUID         `json:"anomalyId"`
+	CorrelatedEvents []CorrelatedEvent `json:"correlatedEvents"`
+	PossibleCauses   []PossibleCause   `json:"possibleCauses"`
+	Recommendations  []string          `json:"recommendations"`
+	AnalyzedAt       time.Time         `json:"analyzedAt"`
+}
+
+// CorrelatedEvent represents an event that may be related to the anomaly
+type CorrelatedEvent struct {
+	Type        string    `json:"type"` // deployment, config_change, traffic_spike, model_change
+	Description string    `json:"description"`
+	Timestamp   time.Time `json:"timestamp"`
+	Correlation float64   `json:"correlation"` // 0-1 confidence
+}
+
+// PossibleCause represents a potential root cause
+type PossibleCause struct {
+	Category    string  `json:"category"` // model, prompt, traffic, infrastructure, data
+	Description string  `json:"description"`
+	Confidence  float64 `json:"confidence"` // 0-1
+	Evidence    string  `json:"evidence"`
+}
+
+// AnomalyDashboard provides a complete dashboard view
+type AnomalyDashboard struct {
+	ActiveAlerts    int            `json:"activeAlerts"`
+	RecentAnomalies []Anomaly     `json:"recentAnomalies"`
+	Stats           AnomalyStats  `json:"stats"`
+	Channels        []AlertChannel `json:"channels"`
+	Rules           []AnomalyRule  `json:"rules"`
+	HealthScore     float64        `json:"healthScore"` // 0-100
+}

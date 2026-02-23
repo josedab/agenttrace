@@ -73,3 +73,69 @@ type CollaborationEvent struct {
 	Payload   any                    `json:"payload"`
 	Timestamp time.Time              `json:"timestamp"`
 }
+
+// DiscussionThread represents a threaded discussion on a trace observation
+type DiscussionThread struct {
+	ID             uuid.UUID       `json:"id"`
+	TraceID        uuid.UUID       `json:"traceId"`
+	ObservationID  *uuid.UUID      `json:"observationId,omitempty"`
+	Title          string          `json:"title"`
+	Status         string          `json:"status"` // open, resolved, archived
+	CreatedBy      uuid.UUID       `json:"createdBy"`
+	CreatedByName  string          `json:"createdByName"`
+	Messages       []ThreadMessage `json:"messages"`
+	ParticipantIDs []uuid.UUID     `json:"participantIds"`
+	Tags           []string        `json:"tags,omitempty"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
+}
+
+// ThreadMessage represents a message in a discussion thread
+type ThreadMessage struct {
+	ID        uuid.UUID   `json:"id"`
+	ThreadID  uuid.UUID   `json:"threadId"`
+	UserID    uuid.UUID   `json:"userId"`
+	UserName  string      `json:"userName"`
+	Content   string      `json:"content"`
+	Mentions  []uuid.UUID `json:"mentions,omitempty"`
+	CreatedAt time.Time   `json:"createdAt"`
+	EditedAt  *time.Time  `json:"editedAt,omitempty"`
+}
+
+// EvalQueue represents a shared evaluation queue for team collaboration
+type EvalQueue struct {
+	ID          uuid.UUID         `json:"id"`
+	ProjectID   uuid.UUID         `json:"projectId"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Assignees   []uuid.UUID       `json:"assignees"`
+	TraceIDs    []uuid.UUID       `json:"traceIds"`
+	Status      string            `json:"status"` // active, completed, paused
+	Progress    EvalQueueProgress `json:"progress"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
+}
+
+// EvalQueueProgress tracks progress of an evaluation queue
+type EvalQueueProgress struct {
+	Total      int `json:"total"`
+	Completed  int `json:"completed"`
+	InProgress int `json:"inProgress"`
+	Pending    int `json:"pending"`
+}
+
+// DiscussionInput for creating threads
+type DiscussionInput struct {
+	TraceID        uuid.UUID  `json:"traceId" validate:"required"`
+	ObservationID  *uuid.UUID `json:"observationId,omitempty"`
+	Title          string     `json:"title" validate:"required"`
+	InitialMessage string     `json:"initialMessage" validate:"required"`
+}
+
+// EvalQueueInput for creating evaluation queues
+type EvalQueueInput struct {
+	Name        string      `json:"name" validate:"required"`
+	Description string      `json:"description,omitempty"`
+	Assignees   []uuid.UUID `json:"assignees"`
+	TraceIDs    []uuid.UUID `json:"traceIds" validate:"required,min=1"`
+}

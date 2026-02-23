@@ -112,6 +112,59 @@ type GuardRuleInput struct {
 	Enabled     *bool           `json:"enabled,omitempty"`
 }
 
+// GuardPlaybook represents a collection of guardrail rules as a reusable playbook
+type GuardPlaybook struct {
+	ID          uuid.UUID   `json:"id"`
+	ProjectID   uuid.UUID   `json:"projectId"`
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	Template    string      `json:"template"` // production-safe, sandbox, compliance-strict, custom
+	Rules       []GuardRule `json:"rules"`
+	Enabled     bool        `json:"enabled"`
+	EnforceMode string      `json:"enforceMode"` // audit, warn, enforce
+	CreatedAt   time.Time   `json:"createdAt"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+}
+
+// PlaybookTemplate represents a pre-built guardrail template
+type PlaybookTemplate struct {
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	Category    string           `json:"category"` // security, cost, quality, compliance
+	Rules       []GuardRuleInput `json:"rules"`
+}
+
+// GuardPlaybookInput represents input for creating a playbook
+type GuardPlaybookInput struct {
+	Name        string           `json:"name" validate:"required"`
+	Description string           `json:"description,omitempty"`
+	Template    string           `json:"template,omitempty"`
+	EnforceMode string           `json:"enforceMode,omitempty"`
+	RuleInputs  []GuardRuleInput `json:"rules,omitempty"`
+}
+
+// GuardViolationSummary for dashboard display
+type GuardViolationSummary struct {
+	TotalViolations int                   `json:"totalViolations"`
+	ByAction        map[GuardAction]int   `json:"byAction"`
+	ByType          map[GuardRuleType]int `json:"byType"`
+	TopRules        []RuleViolationCount  `json:"topRules"`
+	RecentTrend     []TimeViolationCount  `json:"recentTrend"`
+}
+
+// RuleViolationCount tracks violations per rule
+type RuleViolationCount struct {
+	RuleID   uuid.UUID `json:"ruleId"`
+	RuleName string    `json:"ruleName"`
+	Count    int       `json:"count"`
+}
+
+// TimeViolationCount for time-series violation data
+type TimeViolationCount struct {
+	Timestamp time.Time `json:"timestamp"`
+	Count     int       `json:"count"`
+}
+
 // GuardViolationFilter represents filter options for querying violations
 type GuardViolationFilter struct {
 	ProjectID uuid.UUID

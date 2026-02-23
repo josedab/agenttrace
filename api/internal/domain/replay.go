@@ -138,3 +138,73 @@ type ReplayExport struct {
 	ExportedAt time.Time      `json:"exportedAt"`
 	Timeline  ReplayTimeline  `json:"timeline"`
 }
+
+// ReproductionScript represents an executable reproduction of a trace
+type ReproductionScript struct {
+	ID        uuid.UUID          `json:"id"`
+	TraceID   uuid.UUID          `json:"traceId"`
+	Format    ReproductionFormat `json:"format"`
+	Language  string             `json:"language"` // python, typescript, shell
+	Script    string             `json:"script"`
+	Config    ReproductionConfig `json:"config"`
+	CreatedAt time.Time          `json:"createdAt"`
+}
+
+// ReproductionFormat represents the output format
+type ReproductionFormat string
+
+const (
+	ReproFormatPython     ReproductionFormat = "python"
+	ReproFormatTypeScript ReproductionFormat = "typescript"
+	ReproFormatShell      ReproductionFormat = "shell"
+	ReproFormatJSON       ReproductionFormat = "json"
+)
+
+// ReproductionConfig contains configuration for reproduction
+type ReproductionConfig struct {
+	IncludeEnvironment bool     `json:"includeEnvironment"`
+	IncludeCheckpoints bool     `json:"includeCheckpoints"`
+	SwapModel          string   `json:"swapModel,omitempty"`
+	SwapPrompt         string   `json:"swapPrompt,omitempty"`
+	Temperature        *float64 `json:"temperature,omitempty"`
+	DeterministicMode  bool     `json:"deterministicMode"`
+}
+
+// ReplayComparison represents an A/B comparison of two trace replays
+type ReplayComparison struct {
+	ID          uuid.UUID          `json:"id"`
+	TraceIDA    uuid.UUID          `json:"traceIdA"`
+	TraceIDB    uuid.UUID          `json:"traceIdB"`
+	TimelineA   ReplayTimeline     `json:"timelineA"`
+	TimelineB   ReplayTimeline     `json:"timelineB"`
+	Differences []ReplayDifference `json:"differences"`
+	Summary     ComparisonSummary  `json:"summary"`
+	CreatedAt   time.Time          `json:"createdAt"`
+}
+
+// ReplayDifference represents a difference between two replays
+type ReplayDifference struct {
+	EventIndexA int    `json:"eventIndexA"`
+	EventIndexB int    `json:"eventIndexB"`
+	Type        string `json:"type"` // added, removed, modified, reordered
+	Description string `json:"description"`
+	Impact      string `json:"impact"` // low, medium, high
+}
+
+// ComparisonSummary provides aggregate comparison data
+type ComparisonSummary struct {
+	CostDelta       float64 `json:"costDelta"`
+	CostDeltaPct    float64 `json:"costDeltaPercent"`
+	LatencyDelta    int64   `json:"latencyDeltaMs"`
+	LatencyDeltaPct float64 `json:"latencyDeltaPercent"`
+	TokenDelta      int     `json:"tokenDelta"`
+	EventCountDelta int     `json:"eventCountDelta"`
+	QualityDelta    float64 `json:"qualityDelta"`
+	Verdict         string  `json:"verdict"` // a_better, b_better, equivalent
+}
+
+// ReproductionInput for generating reproduction scripts
+type ReproductionInput struct {
+	Format ReproductionFormat `json:"format"`
+	Config ReproductionConfig `json:"config"`
+}

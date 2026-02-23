@@ -73,3 +73,61 @@ type SubmitBenchmarkInput struct {
 	AgentName    string    `json:"agentName"`
 	AgentVersion string    `json:"agentVersion"`
 }
+
+// BenchmarkComparison compares two agent submissions
+type BenchmarkComparison struct {
+	BenchmarkID  uuid.UUID              `json:"benchmarkId"`
+	SubmissionA  BenchmarkSubmission    `json:"submissionA"`
+	SubmissionB  BenchmarkSubmission    `json:"submissionB"`
+	MetricDeltas map[string]MetricDelta `json:"metricDeltas"`
+	Winner       string                 `json:"winner"` // a, b, tie
+	Summary      string                 `json:"summary"`
+}
+
+// MetricDelta represents the difference in a metric between two submissions
+type MetricDelta struct {
+	MetricName string  `json:"metricName"`
+	ValueA     float64 `json:"valueA"`
+	ValueB     float64 `json:"valueB"`
+	Delta      float64 `json:"delta"`
+	DeltaPct   float64 `json:"deltaPercent"`
+	IsBetter   string  `json:"isBetter"` // a, b, tie
+}
+
+// BenchmarkStats provides aggregate statistics
+type BenchmarkStats struct {
+	BenchmarkID      uuid.UUID              `json:"benchmarkId"`
+	TotalSubmissions int                    `json:"totalSubmissions"`
+	UniqueAgents     int                    `json:"uniqueAgents"`
+	AverageScore     float64                `json:"averageScore"`
+	BestScore        float64                `json:"bestScore"`
+	MetricStats      map[string]MetricStat  `json:"metricStats"`
+	LastSubmission   time.Time              `json:"lastSubmission"`
+}
+
+// MetricStat provides statistics for a single metric
+type MetricStat struct {
+	Mean   float64 `json:"mean"`
+	Median float64 `json:"median"`
+	StdDev float64 `json:"stdDev"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	P90    float64 `json:"p90"`
+}
+
+// CompareInput for comparing submissions
+type CompareInput struct {
+	SubmissionIDA uuid.UUID `json:"submissionIdA" validate:"required"`
+	SubmissionIDB uuid.UUID `json:"submissionIdB" validate:"required"`
+}
+
+// CreateBenchmarkInput for creating benchmarks
+type CreateBenchmarkInput struct {
+	Name         string            `json:"name" validate:"required"`
+	Description  string            `json:"description,omitempty"`
+	Category     BenchmarkCategory `json:"category" validate:"required"`
+	DatasetID    uuid.UUID         `json:"datasetId" validate:"required"`
+	EvaluatorIDs []uuid.UUID       `json:"evaluatorIds"`
+	Metrics      []BenchmarkMetric `json:"metrics"`
+	IsPublic     bool              `json:"isPublic"`
+}

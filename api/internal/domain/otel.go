@@ -282,3 +282,100 @@ const (
 	OTelAttrServiceVersion = "service.version"
 	OTelAttrDeploymentEnv  = "deployment.environment"
 )
+
+// OTelFederationPeer represents a remote AgentTrace instance for federation
+type OTelFederationPeer struct {
+	ID        uuid.UUID   `json:"id"`
+	ProjectID uuid.UUID   `json:"projectId"`
+	Name      string      `json:"name"`
+	URL       string      `json:"url"`
+	APIKey    string      `json:"apiKey,omitempty"`
+	Status    string      `json:"status"` // connected, disconnected, error
+	LastSeen  *time.Time  `json:"lastSeen,omitempty"`
+	Metrics   PeerMetrics `json:"metrics"`
+	CreatedAt time.Time   `json:"createdAt"`
+}
+
+// PeerMetrics tracks peer health metrics
+type PeerMetrics struct {
+	TracesExported int64      `json:"tracesExported"`
+	SpansExported  int64      `json:"spansExported"`
+	ErrorCount     int64      `json:"errorCount"`
+	AvgLatencyMs   float64    `json:"avgLatencyMs"`
+	LastExportAt   *time.Time `json:"lastExportAt,omitempty"`
+}
+
+// FederationQuery represents a cross-instance query
+type FederationQuery struct {
+	Query      string      `json:"query"`
+	PeerIDs    []uuid.UUID `json:"peerIds,omitempty"` // empty = all peers
+	TimeRange  *TimeRange  `json:"timeRange,omitempty"`
+	MaxResults int         `json:"maxResults,omitempty"`
+}
+
+// TimeRange for filtering
+type TimeRange struct {
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+}
+
+// FederationResult represents aggregated results from federation
+type FederationResult struct {
+	Results    []FederationPeerResult `json:"results"`
+	TotalCount int                   `json:"totalCount"`
+	QueryTime  int64                 `json:"queryTimeMs"`
+}
+
+// FederationPeerResult represents results from a single peer
+type FederationPeerResult struct {
+	PeerID    uuid.UUID `json:"peerId"`
+	PeerName  string    `json:"peerName"`
+	Count     int       `json:"count"`
+	Data      any       `json:"data"`
+	Error     string    `json:"error,omitempty"`
+	LatencyMs int64     `json:"latencyMs"`
+}
+
+// ExportDestination represents a configured export target
+type ExportDestination struct {
+	ID        uuid.UUID         `json:"id"`
+	ProjectID uuid.UUID         `json:"projectId"`
+	Name      string            `json:"name"`
+	Type      string            `json:"type"` // datadog, grafana, honeycomb, jaeger, newrelic, custom
+	Endpoint  string            `json:"endpoint"`
+	Protocol  string            `json:"protocol"` // grpc, http
+	Headers   map[string]string `json:"headers,omitempty"`
+	Enabled   bool              `json:"enabled"`
+	Sampling  float64           `json:"sampling"` // 0.0-1.0
+	BatchSize int               `json:"batchSize"`
+	Status    string            `json:"status"` // active, paused, error
+	Stats     ExportStats       `json:"stats"`
+	CreatedAt time.Time         `json:"createdAt"`
+}
+
+// ExportStats tracks export health
+type ExportStats struct {
+	TotalExported int64      `json:"totalExported"`
+	TotalFailed   int64      `json:"totalFailed"`
+	LastExportAt  *time.Time `json:"lastExportAt,omitempty"`
+	LastError     string     `json:"lastError,omitempty"`
+	AvgBatchMs    float64    `json:"avgBatchMs"`
+}
+
+// OTelFederationInput for adding federation peers
+type OTelFederationInput struct {
+	Name   string `json:"name" validate:"required"`
+	URL    string `json:"url" validate:"required"`
+	APIKey string `json:"apiKey,omitempty"`
+}
+
+// ExportDestinationInput for creating export destinations
+type ExportDestinationInput struct {
+	Name      string            `json:"name" validate:"required"`
+	Type      string            `json:"type" validate:"required"`
+	Endpoint  string            `json:"endpoint" validate:"required"`
+	Protocol  string            `json:"protocol,omitempty"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Sampling  *float64          `json:"sampling,omitempty"`
+	BatchSize *int              `json:"batchSize,omitempty"`
+}
