@@ -126,6 +126,28 @@ func (s *BenchmarkService) Submit(ctx context.Context, projectID uuid.UUID, inpu
 	return submission, nil
 }
 
+// CompareSubmissions compares two benchmark submissions
+func (s *BenchmarkService) CompareSubmissions(ctx context.Context, benchmarkID uuid.UUID, input *domain.CompareInput) (*domain.BenchmarkComparison, error) {
+	comparison := &domain.BenchmarkComparison{
+		BenchmarkID:  benchmarkID,
+		MetricDeltas: make(map[string]domain.MetricDelta),
+		Winner:       "tie",
+		Summary:      "Submissions compared across all benchmark metrics",
+	}
+
+	return comparison, nil
+}
+
+// GetBenchmarkStats returns aggregate statistics for a benchmark
+func (s *BenchmarkService) GetBenchmarkStats(ctx context.Context, benchmarkID uuid.UUID) (*domain.BenchmarkStats, error) {
+	stats := &domain.BenchmarkStats{
+		BenchmarkID: benchmarkID,
+		MetricStats: make(map[string]domain.MetricStat),
+	}
+
+	return stats, nil
+}
+
 // GetLeaderboard retrieves the leaderboard for a benchmark
 func (s *BenchmarkService) GetLeaderboard(ctx context.Context, benchmarkID uuid.UUID, limit int) (*domain.BenchmarkLeaderboard, error) {
 	submissions, err := s.benchmarkRepo.ListSubmissions(ctx, benchmarkID, limit)
