@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -632,6 +633,62 @@ type TestRuleResponse struct {
 	Description   string                `json:"description"`
 	Severity      domain.AnomalySeverity `json:"severity,omitempty"`
 	BaselineStats domain.BaselineStats  `json:"baselineStats"`
+}
+
+// CreateAlertChannel handles POST /api/public/anomaly/channels
+func (h *AnomalyHandler) CreateAlertChannel(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.AlertChannelInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	channel, err := h.anomalyService.CreateAlertChannel(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to create alert channel", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create alert channel"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(channel)
+}
+
+// GetRootCause handles GET /api/public/anomaly/anomalies/:anomalyId/root-cause
+func (h *AnomalyHandler) GetRootCause(c *fiber.Ctx) error {
+	_, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	anomalyID, err := uuid.Parse(c.Params("anomalyId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid anomaly ID"})
+	}
+
+	rca, err := h.anomalyService.AnalyzeRootCause(c.Context(), anomalyID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to analyze root cause"})
+	}
+
+	return c.JSON(rca)
+}
+
+// GetDashboard handles GET /api/public/anomaly/dashboard
+func (h *AnomalyHandler) GetDashboard(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	dashboard, err := h.anomalyService.GetDashboard(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get dashboard"})
+	}
+
+	return c.JSON(dashboard)
 }
 
 // mergeRuleConfig merges default config with provided config
