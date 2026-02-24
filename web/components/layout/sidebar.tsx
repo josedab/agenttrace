@@ -15,6 +15,10 @@ import {
   ChevronRight,
   Workflow,
   GitBranch,
+  Radio,
+  GitCompareArrows,
+  ShieldAlert,
+  PiggyBank,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -66,6 +70,26 @@ const navigation = [
     name: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+  {
+    name: "Streaming",
+    href: "/streaming",
+    icon: Radio,
+  },
+  {
+    name: "Diff Intelligence",
+    href: "/diff-intelligence",
+    icon: GitCompareArrows,
+  },
+  {
+    name: "Anomaly Detection",
+    href: "/anomaly",
+    icon: ShieldAlert,
+  },
+  {
+    name: "Cost Optimizer",
+    href: "/cost-optimizer",
+    icon: PiggyBank,
   },
   {
     name: "Settings",

@@ -1,6 +1,6 @@
 import { GraphQLClient } from "graphql-request";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 /**
  * Fetch wrapper with error handling
@@ -620,6 +620,106 @@ export const api = {
         headers: { "X-Project-ID": projectId },
         body: JSON.stringify(data),
       }),
+  },
+
+  // Streaming
+  streaming: {
+    getActiveStreams: () =>
+      fetchWithAuth<{ streams: any[]; count: number }>("/api/public/streams"),
+    getLiveMetrics: (traceId: string) =>
+      fetchWithAuth<any>(`/api/public/traces/${traceId}/live-metrics`),
+    getActivities: (traceId: string, limit = 100) =>
+      fetchWithAuth<{ activities: any[]; count: number }>(`/api/public/traces/${traceId}/activities?limit=${limit}`),
+    requestIntervention: (traceId: string, data: { action: string; message?: string }) =>
+      fetchWithAuth<any>(`/api/public/traces/${traceId}/intervene`, { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Diff Intelligence
+  diffAnalysis: {
+    list: (params?: { limit?: number; offset?: number }) =>
+      fetchWithAuth<{ analyses: any[]; totalCount: number }>(`/api/public/diff-analysis?${new URLSearchParams(params as any)}`),
+    get: (id: string) =>
+      fetchWithAuth<any>(`/api/public/diff-analysis/${id}`),
+    analyze: (data: { traceId: string; fileChanges: any[] }) =>
+      fetchWithAuth<any>("/api/public/diff-analysis", { method: "POST", body: JSON.stringify(data) }),
+    trend: (days = 30) =>
+      fetchWithAuth<any>(`/api/public/diff-analysis/trend?days=${days}`),
+    getForTrace: (traceId: string) =>
+      fetchWithAuth<{ analyses: any[] }>(`/api/public/traces/${traceId}/diff-analysis`),
+  },
+
+  // Anomaly Detection
+  anomaly: {
+    getDashboard: () =>
+      fetchWithAuth<any>("/api/public/anomaly/dashboard"),
+    getRootCause: (anomalyId: string) =>
+      fetchWithAuth<any>(`/api/public/anomaly/anomalies/${anomalyId}/root-cause`),
+    createChannel: (data: { name: string; type: string; config: any }) =>
+      fetchWithAuth<any>("/api/public/anomaly/channels", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Cost Optimizer
+  costOptimizer: {
+    analyze: () =>
+      fetchWithAuth<any>("/api/public/cost-optimizer/analyze"),
+    getRecommendations: () =>
+      fetchWithAuth<{ recommendations: any[] }>("/api/public/cost-optimizer/recommendations"),
+    applyRecommendation: (id: string) =>
+      fetchWithAuth<any>(`/api/public/cost-optimizer/recommendations/${id}/apply`, { method: "POST" }),
+    getForecast: () =>
+      fetchWithAuth<any>("/api/public/cost-optimizer/forecast"),
+    generateReport: (period?: { startDate: string; endDate: string }) =>
+      fetchWithAuth<any>("/api/public/cost-optimizer/report", { method: "POST", body: JSON.stringify(period || {}) }),
+    configureAutopilot: (config: any) =>
+      fetchWithAuth<any>("/api/public/cost-optimizer/autopilot", { method: "POST", body: JSON.stringify(config) }),
+  },
+
+  // Guardrails
+  guardrails: {
+    listRules: () =>
+      fetchWithAuth<any>("/api/public/guardrails"),
+    createRule: (data: any) =>
+      fetchWithAuth<any>("/api/public/guardrails", { method: "POST", body: JSON.stringify(data) }),
+    getTemplates: () =>
+      fetchWithAuth<{ templates: any[] }>("/api/public/guardrails/templates"),
+    createPlaybook: (data: { name: string; template?: string; enforceMode?: string }) =>
+      fetchWithAuth<any>("/api/public/guardrails/playbooks", { method: "POST", body: JSON.stringify(data) }),
+    listViolations: () =>
+      fetchWithAuth<any>("/api/public/guardrails/violations"),
+  },
+
+  // Benchmarks
+  benchmarks: {
+    list: () =>
+      fetchWithAuth<any>("/api/public/benchmarks"),
+    get: (id: string) =>
+      fetchWithAuth<any>(`/api/public/benchmarks/${id}`),
+    create: (data: any) =>
+      fetchWithAuth<any>("/api/public/benchmarks", { method: "POST", body: JSON.stringify(data) }),
+    submit: (benchmarkId: string, data: any) =>
+      fetchWithAuth<any>(`/api/public/benchmarks/${benchmarkId}/submit`, { method: "POST", body: JSON.stringify(data) }),
+    getLeaderboard: (benchmarkId: string) =>
+      fetchWithAuth<any>(`/api/public/benchmarks/${benchmarkId}/leaderboard`),
+    compare: (benchmarkId: string, data: { submissionIdA: string; submissionIdB: string }) =>
+      fetchWithAuth<any>(`/api/public/benchmarks/${benchmarkId}/compare`, { method: "POST", body: JSON.stringify(data) }),
+    getStats: (benchmarkId: string) =>
+      fetchWithAuth<any>(`/api/public/benchmarks/${benchmarkId}/stats`),
+  },
+
+  // Federation
+  federation: {
+    listPeers: () =>
+      fetchWithAuth<{ peers: any[]; count: number }>("/api/public/federation/peers"),
+    addPeer: (data: { name: string; url: string; apiKey?: string }) =>
+      fetchWithAuth<any>("/api/public/federation/peers", { method: "POST", body: JSON.stringify(data) }),
+    removePeer: (peerId: string) =>
+      fetchWithAuth<any>(`/api/public/federation/peers/${peerId}`, { method: "DELETE" }),
+    query: (data: { query: string; peerIds?: string[] }) =>
+      fetchWithAuth<any>("/api/public/federation/query", { method: "POST", body: JSON.stringify(data) }),
+    listDestinations: () =>
+      fetchWithAuth<{ destinations: any[]; count: number }>("/api/public/federation/destinations"),
+    createDestination: (data: any) =>
+      fetchWithAuth<any>("/api/public/federation/destinations", { method: "POST", body: JSON.stringify(data) }),
   },
 };
 
