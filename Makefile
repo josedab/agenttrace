@@ -1,4 +1,4 @@
-.PHONY: all build test lint dev dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down
+.PHONY: all build test lint dev dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor
 
 # Default target
 all: lint test build
@@ -7,7 +7,8 @@ all: lint test build
 help:
 	@echo "AgentTrace Monorepo Commands:"
 	@echo ""
-	@echo "  make dev          - Start dev environment (databases + API + web)"
+	@echo "  make setup        - One-command dev environment setup"
+	@echo "  make dev          - Start dev environment (API + web, Ctrl+C stops both)"
 	@echo "  make dev-api      - Start only the API server (with databases)"
 	@echo "  make dev-web      - Start only the web frontend"
 	@echo "  make build        - Build all components"
@@ -17,6 +18,8 @@ help:
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make docker-up    - Start databases via Docker Compose"
 	@echo "  make docker-down  - Stop databases"
+	@echo "  make health-check - Verify API and web are running"
+	@echo "  make doctor       - Check all prerequisites are installed"
 	@echo "  make docs-build   - Build documentation site"
 	@echo "  make docs-serve   - Serve documentation locally"
 	@echo ""
@@ -41,8 +44,12 @@ help:
 dev: docker-up
 	@echo "Starting API server..."
 	@cd api && go run cmd/server/main.go &
-	@echo "Starting web dev server..."
-	@cd web && npm run dev
+	@API_PID=$$!; \
+	trap "kill $$API_PID 2>/dev/null; exit" INT TERM; \
+	echo "API server PID: $$API_PID"; \
+	echo "Starting web dev server..."; \
+	cd web && npm run dev; \
+	kill $$API_PID 2>/dev/null
 
 ## dev-api: Start only the API server
 dev-api: docker-up
@@ -61,6 +68,21 @@ docker-up:
 ## docker-down: Stop development databases
 docker-down:
 	docker compose -f deploy/docker-compose.dev.yml down
+
+## setup: One-command development environment setup
+setup: docker-up
+	@echo "Waiting for services to be healthy..."
+	@sleep 5
+	@echo "Installing web dependencies..."
+	cd web && npm install
+	@echo "Downloading Go modules..."
+	cd api && go mod download
+	@echo "Running PostgreSQL migrations..."
+	$(MAKE) migrate-pg-up
+	@echo "Running ClickHouse migrations..."
+	$(MAKE) migrate-ch-up
+	@echo ""
+	@echo "Setup complete! Run 'make dev' to start the development environment."
 
 # ============================================
 # Database Migrations
@@ -81,6 +103,37 @@ migrate-ch-up:
 ## migrate-ch-down: Roll back one ClickHouse migration
 migrate-ch-down:
 	cd api && $(MAKE) migrate-ch-down
+
+# ============================================
+# Health Check
+# ============================================
+
+## health-check: Verify API and web are running
+health-check:
+	@echo "Checking API (http://localhost:8080/health)..."
+	@for i in 1 2 3 4 5; do \
+		if curl -sf http://localhost:8080/health > /dev/null 2>&1; then \
+			echo "  ✓ API is healthy"; \
+			break; \
+		fi; \
+		if [ $$i -eq 5 ]; then \
+			echo "  ✗ API is not responding"; \
+		else \
+			sleep 2; \
+		fi; \
+	done
+	@echo "Checking Web (http://localhost:3000)..."
+	@for i in 1 2 3 4 5; do \
+		if curl -sf http://localhost:3000 > /dev/null 2>&1; then \
+			echo "  ✓ Web is healthy"; \
+			break; \
+		fi; \
+		if [ $$i -eq 5 ]; then \
+			echo "  ✗ Web is not responding"; \
+		else \
+			sleep 2; \
+		fi; \
+	done
 
 # ============================================
 # Build
@@ -107,7 +160,7 @@ build-sdk-ts:
 # ============================================
 
 ## test: Run all tests
-test: test-api test-sdk-go test-sdk-ts test-sdk-py
+test: test-api test-web test-sdk-go test-sdk-ts test-sdk-py
 
 test-api:
 	@echo "Testing Go backend..."
@@ -191,3 +244,43 @@ docs-build:
 ## docs-serve: Serve the documentation site locally
 docs-serve:
 	cd docs && npm start
+
+# ============================================
+# Doctor
+# ============================================
+
+## doctor: Check that all prerequisites are installed
+doctor:
+	@echo "Checking prerequisites..."
+	@echo ""
+	@if command -v go > /dev/null 2>&1; then \
+		echo "  ✓ Go: $$(go version | awk '{print $$3}')"; \
+	else \
+		echo "  ✗ Go: not found (install from https://go.dev/dl/)"; \
+	fi
+	@if command -v node > /dev/null 2>&1; then \
+		echo "  ✓ Node.js: $$(node --version)"; \
+	else \
+		echo "  ✗ Node.js: not found (install from https://nodejs.org/)"; \
+	fi
+	@if command -v docker > /dev/null 2>&1; then \
+		echo "  ✓ Docker: $$(docker --version | awk '{print $$3}' | tr -d ',')"; \
+	else \
+		echo "  ✗ Docker: not found (install from https://docs.docker.com/get-docker/)"; \
+	fi
+	@if command -v golangci-lint > /dev/null 2>&1; then \
+		echo "  ✓ golangci-lint: $$(golangci-lint --version 2>&1 | awk '{print $$4}')"; \
+	else \
+		echo "  ✗ golangci-lint: not found (install from https://golangci-lint.run/welcome/install/)"; \
+	fi
+	@if command -v migrate > /dev/null 2>&1; then \
+		echo "  ✓ migrate: installed"; \
+	else \
+		echo "  ✗ migrate: not found (brew install golang-migrate or go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest)"; \
+	fi
+	@if command -v pre-commit > /dev/null 2>&1; then \
+		echo "  ✓ pre-commit: $$(pre-commit --version)"; \
+	else \
+		echo "  ✗ pre-commit: not found (pip install pre-commit)"; \
+	fi
+	@echo ""

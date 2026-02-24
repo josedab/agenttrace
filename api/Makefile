@@ -68,13 +68,19 @@ migrate-pg-create:
 migrate-ch-up:
 	@for f in $(MIGRATIONS_CH)/*.up.sql; do \
 		echo "Running $$f..."; \
-		clickhouse-client --host localhost --user agenttrace --password agenttrace --database agenttrace --multiquery < $$f; \
+		if ! clickhouse-client --host localhost --user agenttrace --password agenttrace --database agenttrace --multiquery < $$f; then \
+			echo "ERROR: Migration failed on $$f"; \
+			exit 1; \
+		fi; \
 	done
 
 migrate-ch-down:
 	@for f in $$(ls -r $(MIGRATIONS_CH)/*.down.sql | head -1); do \
 		echo "Rolling back $$f..."; \
-		clickhouse-client --host localhost --user agenttrace --password agenttrace --database agenttrace --multiquery < $$f; \
+		if ! clickhouse-client --host localhost --user agenttrace --password agenttrace --database agenttrace --multiquery < $$f; then \
+			echo "ERROR: Rollback failed on $$f"; \
+			exit 1; \
+		fi; \
 	done
 
 # GraphQL generation

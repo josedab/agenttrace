@@ -13,6 +13,7 @@ Thank you for your interest in contributing to AgentTrace! This document provide
 - [Testing](#testing)
 - [Pull Request Process](#pull-request-process)
 - [Issue Guidelines](#issue-guidelines)
+- [Troubleshooting](#troubleshooting)
 - [Community](#community)
 
 ## Code of Conduct
@@ -44,38 +45,43 @@ By participating in this project, you agree to maintain a respectful and inclusi
    cd agenttrace
    ```
 
-3. **Set up the development environment**:
+3. **Install pre-commit hooks**:
    ```bash
-   # Start required services (PostgreSQL, ClickHouse, Redis, MinIO)
-   cd deploy
-   cp .env.example .env
-   docker compose -f docker-compose.dev.yml up -d
-
-   # Wait for services to be healthy
-   docker compose -f docker-compose.dev.yml ps
+   pip install pre-commit
+   pre-commit install
    ```
 
-4. **Run database migrations**:
+4. **Set up the development environment**:
    ```bash
-   cd ../api
+   # Start required services (PostgreSQL, ClickHouse, Redis, MinIO)
+   cp deploy/.env.example deploy/.env
+   docker compose -f deploy/docker-compose.dev.yml up -d
+
+   # Wait for services to be healthy
+   docker compose -f deploy/docker-compose.dev.yml ps
+   ```
+
+5. **Run database migrations**:
+   ```bash
+   cd api
    make migrate-pg-up
    make migrate-ch-up
    ```
 
-5. **Start the backend**:
+6. **Start the backend**:
    ```bash
    cd api
    go run cmd/server/main.go
    ```
 
-6. **Start the frontend** (in a new terminal):
+7. **Start the frontend** (in a new terminal):
    ```bash
    cd web
    npm install
    npm run dev
    ```
 
-7. **Access the application** at http://localhost:3000
+8. **Access the application** at http://localhost:3000
 
 ## Development Setup
 
@@ -442,6 +448,58 @@ Include:
 | `sdk/go` | Go SDK related |
 | `frontend` | Web frontend related |
 | `backend` | Go backend related |
+
+## Troubleshooting
+
+### Port Conflicts
+
+If ports 3000, 5432, 8080, 8123, 9000, or 9001 are already in use:
+```bash
+# Find what's using a port
+lsof -i :8080
+
+# Kill the process or change the port in deploy/.env
+```
+
+### `migrate` CLI Not Found
+
+Install the Go migrate CLI:
+```bash
+# macOS
+brew install golang-migrate
+
+# Linux
+go install -tags 'postgres clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+### Docker Memory Issues
+
+ClickHouse requires significant memory. If containers crash:
+1. Increase Docker Desktop memory to at least 4GB (Settings → Resources)
+2. Restart Docker Desktop
+3. Run `make docker-up` again
+
+### Node Version Mismatch
+
+This project requires Node.js 18+. Check `.nvmrc` for the exact version:
+```bash
+# If using nvm
+nvm use
+
+# Check your version
+node --version
+```
+
+### Services Not Starting
+
+Run `make doctor` to verify all prerequisites are installed, then:
+```bash
+# Check Docker container status
+docker compose -f deploy/docker-compose.dev.yml ps
+
+# View container logs
+docker compose -f deploy/docker-compose.dev.yml logs
+```
 
 ## Community
 
