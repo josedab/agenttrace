@@ -74,6 +74,26 @@ type Handlers struct {
 	AgentVersion          *handler.AgentVersionHandler
 	PredictiveCost        *handler.PredictiveCostHandler
 	Embed                 *handler.EmbedHandler
+	Handoff        *handler.HandoffHandler
+	Annotation     *handler.AnnotationHandler
+	Carbon         *handler.CarbonHandler
+	SyntheticData  *handler.SyntheticDataHandler
+	SLO            *handler.SLOHandler
+	AgentMemory      *handler.AgentMemoryHandler
+	DistributedTrace *handler.DistributedTraceHandler
+	PromptCache      *handler.PromptCacheHandler
+	Chaos            *handler.ChaosHandler
+	CustomMetrics    *handler.CustomMetricsHandler
+	Autonomy        *handler.AutonomyHandler
+	CrossOrg        *handler.CrossOrgHandler
+	Intent          *handler.IntentHandler
+	CostAttribution *handler.CostAttributionHandler
+	KnowledgeGraph  *handler.KnowledgeGraphHandler
+	ComplianceMonitor  *handler.ComplianceMonitorHandler
+	MultiModal         *handler.MultiModalHandler
+	CollabPattern      *handler.CollabPatternHandler
+	FederatedLearning  *handler.FederatedLearningHandler
+	Copilot            *handler.CopilotHandler
 }
 
 // initHandlers initializes all handlers
@@ -327,5 +347,25 @@ func initHandlers(
 		AgentVersion:          handler.NewAgentVersionHandler(svcs.AgentVersion, logger),
 		PredictiveCost:        handler.NewPredictiveCostHandler(svcs.PredictiveCost, logger),
 		Embed:                 handler.NewEmbedHandler(svcs.Embed, logger),
+		Handoff:       handler.NewHandoffHandler(svcs.Handoff, logger),
+		Annotation:    handler.NewAnnotationHandler(svcs.Annotation, logger),
+		Carbon:        handler.NewCarbonHandler(svcs.Carbon, logger),
+		SyntheticData: handler.NewSyntheticDataHandler(svcs.SyntheticData, logger),
+		SLO:           handler.NewSLOHandler(svcs.SLO, logger),
+		AgentMemory:      handler.NewAgentMemoryHandler(svcs.AgentMemory, logger),
+		DistributedTrace: handler.NewDistributedTraceHandler(svcs.DistributedTrace, logger),
+		PromptCache:      handler.NewPromptCacheHandler(svcs.PromptCache, logger),
+		Chaos:            handler.NewChaosHandler(svcs.Chaos, logger),
+		CustomMetrics:    handler.NewCustomMetricsHandler(svcs.CustomMetrics, logger),
+		Autonomy:        handler.NewAutonomyHandler(svcs.Autonomy, logger),
+		CrossOrg:        handler.NewCrossOrgHandler(svcs.CrossOrg, logger),
+		Intent:          handler.NewIntentHandler(svcs.Intent, logger),
+		CostAttribution: handler.NewCostAttributionHandler(svcs.CostAttribution, logger),
+		KnowledgeGraph:  handler.NewKnowledgeGraphHandler(svcs.KnowledgeGraph, logger),
+		ComplianceMonitor:  handler.NewComplianceMonitorHandler(svcs.ComplianceMonitor, logger),
+		MultiModal:         handler.NewMultiModalHandler(svcs.MultiModal, logger),
+		CollabPattern:      handler.NewCollabPatternHandler(svcs.CollabPattern, logger),
+		FederatedLearning:  handler.NewFederatedLearningHandler(svcs.FederatedLearning, logger),
+		Copilot:            handler.NewCopilotHandler(svcs.Copilot, logger),
 	}
 }

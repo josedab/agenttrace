@@ -417,6 +417,130 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Post("/embed/config", h.Embed.CreateConfig)
 		public.Put("/embed/config", h.Embed.UpdateConfig)
 		public.Post("/embed/token", h.Embed.GenerateToken)
+
+		// Agent Handoff Protocol
+		public.Post("/handoffs", h.Handoff.Initiate)
+		public.Post("/handoffs/:handoffId/accept", h.Handoff.Accept)
+		public.Post("/handoffs/:handoffId/complete", h.Handoff.Complete)
+		public.Get("/handoffs/chain/:traceId", h.Handoff.GetChain)
+		public.Get("/handoffs/stats", h.Handoff.GetStats)
+
+		// Collaborative Annotations
+		public.Get("/annotations/traces/:traceId", h.Annotation.List)
+		public.Post("/annotations", h.Annotation.Create)
+		public.Post("/annotations/:annotationId/reply", h.Annotation.Reply)
+		public.Post("/annotations/:annotationId/resolve", h.Annotation.Resolve)
+		public.Get("/annotations/presence/:traceId", h.Annotation.GetPresence)
+
+		// Energy & Carbon
+		public.Get("/carbon/footprint", h.Carbon.GetFootprint)
+		public.Get("/carbon/config", h.Carbon.GetConfig)
+		public.Put("/carbon/config", h.Carbon.UpdateConfig)
+		public.Get("/carbon/suggestions", h.Carbon.GetSuggestions)
+
+		// Synthetic Data
+		public.Post("/synthetic-data/generate", h.SyntheticData.Generate)
+		public.Get("/synthetic-data/datasets", h.SyntheticData.List)
+		public.Get("/synthetic-data/datasets/:datasetId", h.SyntheticData.Get)
+		public.Get("/synthetic-data/stats", h.SyntheticData.GetStats)
+
+		// Agent SLOs
+		public.Get("/slos", h.SLO.List)
+		public.Post("/slos", h.SLO.Create)
+		public.Get("/slos/:sloId/status", h.SLO.GetStatus)
+		public.Get("/slos/report", h.SLO.GetReport)
+		public.Get("/slos/:sloId/history", h.SLO.GetHistory)
+		// Agent Memory & Context
+		public.Post("/memory/analyze", h.AgentMemory.AnalyzeMemory)
+		public.Get("/memory/traces/:traceId/snapshots/:stepIndex", h.AgentMemory.GetSnapshot)
+		public.Get("/memory/optimizations", h.AgentMemory.GetOptimizations)
+
+		// Distributed Tracing
+		public.Get("/distributed/traces/:traceId", h.DistributedTrace.GetTrace)
+		public.Get("/distributed/service-map", h.DistributedTrace.GetServiceMap)
+		public.Post("/distributed/correlate", h.DistributedTrace.Correlate)
+
+		// Prompt Caching
+		public.Get("/prompt-cache/analyze", h.PromptCache.Analyze)
+		public.Get("/prompt-cache/config", h.PromptCache.GetConfig)
+		public.Put("/prompt-cache/config", h.PromptCache.UpdateConfig)
+		public.Get("/prompt-cache/stats", h.PromptCache.GetStats)
+		public.Post("/prompt-cache/invalidate", h.PromptCache.Invalidate)
+
+		// Chaos Testing
+		public.Get("/chaos/experiments", h.Chaos.List)
+		public.Post("/chaos/experiments", h.Chaos.Create)
+		public.Get("/chaos/experiments/:experimentId", h.Chaos.Get)
+		public.Post("/chaos/experiments/:experimentId/run", h.Chaos.Run)
+		public.Get("/chaos/scorecard/:agentName", h.Chaos.GetScorecard)
+
+		// Custom Metrics
+		public.Get("/custom-metrics", h.CustomMetrics.ListMetrics)
+		public.Post("/custom-metrics", h.CustomMetrics.CreateMetric)
+		public.Get("/custom-metrics/:metricId/values", h.CustomMetrics.GetValues)
+		public.Get("/custom-metrics/dashboards", h.CustomMetrics.ListDashboards)
+		public.Post("/custom-metrics/dashboards", h.CustomMetrics.CreateDashboard)
+		public.Get("/custom-metrics/alerts", h.CustomMetrics.ListAlerts)
+		public.Post("/custom-metrics/alerts", h.CustomMetrics.CreateAlert)
+
+		// Autonomy Gradient
+		public.Get("/autonomy/dashboard", h.Autonomy.GetDashboard)
+		public.Get("/autonomy/:agentName", h.Autonomy.GetConfig)
+		public.Post("/autonomy", h.Autonomy.SetAutonomy)
+		public.Get("/autonomy/:agentName/trust", h.Autonomy.GetTrustEvolution)
+
+		// Cross-Organization Benchmarking
+		public.Post("/cross-org/submit", h.CrossOrg.Submit)
+		public.Get("/cross-org/report", h.CrossOrg.GetReport)
+		public.Get("/cross-org/industry/:category", h.CrossOrg.GetIndustryStats)
+
+		// Intent Verification
+		public.Post("/intents", h.Intent.Declare)
+		public.Post("/intents/:intentId/verify", h.Intent.Verify)
+		public.Get("/intents/:intentId", h.Intent.Get)
+		public.Get("/intents/stats", h.Intent.GetStats)
+
+		// Cost Attribution
+		public.Post("/cost-attribution", h.CostAttribution.Attribute)
+		public.Get("/cost-attribution/report", h.CostAttribution.GetReport)
+		public.Get("/cost-attribution", h.CostAttribution.List)
+
+		// Knowledge Graph
+		public.Get("/knowledge-graph", h.KnowledgeGraph.Build)
+		public.Post("/knowledge-graph/query", h.KnowledgeGraph.Query)
+		public.Get("/knowledge-graph/stats", h.KnowledgeGraph.GetStats)
+		// Compliance Monitoring
+		public.Get("/compliance-monitor/policies", h.ComplianceMonitor.ListPolicies)
+		public.Post("/compliance-monitor/policies", h.ComplianceMonitor.CreatePolicy)
+		public.Post("/compliance-monitor/evaluate", h.ComplianceMonitor.Evaluate)
+		public.Get("/compliance-monitor/score/:framework", h.ComplianceMonitor.GetScore)
+		public.Post("/compliance-monitor/configure", h.ComplianceMonitor.Configure)
+
+		// Multi-Modal Traces
+		public.Post("/multimodal/attachments", h.MultiModal.Register)
+		public.Get("/multimodal/traces/:traceId", h.MultiModal.GetTraceAttachments)
+		public.Get("/multimodal/attachments/:attachmentId", h.MultiModal.GetAttachment)
+		public.Get("/multimodal/traces/:traceId/summary", h.MultiModal.GetSummary)
+		public.Get("/multimodal/attachments", h.MultiModal.List)
+
+		// Collaboration Patterns
+		public.Get("/collab-patterns", h.CollabPattern.List)
+		public.Get("/collab-patterns/:patternId", h.CollabPattern.Get)
+		public.Post("/collab-patterns/:patternId/deploy", h.CollabPattern.Deploy)
+		public.Get("/collab-patterns/deployments", h.CollabPattern.GetDeployments)
+		public.Get("/collab-patterns/:patternId/analytics", h.CollabPattern.GetAnalytics)
+
+		// Federated Learning
+		public.Get("/federated/rings", h.FederatedLearning.ListRings)
+		public.Post("/federated/rings/join", h.FederatedLearning.JoinRing)
+		public.Get("/federated/rings/:ringId/insights", h.FederatedLearning.GetInsights)
+		public.Get("/federated/config", h.FederatedLearning.GetConfig)
+		public.Put("/federated/config", h.FederatedLearning.UpdateConfig)
+
+		// Observability Copilot
+		public.Post("/copilot/ask", h.Copilot.Ask)
+		public.Get("/copilot/suggestions", h.Copilot.GetSuggestions)
+		public.Get("/copilot/insights", h.Copilot.GetInsights)
 	}
 
 	// Internal API routes (JWT auth)

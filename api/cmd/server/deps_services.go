@@ -69,6 +69,26 @@ type Services struct {
 	AgentVersion          *service.AgentVersionService
 	PredictiveCost        *service.PredictiveCostService
 	Embed                 *service.EmbedService
+	Handoff        *service.HandoffService
+	Annotation     *service.AnnotationService
+	Carbon         *service.CarbonService
+	SyntheticData  *service.SyntheticDataService
+	SLO            *service.SLOService
+	AgentMemory      *service.AgentMemoryService
+	DistributedTrace *service.DistributedTraceService
+	PromptCache      *service.PromptCacheService
+	Chaos            *service.ChaosService
+	CustomMetrics    *service.CustomMetricsService
+	Autonomy        *service.AutonomyService
+	CrossOrg        *service.CrossOrgService
+	Intent          *service.IntentService
+	CostAttribution *service.CostAttributionService
+	KnowledgeGraph  *service.KnowledgeGraphService
+	ComplianceMonitor  *service.ComplianceMonitorService
+	MultiModal         *service.MultiModalService
+	CollabPattern      *service.CollabPatternService
+	FederatedLearning  *service.FederatedLearningService
+	Copilot            *service.CopilotService
 	LLM                   *service.LLMClient
 }
 
@@ -316,6 +336,66 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 
 	// Embed service (white-label)
 	svcs.Embed = service.NewEmbedService(logger)
+
+	// Agent Handoff Protocol
+	svcs.Handoff = service.NewHandoffService(logger)
+
+	// Collaborative Annotation service
+	svcs.Annotation = service.NewAnnotationService(logger)
+
+	// Energy & Carbon tracking service
+	svcs.Carbon = service.NewCarbonService(logger)
+
+	// Synthetic Data Generator service
+	svcs.SyntheticData = service.NewSyntheticDataService(logger)
+
+	// Agent Performance SLO service
+	svcs.SLO = service.NewSLOService(logger)
+
+	// Agent memory service
+	svcs.AgentMemory = service.NewAgentMemoryService(logger)
+
+	// Distributed trace service
+	svcs.DistributedTrace = service.NewDistributedTraceService(logger)
+
+	// Prompt cache service
+	svcs.PromptCache = service.NewPromptCacheService(logger)
+
+	// Chaos testing service
+	svcs.Chaos = service.NewChaosService(logger)
+
+	// Custom metrics service
+	svcs.CustomMetrics = service.NewCustomMetricsService(logger)
+
+	// Autonomy gradient service
+	svcs.Autonomy = service.NewAutonomyService(logger)
+
+	// Cross-organization benchmarking service
+	svcs.CrossOrg = service.NewCrossOrgService(logger)
+
+	// Intent verification service
+	svcs.Intent = service.NewIntentService(logger)
+
+	// Cost attribution service
+	svcs.CostAttribution = service.NewCostAttributionService(logger)
+
+	// Knowledge graph service
+	svcs.KnowledgeGraph = service.NewKnowledgeGraphService(logger)
+
+	// Compliance monitoring service
+	svcs.ComplianceMonitor = service.NewComplianceMonitorService(logger)
+
+	// Multi-modal trace service
+	svcs.MultiModal = service.NewMultiModalService(logger)
+
+	// Collaboration pattern service
+	svcs.CollabPattern = service.NewCollabPatternService(logger)
+
+	// Federated learning service
+	svcs.FederatedLearning = service.NewFederatedLearningService(logger)
+
+	// Observability copilot service
+	svcs.Copilot = service.NewCopilotService(logger)
 
 	return svcs
 }
