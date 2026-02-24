@@ -1082,6 +1082,185 @@ export const api = {
     getSuggestions: () => fetchWithAuth<any>("/api/public/copilot/suggestions"),
     getInsights: () => fetchWithAuth<any>("/api/public/copilot/insights"),
   },
+
+  // Replay Sessions
+  replaySessions: {
+    list: () => fetchWithAuth<any>("/api/public/replay-sessions"),
+    create: (data: any) => fetchWithAuth<any>("/api/public/replay-sessions", { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}`),
+    getTimeline: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/timeline`),
+    branch: (id: string, data: any) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/branch`, { method: "POST", body: JSON.stringify(data) }),
+    getPlayback: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/playback`),
+    share: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/share`, { method: "POST" }),
+  },
+
+  // Cost Guardrails
+  costGuardrails: {
+    getDashboard: () => fetchWithAuth<any>("/api/public/cost-guardrails/dashboard"),
+    createPolicy: (data: any) => fetchWithAuth<any>("/api/public/cost-guardrails/policies", { method: "POST", body: JSON.stringify(data) }),
+    listPolicies: () => fetchWithAuth<any>("/api/public/cost-guardrails/policies"),
+    checkBudget: (data: any) => fetchWithAuth<any>("/api/public/cost-guardrails/check", { method: "POST", body: JSON.stringify(data) }),
+    getForecast: () => fetchWithAuth<any>("/api/public/cost-guardrails/forecast"),
+    listViolations: () => fetchWithAuth<any>("/api/public/cost-guardrails/violations"),
+  },
+
+  // Multi-Agent
+  multiAgent: {
+    listSessions: () => fetchWithAuth<any>("/api/public/multi-agent/sessions"),
+    analyze: (data: any) => fetchWithAuth<any>("/api/public/multi-agent/analyze", { method: "POST", body: JSON.stringify(data) }),
+    getSession: (id: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${id}`),
+  },
+
+  // Prompt CI
+  promptCI: {
+    listBaselines: () => fetchWithAuth<any>("/api/public/prompt-ci/baselines"),
+    createBaseline: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/baselines", { method: "POST", body: JSON.stringify(data) }),
+    getBaseline: (id: string) => fetchWithAuth<any>(`/api/public/prompt-ci/baselines/${id}`),
+    runComparison: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/compare", { method: "POST", body: JSON.stringify(data) }),
+    listRuns: () => fetchWithAuth<any>("/api/public/prompt-ci/runs"),
+  },
+
+  // Agent Benchmarks
+  agentBenchmarks: {
+    listSuites: () => fetchWithAuth<any>("/api/public/agent-benchmarks/suites"),
+    createSuite: (data: any) => fetchWithAuth<any>("/api/public/agent-benchmarks/suites", { method: "POST", body: JSON.stringify(data) }),
+    getSuite: (id: string) => fetchWithAuth<any>(`/api/public/agent-benchmarks/suites/${id}`),
+    runBenchmark: (data: any) => fetchWithAuth<any>("/api/public/agent-benchmarks/run", { method: "POST", body: JSON.stringify(data) }),
+    getLeaderboard: (id: string) => fetchWithAuth<any>(`/api/public/agent-benchmarks/suites/${id}/leaderboard`),
+  },
+
+  // Semantic Search
+  semanticSearch: {
+    search: (data: any) => fetchWithAuth<any>("/api/public/semantic-search/query", { method: "POST", body: JSON.stringify(data) }),
+    getClusters: () => fetchWithAuth<any>("/api/public/semantic-search/clusters"),
+    getAnomalyPatterns: () => fetchWithAuth<any>("/api/public/semantic-search/anomaly-patterns"),
+    getDashboard: () => fetchWithAuth<any>("/api/public/semantic-search/dashboard"),
+  },
+
+  // Agent Knowledge Graph
+  agentKnowledgeGraph: {
+    build: (params?: any) => fetchWithAuth<any>("/api/public/agent-knowledge-graph/build", { method: "POST", body: params ? JSON.stringify(params) : undefined }),
+    query: (data: any) => fetchWithAuth<any>("/api/public/agent-knowledge-graph/query", { method: "POST", body: JSON.stringify(data) }),
+    getEvolution: () => fetchWithAuth<any>("/api/public/agent-knowledge-graph/evolution"),
+    getStats: () => fetchWithAuth<any>("/api/public/agent-knowledge-graph/stats"),
+  },
+
+  // IDE Trace View
+  ideTraceView: {
+    getFileMapping: (filePath: string) => fetchWithAuth<any>(`/api/public/ide-trace-view/file-mapping?filePath=${encodeURIComponent(filePath)}`),
+    batchMappings: (data: any) => fetchWithAuth<any>("/api/public/ide-trace-view/batch-mappings", { method: "POST", body: JSON.stringify(data) }),
+    getTraceContext: (traceId: string) => fetchWithAuth<any>(`/api/public/ide-trace-view/trace-context/${traceId}`),
+  },
+
+  // Federated Aggregation
+  federatedAggregation: {
+    getDashboard: () => fetchWithAuth<any>("/api/public/federated-aggregation/dashboard"),
+    registerInstance: (data: any) => fetchWithAuth<any>("/api/public/federated-aggregation/instances", { method: "POST", body: JSON.stringify(data) }),
+    listInstances: () => fetchWithAuth<any>("/api/public/federated-aggregation/instances"),
+    submitMetrics: (data: any) => fetchWithAuth<any>("/api/public/federated-aggregation/metrics", { method: "POST", body: JSON.stringify(data) }),
+    getBenchmarks: (metricType?: string) => fetchWithAuth<any>(`/api/public/federated-aggregation/benchmarks${metricType ? `?metricType=${encodeURIComponent(metricType)}` : ""}`),
+    getInsights: () => fetchWithAuth<any>("/api/public/federated-aggregation/insights"),
+  },
+
+  // Workflow Simulator
+  workflowSimulator: {
+    list: () => fetchWithAuth<any>("/api/public/workflow-simulator/workflows"),
+    create: (data: any) => fetchWithAuth<any>("/api/public/workflow-simulator/workflows", { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/workflow-simulator/workflows/${id}`),
+    update: (id: string, data: any) => fetchWithAuth<any>(`/api/public/workflow-simulator/workflows/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) => fetchWithAuth<any>(`/api/public/workflow-simulator/workflows/${id}`, { method: "DELETE" }),
+    validate: (data: any) => fetchWithAuth<any>("/api/public/workflow-simulator/validate", { method: "POST", body: JSON.stringify(data) }),
+    simulate: (data: any) => fetchWithAuth<any>("/api/public/workflow-simulator/simulate", { method: "POST", body: JSON.stringify(data) }),
+    getSimulation: (id: string) => fetchWithAuth<any>(`/api/public/workflow-simulator/simulations/${id}`),
+    listSimulations: (workflowId: string) => fetchWithAuth<any>(`/api/public/workflow-simulator/workflows/${workflowId}/simulations`),
+  },
+
+  // Auto-Discovery
+  autoDiscovery: {
+    scan: () => fetchWithAuth<any>("/api/public/auto-discovery/scan", { method: "POST" }),
+    getFramework: (id: string) => fetchWithAuth<any>(`/api/public/auto-discovery/frameworks/${id}`),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/auto-discovery/config", { method: "PUT", body: JSON.stringify(data) }),
+    toggleInstrumentation: (id: string, enabled: boolean) => fetchWithAuth<any>(`/api/public/auto-discovery/frameworks/${id}/instrumentation`, { method: "PUT", body: JSON.stringify({ enabled }) }),
+  },
+
+  // Cloud Onboarding
+  cloudOnboarding: {
+    get: () => fetchWithAuth<any>("/api/public/cloud-onboarding"),
+    completeStep: (data: any) => fetchWithAuth<any>("/api/public/cloud-onboarding/steps/complete", { method: "POST", body: JSON.stringify(data) }),
+    generateQuickstart: (data: any) => fetchWithAuth<any>("/api/public/cloud-onboarding/quickstart", { method: "POST", body: JSON.stringify(data) }),
+    getUsage: () => fetchWithAuth<any>("/api/public/cloud-onboarding/usage"),
+    checkQuota: (data: any) => fetchWithAuth<any>("/api/public/cloud-onboarding/quota/check", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // AI Debugger
+  aiDebugger: {
+    debug: (data: any) => fetchWithAuth<any>("/api/public/ai-debugger/debug", { method: "POST", body: JSON.stringify(data) }),
+    getHistory: (traceId: string) => fetchWithAuth<any>(`/api/public/ai-debugger/traces/${traceId}/history`),
+    getContext: (traceId: string) => fetchWithAuth<any>(`/api/public/ai-debugger/traces/${traceId}/context`),
+  },
+
+  // Prompt Optimization
+  promptOptimization: {
+    start: (data: any) => fetchWithAuth<any>("/api/public/prompt-optimization/start", { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/prompt-optimization/${id}`),
+    list: () => fetchWithAuth<any>("/api/public/prompt-optimization"),
+    getConfig: () => fetchWithAuth<any>("/api/public/prompt-optimization/config"),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/prompt-optimization/config", { method: "PUT", body: JSON.stringify(data) }),
+    approveVariant: (id: string) => fetchWithAuth<any>(`/api/public/prompt-optimization/variants/${id}/approve`, { method: "POST" }),
+    rejectVariant: (id: string) => fetchWithAuth<any>(`/api/public/prompt-optimization/variants/${id}/reject`, { method: "POST" }),
+  },
+
+  // Cost Alerting
+  costAlerting: {
+    createRule: (data: any) => fetchWithAuth<any>("/api/public/cost-alerting/rules", { method: "POST", body: JSON.stringify(data) }),
+    listRules: () => fetchWithAuth<any>("/api/public/cost-alerting/rules"),
+    deleteRule: (id: string) => fetchWithAuth<any>(`/api/public/cost-alerting/rules/${id}`, { method: "DELETE" }),
+    listAlerts: () => fetchWithAuth<any>("/api/public/cost-alerting/alerts"),
+    acknowledgeAlert: (id: string) => fetchWithAuth<any>(`/api/public/cost-alerting/alerts/${id}/acknowledge`, { method: "POST" }),
+    getCircuitBreaker: () => fetchWithAuth<any>("/api/public/cost-alerting/circuit-breaker"),
+    updateCircuitBreaker: (data: any) => fetchWithAuth<any>("/api/public/cost-alerting/circuit-breaker", { method: "PUT", body: JSON.stringify(data) }),
+    checkCost: (data: any) => fetchWithAuth<any>("/api/public/cost-alerting/check", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Regression Suite
+  regressionSuite: {
+    createDataset: (data: any) => fetchWithAuth<any>("/api/public/regression-suite/datasets", { method: "POST", body: JSON.stringify(data) }),
+    getDataset: (id: string) => fetchWithAuth<any>(`/api/public/regression-suite/datasets/${id}`),
+    listDatasets: () => fetchWithAuth<any>("/api/public/regression-suite/datasets"),
+    runRegression: (data: any) => fetchWithAuth<any>("/api/public/regression-suite/run", { method: "POST", body: JSON.stringify(data) }),
+    getRun: (id: string) => fetchWithAuth<any>(`/api/public/regression-suite/runs/${id}`),
+    listRuns: () => fetchWithAuth<any>("/api/public/regression-suite/runs"),
+  },
+
+  // Collaboration Hub
+  collabHub: {
+    createQueue: (data: any) => fetchWithAuth<any>("/api/public/collab-hub/queues", { method: "POST", body: JSON.stringify(data) }),
+    listQueues: () => fetchWithAuth<any>("/api/public/collab-hub/queues"),
+    assignReview: (data: any) => fetchWithAuth<any>("/api/public/collab-hub/reviews/assign", { method: "POST", body: JSON.stringify(data) }),
+    completeReview: (id: string, data: any) => fetchWithAuth<any>(`/api/public/collab-hub/reviews/${id}/complete`, { method: "POST", body: JSON.stringify(data) }),
+    createStandard: (data: any) => fetchWithAuth<any>("/api/public/collab-hub/standards", { method: "POST", body: JSON.stringify(data) }),
+    listStandards: () => fetchWithAuth<any>("/api/public/collab-hub/standards"),
+    getActivityFeed: () => fetchWithAuth<any>("/api/public/collab-hub/activity"),
+  },
+
+  // OpenTelemetry Compatibility
+  otelCompat: {
+    createDestination: (data: any) => fetchWithAuth<any>("/api/public/otel-compat/destinations", { method: "POST", body: JSON.stringify(data) }),
+    listDestinations: () => fetchWithAuth<any>("/api/public/otel-compat/destinations"),
+    deleteDestination: (id: string) => fetchWithAuth<any>(`/api/public/otel-compat/destinations/${id}`, { method: "DELETE" }),
+    getMappings: () => fetchWithAuth<any>("/api/public/otel-compat/mappings"),
+    getDashboard: () => fetchWithAuth<any>("/api/public/otel-compat/dashboard"),
+    generateCollectorConfig: () => fetchWithAuth<any>("/api/public/otel-compat/collector-config", { method: "POST" }),
+  },
+
+  // Security Scanner
+  securityScanner: {
+    scan: (data: any) => fetchWithAuth<any>("/api/public/security-scanner/scan", { method: "POST", body: JSON.stringify(data) }),
+    createPolicy: (data: any) => fetchWithAuth<any>("/api/public/security-scanner/policies", { method: "POST", body: JSON.stringify(data) }),
+    listPolicies: () => fetchWithAuth<any>("/api/public/security-scanner/policies"),
+    getDashboard: () => fetchWithAuth<any>("/api/public/security-scanner/dashboard"),
+    acknowledgeFinding: (id: string) => fetchWithAuth<any>(`/api/public/security-scanner/findings/${id}/acknowledge`, { method: "POST" }),
+  },
 };
 export interface User {
   id: string;
