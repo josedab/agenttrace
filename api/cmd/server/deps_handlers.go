@@ -11,6 +11,7 @@ import (
 
 // Handlers holds all handler instances
 type Handlers struct {
+	// Core
 	Health           *handler.HealthHandler
 	Ingestion        *handler.IngestionHandler
 	Traces           *handler.TracesHandler
@@ -36,64 +37,74 @@ type Handlers struct {
 	Experiment       *handler.ExperimentHandler
 	Debug            *handler.DebugHandler
 	Regression       *handler.RegressionHandler
-	CostOptimizer    *handler.CostOptimizerHandler
 	AgentGraph       *handler.AgentGraphHandler
-	Guardrails       *handler.GuardrailsHandler
 	Benchmarks       *handler.BenchmarksHandler
 	Collaboration    *handler.CollaborationHandler
 	Migration        *handler.MigrationHandler
 	OTelReceiver     *handler.OTelReceiverHandler
-	CollaborationWS    *handler.CollaborationWSHandler
-	Compliance         *handler.ComplianceHandler
-	Billing            *handler.BillingHandler
-	Prediction         *handler.PredictionHandler
-	Reasoning          *handler.ReasoningHandler
-	CostBudget         *handler.CostBudgetHandler
-	Instrumentation    *handler.InstrumentationHandler
-	ComplianceExport   *handler.ComplianceExportHandler
-	Scorecard          *handler.ScorecardHandler
-	Tickets            *handler.TicketHandler
-	Streaming          *handler.StreamingHandler
-	DiffIntelligence   *handler.DiffIntelligenceHandler
-	Anomaly            *handler.AnomalyHandler
-	Federation         *handler.FederationHandler
-	TeamIntelligence   *handler.TeamIntelligenceHandler
-	SemanticSearch     *handler.SemanticSearchHandler
-	TrainingPipeline   *handler.TrainingPipelineHandler
-	RBAC                 *handler.RBACHandler
+	CollaborationWS  *handler.CollaborationWSHandler
+	Billing          *handler.BillingHandler
+	Reasoning        *handler.ReasoningHandler
+	Instrumentation  *handler.InstrumentationHandler
+	Scorecard        *handler.ScorecardHandler
+	Tickets          *handler.TicketHandler
+	Streaming        *handler.StreamingHandler
+	DiffIntelligence *handler.DiffIntelligenceHandler
+	Anomaly          *handler.AnomalyHandler
+	TeamIntelligence *handler.TeamIntelligenceHandler
+	SemanticSearch   *handler.SemanticSearchHandler
+	TrainingPipeline *handler.TrainingPipelineHandler
+	Prediction       *handler.PredictionHandler
+	Annotation       *handler.AnnotationHandler
+	Handoff          *handler.HandoffHandler
+	MultiModal       *handler.MultiModalHandler
+
+	// Cost
+	CostOptimizer   *handler.CostOptimizerHandler
+	CostBudget      *handler.CostBudgetHandler
+	PredictiveCost  *handler.PredictiveCostHandler
+	CostAttribution *handler.CostAttributionHandler
+	Carbon          *handler.CarbonHandler
+
+	// Compliance & Security
+	Compliance        *handler.ComplianceHandler
+	ComplianceExport  *handler.ComplianceExportHandler
+	ComplianceReport  *handler.ComplianceReportHandler
+	ComplianceMonitor *handler.ComplianceMonitorHandler
+	Guardrails        *handler.GuardrailsHandler
+	Privacy           *handler.PrivacyHandler
+	RBAC              *handler.RBACHandler
+
+	// Agents
+	AgentBuilder    *handler.AgentBuilderHandler
+	AgentVersion    *handler.AgentVersionHandler
+	AgentMemory     *handler.AgentMemoryHandler
+	Autonomy        *handler.AutonomyHandler
+	Fleet           *handler.FleetHandler
+	Copilot         *handler.CopilotHandler
+	KnowledgeGraph  *handler.KnowledgeGraphHandler
+	Intent          *handler.IntentHandler
+	SLO             *handler.SLOHandler
+
+	// Collaboration
+	CollabPattern *handler.CollabPatternHandler
+	CrossOrg      *handler.CrossOrgHandler
+
+	// Infrastructure
+	Federation           *handler.FederationHandler
+	FederatedLearning    *handler.FederatedLearningHandler
 	WebhookOrchestration *handler.WebhookOrchestrationHandler
 	Marketplace          *handler.MarketplaceHandler
-	ComplianceReport     *handler.ComplianceReportHandler
-	AgentBuilder         *handler.AgentBuilderHandler
-	Fleet                *handler.FleetHandler
-	Privacy              *handler.PrivacyHandler
 	Mobile               *handler.MobileHandler
-	Plugin                *handler.PluginHandler
+	Plugin               *handler.PluginHandler
 	OrchestrationDebugger *handler.OrchestrationDebuggerHandler
 	RCA                   *handler.RCAHandler
-	AgentVersion          *handler.AgentVersionHandler
-	PredictiveCost        *handler.PredictiveCostHandler
 	Embed                 *handler.EmbedHandler
-	Handoff        *handler.HandoffHandler
-	Annotation     *handler.AnnotationHandler
-	Carbon         *handler.CarbonHandler
-	SyntheticData  *handler.SyntheticDataHandler
-	SLO            *handler.SLOHandler
-	AgentMemory      *handler.AgentMemoryHandler
-	DistributedTrace *handler.DistributedTraceHandler
-	PromptCache      *handler.PromptCacheHandler
-	Chaos            *handler.ChaosHandler
-	CustomMetrics    *handler.CustomMetricsHandler
-	Autonomy        *handler.AutonomyHandler
-	CrossOrg        *handler.CrossOrgHandler
-	Intent          *handler.IntentHandler
-	CostAttribution *handler.CostAttributionHandler
-	KnowledgeGraph  *handler.KnowledgeGraphHandler
-	ComplianceMonitor  *handler.ComplianceMonitorHandler
-	MultiModal         *handler.MultiModalHandler
-	CollabPattern      *handler.CollabPatternHandler
-	FederatedLearning  *handler.FederatedLearningHandler
-	Copilot            *handler.CopilotHandler
+	DistributedTrace      *handler.DistributedTraceHandler
+	PromptCache           *handler.PromptCacheHandler
+	Chaos                 *handler.ChaosHandler
+	CustomMetrics         *handler.CustomMetricsHandler
+	SyntheticData         *handler.SyntheticDataHandler
 
 	// Next-Gen Features (v6)
 	ReplaySession        *handler.ReplaySessionHandler
@@ -117,6 +128,12 @@ type Handlers struct {
 	CollabHub          *handler.CollabHubHandler
 	OTelCompat         *handler.OTelCompatHandler
 	SecurityScanner    *handler.SecurityScannerHandler
+
+	// Next-Gen Features (v8)
+	AgentComparison     *handler.AgentComparisonHandler
+	StreamingWS         *handler.StreamingWSHandler
+	RegressionDetection *handler.RegressionDetectionHandler
+	CodeQuality         *handler.CodeQualityHandler
 }
 
 // initHandlers initializes all handlers
@@ -130,288 +147,169 @@ func initHandlers(
 	asynqClient *asynq.Client,
 	version string,
 ) *Handlers {
-	return &Handlers{
-		Health: handler.NewHealthHandler(
-			pgDB.Pool,
-			chDB.Conn,
-			redisClient,
-			version,
-		),
-		Ingestion: handler.NewIngestionHandler(
-			svcs.Ingestion,
-			svcs.Score,
-			logger,
-		),
-		Traces: handler.NewTracesHandler(
-			svcs.Query,
-			logger,
-		),
-		Scores: handler.NewScoresHandler(
-			svcs.Score,
-			logger,
-		),
-		Prompts: handler.NewPromptsHandler(
-			svcs.Prompt,
-			logger,
-		),
-		Datasets: handler.NewDatasetsHandler(
-			svcs.Dataset,
-			logger,
-		),
-		Evaluators: handler.NewEvaluatorsHandler(
-			svcs.Eval,
-			logger,
-		),
-		Events: handler.NewEventsHandler(
-			svcs.Realtime,
-			logger,
-		),
-		APIKeys: handler.NewAPIKeysHandler(
-			svcs.Auth,
-			logger,
-		),
-		Projects: handler.NewProjectsHandler(
-			svcs.Project,
-			logger,
-		),
-		Organizations: handler.NewOrganizationsHandler(
-			svcs.Org,
-			logger,
-		),
-		Auth: handler.NewAuthHandler(
-			svcs.Auth,
-			logger,
-		),
-		Checkpoints: handler.NewCheckpointsHandler(
-			svcs.Checkpoint,
-			logger,
-		),
-		GitLinks: handler.NewGitLinksHandler(
-			svcs.GitLink,
-			logger,
-		),
-		FileOperations: handler.NewFileOperationsHandler(
-			svcs.FileOperation,
-			logger,
-		),
-		TerminalCommands: handler.NewTerminalCommandsHandler(
-			svcs.TerminalCommand,
-			logger,
-		),
-		CIRuns: handler.NewCIRunsHandler(
-			svcs.CIRun,
-			logger,
-		),
-		Export: handler.NewExportHandler(
-			asynqClient,
-			logger,
-		),
-		Import: handler.NewImportHandler(
-			svcs.Dataset,
-			svcs.Prompt,
-			logger,
-		),
-		Docs:    handler.NewDocsHandler(),
-		Webhook: handler.NewWebhookHandler(
-			logger,
-			repos.Webhook,
-			nil, // NotificationService
-		),
-		Replay: handler.NewReplayHandler(
-			logger,
-			svcs.Replay,
-		),
-		Experiment: handler.NewExperimentHandler(
-			logger,
-			svcs.Experiment,
-		),
-		Debug: handler.NewDebugHandler(
-			svcs.Debug,
-			logger,
-		),
-		Regression: handler.NewRegressionHandler(
-			svcs.Regression,
-			logger,
-		),
-		CostOptimizer: handler.NewCostOptimizerHandler(
-			svcs.CostOptimizer,
-			logger,
-		),
-		AgentGraph: handler.NewAgentGraphHandler(
-			svcs.AgentGraph,
-			logger,
-		),
-		Guardrails: handler.NewGuardrailsHandler(
-			svcs.Guardrail,
-			logger,
-		),
-		Benchmarks: handler.NewBenchmarksHandler(
-			svcs.Benchmark,
-			logger,
-		),
-		Collaboration: handler.NewCollaborationHandler(
-			svcs.Collaboration,
-			logger,
-		),
-		Migration: handler.NewMigrationHandler(
-			svcs.Migration,
-			logger,
-		),
-		OTelReceiver: handler.NewOTelReceiverHandler(
-			svcs.OTelReceiver,
-			logger,
-		),
-		CollaborationWS: handler.NewCollaborationWSHandler(
-			logger,
-			svcs.Collaboration,
-		),
-		Compliance: handler.NewComplianceHandler(
-			svcs.Compliance,
-			logger,
-		),
-		Billing: handler.NewBillingHandler(
-			svcs.Billing,
-			logger,
-		),
-		Prediction: handler.NewPredictionHandler(
-			svcs.Prediction,
-			logger,
-		),
-		Reasoning: handler.NewReasoningHandler(
-			svcs.Reasoning,
-			logger,
-		),
-		CostBudget: handler.NewCostBudgetHandler(
-			svcs.CostBudget,
-			logger,
-		),
-		Instrumentation: handler.NewInstrumentationHandler(
-			svcs.Instrumentation,
-			logger,
-		),
-		ComplianceExport: handler.NewComplianceExportHandler(
-			svcs.ComplianceExport,
-			logger,
-		),
-		Scorecard: handler.NewScorecardHandler(
-			svcs.Scorecard,
-			logger,
-		),
-		Tickets: handler.NewTicketHandler(
-			svcs.Ticket,
-			logger,
-		),
-		DiffIntelligence: handler.NewDiffIntelligenceHandler(
-			svcs.DiffIntelligence,
-			logger,
-		),
-		Streaming: handler.NewStreamingHandler(
-			svcs.Streaming,
-			logger,
-		),
-		Anomaly: handler.NewAnomalyHandler(
-			logger,
-			svcs.Anomaly,
-		),
-		Federation: handler.NewFederationHandler(
-			svcs.Federation,
-			logger,
-		),
-		TeamIntelligence: handler.NewTeamIntelligenceHandler(
-			logger,
-			svcs.TeamIntelligence,
-		),
-		SemanticSearch: handler.NewSemanticSearchHandler(
-			logger,
-			svcs.SemanticSearch,
-		),
-		TrainingPipeline: handler.NewTrainingPipelineHandler(
-			logger,
-			svcs.TrainingPipeline,
-		),
-		RBAC: handler.NewRBACHandler(
-			logger,
-			svcs.RBAC,
-		),
-		WebhookOrchestration: handler.NewWebhookOrchestrationHandler(
-			svcs.WebhookOrchestration,
-			logger,
-		),
-		Marketplace: handler.NewMarketplaceHandler(
-			svcs.Marketplace,
-			logger,
-		),
-		ComplianceReport: handler.NewComplianceReportHandler(
-			svcs.ComplianceReport,
-			logger,
-		),
-		AgentBuilder: handler.NewAgentBuilderHandler(
-			svcs.AgentBuilder,
-			logger,
-		),
-		Fleet: handler.NewFleetHandler(
-			svcs.Fleet,
-			logger,
-		),
-		Privacy: handler.NewPrivacyHandler(
-			svcs.Privacy,
-			logger,
-		),
-		Mobile: handler.NewMobileHandler(
-			svcs.Mobile,
-			logger,
-		),
-		Plugin: handler.NewPluginHandler(
-			svcs.Plugin,
-			logger,
-		),
-		OrchestrationDebugger: handler.NewOrchestrationDebuggerHandler(svcs.OrchestrationDebugger, logger),
-		RCA:                   handler.NewRCAHandler(svcs.RCA, logger),
-		AgentVersion:          handler.NewAgentVersionHandler(svcs.AgentVersion, logger),
-		PredictiveCost:        handler.NewPredictiveCostHandler(svcs.PredictiveCost, logger),
-		Embed:                 handler.NewEmbedHandler(svcs.Embed, logger),
-		Handoff:       handler.NewHandoffHandler(svcs.Handoff, logger),
-		Annotation:    handler.NewAnnotationHandler(svcs.Annotation, logger),
-		Carbon:        handler.NewCarbonHandler(svcs.Carbon, logger),
-		SyntheticData: handler.NewSyntheticDataHandler(svcs.SyntheticData, logger),
-		SLO:           handler.NewSLOHandler(svcs.SLO, logger),
-		AgentMemory:      handler.NewAgentMemoryHandler(svcs.AgentMemory, logger),
-		DistributedTrace: handler.NewDistributedTraceHandler(svcs.DistributedTrace, logger),
-		PromptCache:      handler.NewPromptCacheHandler(svcs.PromptCache, logger),
-		Chaos:            handler.NewChaosHandler(svcs.Chaos, logger),
-		CustomMetrics:    handler.NewCustomMetricsHandler(svcs.CustomMetrics, logger),
-		Autonomy:        handler.NewAutonomyHandler(svcs.Autonomy, logger),
-		CrossOrg:        handler.NewCrossOrgHandler(svcs.CrossOrg, logger),
-		Intent:          handler.NewIntentHandler(svcs.Intent, logger),
-		CostAttribution: handler.NewCostAttributionHandler(svcs.CostAttribution, logger),
-		KnowledgeGraph:  handler.NewKnowledgeGraphHandler(svcs.KnowledgeGraph, logger),
-		ComplianceMonitor:  handler.NewComplianceMonitorHandler(svcs.ComplianceMonitor, logger),
-		MultiModal:         handler.NewMultiModalHandler(svcs.MultiModal, logger),
-		CollabPattern:      handler.NewCollabPatternHandler(svcs.CollabPattern, logger),
-		FederatedLearning:  handler.NewFederatedLearningHandler(svcs.FederatedLearning, logger),
-		Copilot:            handler.NewCopilotHandler(svcs.Copilot, logger),
+	h := &Handlers{}
 
-		// Next-Gen Features (v6)
-		ReplaySession:        handler.NewReplaySessionHandler(svcs.ReplaySession, logger),
-		CostGuardrail:        handler.NewCostGuardrailHandler(svcs.CostGuardrail, logger),
-		MultiAgentGraph:      handler.NewMultiAgentGraphHandler(svcs.MultiAgentGraph, logger),
-		PromptCI:             handler.NewPromptCIHandler(svcs.PromptCI, logger),
-		AgentBenchmark:       handler.NewAgentBenchmarkHandler(svcs.AgentBenchmark, logger),
-		SemanticTraceSearch:  handler.NewSemanticTraceSearchHandler(svcs.SemanticTraceSearch, logger),
-		AgentKnowledgeGraph:  handler.NewAgentKnowledgeGraphHandler(svcs.AgentKnowledgeGraph, logger),
-		IDETraceView:         handler.NewIDETraceViewHandler(svcs.IDETraceView, logger),
-		FederatedAggregation: handler.NewFederatedAggregationHandler(svcs.FederatedAggregation, logger),
+	initCoreHandlers(h, logger, svcs, repos, pgDB, chDB, redisClient, asynqClient, version)
+	initCostHandlers(h, logger, svcs)
+	initComplianceHandlers(h, logger, svcs)
+	initAgentHandlers(h, logger, svcs)
+	initCollabHandlers(h, logger, svcs)
+	initInfraHandlers(h, logger, svcs)
+	initV6Handlers(h, logger, svcs)
+	initV7Handlers(h, logger, svcs)
+	initV8Handlers(h, logger, svcs)
 
-		// Next-Gen Features (v7)
-		WorkflowSimulator:  handler.NewWorkflowSimulatorHandler(svcs.WorkflowSimulator, logger),
-		AutoDiscovery:      handler.NewAutoDiscoveryHandler(svcs.AutoDiscovery, logger),
-		CloudOnboarding:    handler.NewCloudOnboardingHandler(svcs.CloudOnboarding, logger),
-		AIDebugger:         handler.NewAIDebuggerHandler(svcs.AIDebugger, logger),
-		PromptOptimization: handler.NewPromptOptimizationHandler(svcs.PromptOptimization, logger),
-		CostAlerting:       handler.NewCostAlertingHandler(svcs.CostAlerting, logger),
-		RegressionSuite:    handler.NewRegressionSuiteHandler(svcs.RegressionSuite, logger),
-		CollabHub:          handler.NewCollabHubHandler(svcs.CollabHub, logger),
-		OTelCompat:         handler.NewOTelCompatHandler(svcs.OTelCompat, logger),
-		SecurityScanner:    handler.NewSecurityScannerHandler(svcs.SecurityScanner, logger),
-	}
+	return h
+}
+
+// initCoreHandlers initializes core platform handlers
+func initCoreHandlers(
+	h *Handlers,
+	logger *zap.Logger,
+	svcs *Services,
+	repos *Repositories,
+	pgDB *database.PostgresDB,
+	chDB *database.ClickHouseDB,
+	redisClient *redis.Client,
+	asynqClient *asynq.Client,
+	version string,
+) {
+	h.Health = handler.NewHealthHandler(pgDB.Pool, chDB.Conn, redisClient, version)
+	h.Ingestion = handler.NewIngestionHandler(svcs.Ingestion, svcs.Score, logger)
+	h.Traces = handler.NewTracesHandler(svcs.Query, logger)
+	h.Scores = handler.NewScoresHandler(svcs.Score, logger)
+	h.Prompts = handler.NewPromptsHandler(svcs.Prompt, logger)
+	h.Datasets = handler.NewDatasetsHandler(svcs.Dataset, logger)
+	h.Evaluators = handler.NewEvaluatorsHandler(svcs.Eval, logger)
+	h.Events = handler.NewEventsHandler(svcs.Realtime, logger)
+	h.APIKeys = handler.NewAPIKeysHandler(svcs.Auth, logger)
+	h.Projects = handler.NewProjectsHandler(svcs.Project, logger)
+	h.Organizations = handler.NewOrganizationsHandler(svcs.Org, logger)
+	h.Auth = handler.NewAuthHandler(svcs.Auth, logger)
+	h.Checkpoints = handler.NewCheckpointsHandler(svcs.Checkpoint, logger)
+	h.GitLinks = handler.NewGitLinksHandler(svcs.GitLink, logger)
+	h.FileOperations = handler.NewFileOperationsHandler(svcs.FileOperation, logger)
+	h.TerminalCommands = handler.NewTerminalCommandsHandler(svcs.TerminalCommand, logger)
+	h.CIRuns = handler.NewCIRunsHandler(svcs.CIRun, logger)
+	h.Export = handler.NewExportHandler(asynqClient, logger)
+	h.Import = handler.NewImportHandler(svcs.Dataset, svcs.Prompt, logger)
+	h.Docs = handler.NewDocsHandler()
+	h.Webhook = handler.NewWebhookHandler(logger, repos.Webhook, nil)
+	h.Replay = handler.NewReplayHandler(logger, svcs.Replay)
+	h.Experiment = handler.NewExperimentHandler(logger, svcs.Experiment)
+	h.Debug = handler.NewDebugHandler(svcs.Debug, logger)
+	h.Regression = handler.NewRegressionHandler(svcs.Regression, logger)
+	h.AgentGraph = handler.NewAgentGraphHandler(svcs.AgentGraph, logger)
+	h.Benchmarks = handler.NewBenchmarksHandler(svcs.Benchmark, logger)
+	h.Collaboration = handler.NewCollaborationHandler(svcs.Collaboration, logger)
+	h.Migration = handler.NewMigrationHandler(svcs.Migration, logger)
+	h.OTelReceiver = handler.NewOTelReceiverHandler(svcs.OTelReceiver, logger)
+	h.CollaborationWS = handler.NewCollaborationWSHandler(logger, svcs.Collaboration)
+	h.Billing = handler.NewBillingHandler(svcs.Billing, logger)
+	h.Reasoning = handler.NewReasoningHandler(svcs.Reasoning, logger)
+	h.Instrumentation = handler.NewInstrumentationHandler(svcs.Instrumentation, logger)
+	h.Scorecard = handler.NewScorecardHandler(svcs.Scorecard, logger)
+	h.Tickets = handler.NewTicketHandler(svcs.Ticket, logger)
+	h.DiffIntelligence = handler.NewDiffIntelligenceHandler(svcs.DiffIntelligence, logger)
+	h.Streaming = handler.NewStreamingHandler(svcs.Streaming, logger)
+	h.Anomaly = handler.NewAnomalyHandler(logger, svcs.Anomaly)
+	h.TeamIntelligence = handler.NewTeamIntelligenceHandler(logger, svcs.TeamIntelligence)
+	h.SemanticSearch = handler.NewSemanticSearchHandler(logger, svcs.SemanticSearch)
+	h.TrainingPipeline = handler.NewTrainingPipelineHandler(logger, svcs.TrainingPipeline)
+	h.Prediction = handler.NewPredictionHandler(svcs.Prediction, logger)
+	h.Annotation = handler.NewAnnotationHandler(svcs.Annotation, logger)
+	h.Handoff = handler.NewHandoffHandler(svcs.Handoff, logger)
+	h.MultiModal = handler.NewMultiModalHandler(svcs.MultiModal, logger)
+}
+
+// initCostHandlers initializes cost-related handlers
+func initCostHandlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.CostOptimizer = handler.NewCostOptimizerHandler(svcs.CostOptimizer, logger)
+	h.CostBudget = handler.NewCostBudgetHandler(svcs.CostBudget, logger)
+	h.PredictiveCost = handler.NewPredictiveCostHandler(svcs.PredictiveCost, logger)
+	h.CostAttribution = handler.NewCostAttributionHandler(svcs.CostAttribution, logger)
+	h.Carbon = handler.NewCarbonHandler(svcs.Carbon, logger)
+}
+
+// initComplianceHandlers initializes compliance and security handlers
+func initComplianceHandlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.Compliance = handler.NewComplianceHandler(svcs.Compliance, logger)
+	h.ComplianceExport = handler.NewComplianceExportHandler(svcs.ComplianceExport, logger)
+	h.ComplianceReport = handler.NewComplianceReportHandler(svcs.ComplianceReport, logger)
+	h.ComplianceMonitor = handler.NewComplianceMonitorHandler(svcs.ComplianceMonitor, logger)
+	h.Guardrails = handler.NewGuardrailsHandler(svcs.Guardrail, logger)
+	h.Privacy = handler.NewPrivacyHandler(svcs.Privacy, logger)
+	h.RBAC = handler.NewRBACHandler(logger, svcs.RBAC)
+}
+
+// initAgentHandlers initializes agent management handlers
+func initAgentHandlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.AgentBuilder = handler.NewAgentBuilderHandler(svcs.AgentBuilder, logger)
+	h.AgentVersion = handler.NewAgentVersionHandler(svcs.AgentVersion, logger)
+	h.AgentMemory = handler.NewAgentMemoryHandler(svcs.AgentMemory, logger)
+	h.Autonomy = handler.NewAutonomyHandler(svcs.Autonomy, logger)
+	h.Fleet = handler.NewFleetHandler(svcs.Fleet, logger)
+	h.Copilot = handler.NewCopilotHandler(svcs.Copilot, logger)
+	h.KnowledgeGraph = handler.NewKnowledgeGraphHandler(svcs.KnowledgeGraph, logger)
+	h.Intent = handler.NewIntentHandler(svcs.Intent, logger)
+	h.SLO = handler.NewSLOHandler(svcs.SLO, logger)
+}
+
+// initCollabHandlers initializes collaboration handlers
+func initCollabHandlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.CollabPattern = handler.NewCollabPatternHandler(svcs.CollabPattern, logger)
+	h.CrossOrg = handler.NewCrossOrgHandler(svcs.CrossOrg, logger)
+}
+
+// initInfraHandlers initializes infrastructure handlers
+func initInfraHandlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.Federation = handler.NewFederationHandler(svcs.Federation, logger)
+	h.FederatedLearning = handler.NewFederatedLearningHandler(svcs.FederatedLearning, logger)
+	h.WebhookOrchestration = handler.NewWebhookOrchestrationHandler(svcs.WebhookOrchestration, logger)
+	h.Marketplace = handler.NewMarketplaceHandler(svcs.Marketplace, logger)
+	h.Mobile = handler.NewMobileHandler(svcs.Mobile, logger)
+	h.Plugin = handler.NewPluginHandler(svcs.Plugin, logger)
+	h.OrchestrationDebugger = handler.NewOrchestrationDebuggerHandler(svcs.OrchestrationDebugger, logger)
+	h.RCA = handler.NewRCAHandler(svcs.RCA, logger)
+	h.Embed = handler.NewEmbedHandler(svcs.Embed, logger)
+	h.DistributedTrace = handler.NewDistributedTraceHandler(svcs.DistributedTrace, logger)
+	h.PromptCache = handler.NewPromptCacheHandler(svcs.PromptCache, logger)
+	h.Chaos = handler.NewChaosHandler(svcs.Chaos, logger)
+	h.CustomMetrics = handler.NewCustomMetricsHandler(svcs.CustomMetrics, logger)
+	h.SyntheticData = handler.NewSyntheticDataHandler(svcs.SyntheticData, logger)
+}
+
+// initV6Handlers initializes Next-Gen v6 feature handlers
+func initV6Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.ReplaySession = handler.NewReplaySessionHandler(svcs.ReplaySession, logger)
+	h.CostGuardrail = handler.NewCostGuardrailHandler(svcs.CostGuardrail, logger)
+	h.MultiAgentGraph = handler.NewMultiAgentGraphHandler(svcs.MultiAgentGraph, logger)
+	h.PromptCI = handler.NewPromptCIHandler(svcs.PromptCI, logger)
+	h.AgentBenchmark = handler.NewAgentBenchmarkHandler(svcs.AgentBenchmark, logger)
+	h.SemanticTraceSearch = handler.NewSemanticTraceSearchHandler(svcs.SemanticTraceSearch, logger)
+	h.AgentKnowledgeGraph = handler.NewAgentKnowledgeGraphHandler(svcs.AgentKnowledgeGraph, logger)
+	h.IDETraceView = handler.NewIDETraceViewHandler(svcs.IDETraceView, logger)
+	h.FederatedAggregation = handler.NewFederatedAggregationHandler(svcs.FederatedAggregation, logger)
+}
+
+// initV7Handlers initializes Next-Gen v7 feature handlers
+func initV7Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.WorkflowSimulator = handler.NewWorkflowSimulatorHandler(svcs.WorkflowSimulator, logger)
+	h.AutoDiscovery = handler.NewAutoDiscoveryHandler(svcs.AutoDiscovery, logger)
+	h.CloudOnboarding = handler.NewCloudOnboardingHandler(svcs.CloudOnboarding, logger)
+	h.AIDebugger = handler.NewAIDebuggerHandler(svcs.AIDebugger, logger)
+	h.PromptOptimization = handler.NewPromptOptimizationHandler(svcs.PromptOptimization, logger)
+	h.CostAlerting = handler.NewCostAlertingHandler(svcs.CostAlerting, logger)
+	h.RegressionSuite = handler.NewRegressionSuiteHandler(svcs.RegressionSuite, logger)
+	h.CollabHub = handler.NewCollabHubHandler(svcs.CollabHub, logger)
+	h.OTelCompat = handler.NewOTelCompatHandler(svcs.OTelCompat, logger)
+	h.SecurityScanner = handler.NewSecurityScannerHandler(svcs.SecurityScanner, logger)
+}
+
+// initV8Handlers initializes Next-Gen v8 feature handlers
+func initV8Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.AgentComparison = handler.NewAgentComparisonHandler(svcs.AgentComparison, logger)
+	h.StreamingWS = handler.NewStreamingWSHandler(logger, svcs.Streaming)
+	h.RegressionDetection = handler.NewRegressionDetectionHandler(svcs.RegressionDetection, logger)
+	h.CodeQuality = handler.NewCodeQualityHandler(logger, svcs.CodeQuality)
 }

@@ -49,3 +49,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# TypeScript build info
+web/tsconfig.tsbuildinfo

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/page-header";
+import { RealtimeStreamPanel } from "@/components/streaming/realtime-stream-panel";
 
 export const metadata = {
   title: "Live Streaming | AgentTrace",
@@ -16,20 +17,8 @@ export default function StreamingPage() {
       <Suspense
         fallback={<div className="h-96 bg-muted animate-pulse rounded-lg" />}
       >
-        <StreamingDashboardWrapper />
+        <RealtimeStreamPanel />
       </Suspense>
-    </div>
-  );
-}
-
-function StreamingDashboardWrapper() {
-  return (
-    <div className="text-center py-12 text-muted-foreground">
-      <p className="text-lg font-medium">Select a trace to begin streaming</p>
-      <p className="text-sm mt-2">
-        Active agent sessions will appear here with real-time metrics and
-        activity feeds
-      </p>
     </div>
   );
 }

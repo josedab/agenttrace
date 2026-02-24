@@ -1,0 +1,61 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Go: API Server",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/api/cmd/server",
+      "cwd": "${workspaceFolder}/api",
+      "envFile": "${workspaceFolder}/deploy/.env",
+      "args": []
+    },
+    {
+      "name": "Go: Worker",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/api/cmd/worker",
+      "cwd": "${workspaceFolder}/api",
+      "envFile": "${workspaceFolder}/deploy/.env"
+    },
+    {
+      "name": "Next.js: Web Frontend",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    },
+    {
+      "name": "Python: SDK Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "cwd": "${workspaceFolder}/sdk/python",
+      "args": ["-v"],
+      "justMyCode": true
+    },
+    {
+      "name": "Go: API Tests (Current File)",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "args": ["-v", "-race"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (API + Web)",
+      "configurations": ["Go: API Server", "Next.js: Web Frontend"]
+    }
+  ]
+}

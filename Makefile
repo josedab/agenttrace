@@ -1,4 +1,4 @@
-.PHONY: all build test lint dev clean help format docs-build docs-serve
+.PHONY: all build test lint dev dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down
 
 # Default target
 all: lint test build
@@ -8,6 +8,8 @@ help:
 	@echo "AgentTrace Monorepo Commands:"
 	@echo ""
 	@echo "  make dev          - Start dev environment (databases + API + web)"
+	@echo "  make dev-api      - Start only the API server (with databases)"
+	@echo "  make dev-web      - Start only the web frontend"
 	@echo "  make build        - Build all components"
 	@echo "  make test         - Run all tests"
 	@echo "  make lint         - Run all linters"
@@ -17,6 +19,12 @@ help:
 	@echo "  make docker-down  - Stop databases"
 	@echo "  make docs-build   - Build documentation site"
 	@echo "  make docs-serve   - Serve documentation locally"
+	@echo ""
+	@echo "Database migrations:"
+	@echo "  make migrate-pg-up   - Run PostgreSQL migrations"
+	@echo "  make migrate-pg-down - Roll back one PostgreSQL migration"
+	@echo "  make migrate-ch-up   - Run ClickHouse migrations"
+	@echo "  make migrate-ch-down - Roll back one ClickHouse migration"
 	@echo ""
 	@echo "Component targets:"
 	@echo "  make test-api     - Run Go backend tests"
@@ -36,6 +44,16 @@ dev: docker-up
 	@echo "Starting web dev server..."
 	@cd web && npm run dev
 
+## dev-api: Start only the API server
+dev-api: docker-up
+	@echo "Starting API server..."
+	cd api && go run cmd/server/main.go
+
+## dev-web: Start only the web frontend
+dev-web:
+	@echo "Starting web dev server..."
+	cd web && npm run dev
+
 ## docker-up: Start development databases
 docker-up:
 	docker compose -f deploy/docker-compose.dev.yml up -d
@@ -43,6 +61,26 @@ docker-up:
 ## docker-down: Stop development databases
 docker-down:
 	docker compose -f deploy/docker-compose.dev.yml down
+
+# ============================================
+# Database Migrations
+# ============================================
+
+## migrate-pg-up: Run PostgreSQL migrations
+migrate-pg-up:
+	cd api && $(MAKE) migrate-pg-up
+
+## migrate-pg-down: Roll back one PostgreSQL migration
+migrate-pg-down:
+	cd api && $(MAKE) migrate-pg-down
+
+## migrate-ch-up: Run ClickHouse migrations
+migrate-ch-up:
+	cd api && $(MAKE) migrate-ch-up
+
+## migrate-ch-down: Roll back one ClickHouse migration
+migrate-ch-down:
+	cd api && $(MAKE) migrate-ch-down
 
 # ============================================
 # Build
