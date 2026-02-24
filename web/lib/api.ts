@@ -916,6 +916,172 @@ export const api = {
     execute: (id: string, data: any) => fetchWithAuth<any>(`/api/public/plugins/${id}/execute`, { method: "POST", body: JSON.stringify(data) }),
     uninstall: (id: string) => fetchWithAuth<any>(`/api/public/plugins/${id}`, { method: "DELETE" }),
   },
+
+  // Memory
+  memory: {
+    analyze: (data: any) => fetchWithAuth<any>("/api/public/memory/analyze", { method: "POST", body: JSON.stringify(data) }),
+    getSnapshot: (traceId: string, step: number) => fetchWithAuth<any>(`/api/public/memory/traces/${traceId}/snapshots/${step}`),
+    getOptimizations: () => fetchWithAuth<any>("/api/public/memory/optimizations"),
+  },
+
+  // Distributed Traces
+  distributedTraces: {
+    get: (traceId: string) => fetchWithAuth<any>(`/api/public/distributed/traces/${traceId}`),
+    getServiceMap: () => fetchWithAuth<any>("/api/public/distributed/service-map"),
+    correlate: (data: any) => fetchWithAuth<any>("/api/public/distributed/correlate", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Prompt Cache
+  promptCache: {
+    analyze: () => fetchWithAuth<any>("/api/public/prompt-cache/analyze"),
+    getConfig: () => fetchWithAuth<any>("/api/public/prompt-cache/config"),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/prompt-cache/config", { method: "PUT", body: JSON.stringify(data) }),
+    getStats: () => fetchWithAuth<any>("/api/public/prompt-cache/stats"),
+    invalidate: () => fetchWithAuth<any>("/api/public/prompt-cache/invalidate", { method: "POST" }),
+  },
+
+  // Chaos Testing
+  chaos: {
+    list: () => fetchWithAuth<any>("/api/public/chaos/experiments"),
+    create: (data: any) => fetchWithAuth<any>("/api/public/chaos/experiments", { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/chaos/experiments/${id}`),
+    run: (id: string) => fetchWithAuth<any>(`/api/public/chaos/experiments/${id}/run`, { method: "POST" }),
+    getScorecard: (agentName: string) => fetchWithAuth<any>(`/api/public/chaos/scorecard/${agentName}`),
+  },
+
+  // Custom Metrics
+  customMetrics: {
+    list: () => fetchWithAuth<any>("/api/public/custom-metrics"),
+    create: (data: any) => fetchWithAuth<any>("/api/public/custom-metrics", { method: "POST", body: JSON.stringify(data) }),
+    getValues: (id: string) => fetchWithAuth<any>(`/api/public/custom-metrics/${id}/values`),
+    listDashboards: () => fetchWithAuth<any>("/api/public/custom-metrics/dashboards"),
+    createDashboard: (data: any) => fetchWithAuth<any>("/api/public/custom-metrics/dashboards", { method: "POST", body: JSON.stringify(data) }),
+    listAlerts: () => fetchWithAuth<any>("/api/public/custom-metrics/alerts"),
+    createAlert: (data: any) => fetchWithAuth<any>("/api/public/custom-metrics/alerts", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Handoffs
+  handoffs: {
+    initiate: (data: any) => fetchWithAuth<any>("/api/public/handoffs", { method: "POST", body: JSON.stringify(data) }),
+    accept: (id: string) => fetchWithAuth<any>(`/api/public/handoffs/${id}/accept`, { method: "POST" }),
+    complete: (id: string) => fetchWithAuth<any>(`/api/public/handoffs/${id}/complete`, { method: "POST" }),
+    getChain: (traceId: string) => fetchWithAuth<any>(`/api/public/handoffs/chain/${traceId}`),
+    getStats: () => fetchWithAuth<any>("/api/public/handoffs/stats"),
+  },
+
+  // Annotations
+  annotations: {
+    list: (traceId: string) => fetchWithAuth<any>(`/api/public/annotations/traces/${traceId}`),
+    create: (data: any) => fetchWithAuth<any>("/api/public/annotations", { method: "POST", body: JSON.stringify(data) }),
+    reply: (id: string, data: any) => fetchWithAuth<any>(`/api/public/annotations/${id}/reply`, { method: "POST", body: JSON.stringify(data) }),
+    resolve: (id: string) => fetchWithAuth<any>(`/api/public/annotations/${id}/resolve`, { method: "POST" }),
+    getPresence: (traceId: string) => fetchWithAuth<any>(`/api/public/annotations/presence/${traceId}`),
+  },
+
+  // Carbon
+  carbon: {
+    getFootprint: () => fetchWithAuth<any>("/api/public/carbon/footprint"),
+    getConfig: () => fetchWithAuth<any>("/api/public/carbon/config"),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/carbon/config", { method: "PUT", body: JSON.stringify(data) }),
+    getSuggestions: () => fetchWithAuth<any>("/api/public/carbon/suggestions"),
+  },
+
+  // Synthetic Data
+  syntheticData: {
+    generate: (data: any) => fetchWithAuth<any>("/api/public/synthetic-data/generate", { method: "POST", body: JSON.stringify(data) }),
+    list: () => fetchWithAuth<any>("/api/public/synthetic-data/datasets"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/synthetic-data/datasets/${id}`),
+    getStats: () => fetchWithAuth<any>("/api/public/synthetic-data/stats"),
+  },
+
+  // SLOs
+  slos: {
+    list: () => fetchWithAuth<any>("/api/public/slos"),
+    create: (data: any) => fetchWithAuth<any>("/api/public/slos", { method: "POST", body: JSON.stringify(data) }),
+    getStatus: (id: string) => fetchWithAuth<any>(`/api/public/slos/${id}/status`),
+    getReport: () => fetchWithAuth<any>("/api/public/slos/report"),
+    getHistory: (id: string) => fetchWithAuth<any>(`/api/public/slos/${id}/history`),
+  },
+
+  // Autonomy Gradient
+  autonomy: {
+    getDashboard: () => fetchWithAuth<any>("/api/public/autonomy/dashboard"),
+    getConfig: (agent: string) => fetchWithAuth<any>(`/api/public/autonomy/${agent}`),
+    set: (data: any) => fetchWithAuth<any>("/api/public/autonomy", { method: "POST", body: JSON.stringify(data) }),
+    getTrust: (agent: string) => fetchWithAuth<any>(`/api/public/autonomy/${agent}/trust`),
+  },
+
+  // Cross-Org Benchmarks
+  crossOrg: {
+    submit: (data: any) => fetchWithAuth<any>("/api/public/cross-org/submit", { method: "POST", body: JSON.stringify(data) }),
+    getReport: () => fetchWithAuth<any>("/api/public/cross-org/report"),
+    getIndustry: (cat: string) => fetchWithAuth<any>(`/api/public/cross-org/industry/${cat}`),
+  },
+
+  // Intent Verification
+  intents: {
+    declare: (data: any) => fetchWithAuth<any>("/api/public/intents", { method: "POST", body: JSON.stringify(data) }),
+    verify: (id: string, data: any) => fetchWithAuth<any>(`/api/public/intents/${id}/verify`, { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/intents/${id}`),
+    getStats: () => fetchWithAuth<any>("/api/public/intents/stats"),
+  },
+
+  // Cost Attribution
+  costAttribution: {
+    attribute: (data: any) => fetchWithAuth<any>("/api/public/cost-attribution", { method: "POST", body: JSON.stringify(data) }),
+    getReport: () => fetchWithAuth<any>("/api/public/cost-attribution/report"),
+    list: () => fetchWithAuth<any>("/api/public/cost-attribution"),
+  },
+
+  // Knowledge Graph
+  knowledgeGraph: {
+    build: () => fetchWithAuth<any>("/api/public/knowledge-graph"),
+    query: (data: any) => fetchWithAuth<any>("/api/public/knowledge-graph/query", { method: "POST", body: JSON.stringify(data) }),
+    getStats: () => fetchWithAuth<any>("/api/public/knowledge-graph/stats"),
+  },
+
+  // Compliance Monitor
+  complianceMonitor: {
+    listPolicies: () => fetchWithAuth<any>("/api/public/compliance-monitor/policies"),
+    createPolicy: (data: any) => fetchWithAuth<any>("/api/public/compliance-monitor/policies", { method: "POST", body: JSON.stringify(data) }),
+    evaluate: (data: any) => fetchWithAuth<any>("/api/public/compliance-monitor/evaluate", { method: "POST", body: JSON.stringify(data) }),
+    getScore: (fw: string) => fetchWithAuth<any>(`/api/public/compliance-monitor/score/${fw}`),
+    configure: (data: any) => fetchWithAuth<any>("/api/public/compliance-monitor/configure", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Multi-Modal Traces
+  multimodal: {
+    register: (data: any) => fetchWithAuth<any>("/api/public/multimodal/attachments", { method: "POST", body: JSON.stringify(data) }),
+    getTraceAttachments: (traceId: string) => fetchWithAuth<any>(`/api/public/multimodal/traces/${traceId}`),
+    getAttachment: (id: string) => fetchWithAuth<any>(`/api/public/multimodal/attachments/${id}`),
+    getSummary: (traceId: string) => fetchWithAuth<any>(`/api/public/multimodal/traces/${traceId}/summary`),
+    list: () => fetchWithAuth<any>("/api/public/multimodal/attachments"),
+  },
+
+  // Collaboration Patterns
+  collabPatterns: {
+    list: () => fetchWithAuth<any>("/api/public/collab-patterns"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/collab-patterns/${id}`),
+    deploy: (id: string, data: any) => fetchWithAuth<any>(`/api/public/collab-patterns/${id}/deploy`, { method: "POST", body: JSON.stringify(data) }),
+    getDeployments: () => fetchWithAuth<any>("/api/public/collab-patterns/deployments"),
+    getAnalytics: (id: string) => fetchWithAuth<any>(`/api/public/collab-patterns/${id}/analytics`),
+  },
+
+  // Federated Learning
+  federatedLearning: {
+    listRings: () => fetchWithAuth<any>("/api/public/federated/rings"),
+    joinRing: (data: any) => fetchWithAuth<any>("/api/public/federated/rings/join", { method: "POST", body: JSON.stringify(data) }),
+    getInsights: (ringId: string) => fetchWithAuth<any>(`/api/public/federated/rings/${ringId}/insights`),
+    getConfig: () => fetchWithAuth<any>("/api/public/federated/config"),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/federated/config", { method: "PUT", body: JSON.stringify(data) }),
+  },
+
+  // Observability Copilot
+  copilot: {
+    ask: (data: any) => fetchWithAuth<any>("/api/public/copilot/ask", { method: "POST", body: JSON.stringify(data) }),
+    getSuggestions: () => fetchWithAuth<any>("/api/public/copilot/suggestions"),
+    getInsights: () => fetchWithAuth<any>("/api/public/copilot/insights"),
+  },
 };
 export interface User {
   id: string;
