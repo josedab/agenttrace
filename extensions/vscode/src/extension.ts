@@ -5,6 +5,9 @@ import { SessionsTreeProvider } from './providers/sessionsTreeProvider';
 import { GitHistoryTreeProvider } from './providers/gitHistoryTreeProvider';
 import { StatusBarManager } from './views/statusBar';
 import { FileDecorationProvider } from './providers/fileDecorationProvider';
+import { InlineTraceProvider } from './providers/inlineTraceProvider';
+import { TimeTravelProvider } from './providers/timeTravelProvider';
+import { TraceQuickViewProvider } from './providers/traceQuickViewProvider';
 import { registerCommands } from './commands';
 
 let client: AgentTraceClient;
@@ -62,6 +65,36 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.registerFileDecorationProvider(fileDecorationProvider)
         );
     }
+
+    // Initialize inline trace provider
+    const inlineTraceProvider = new InlineTraceProvider();
+    context.subscriptions.push(inlineTraceProvider);
+
+    // Initialize time travel provider
+    const timeTravelProvider = new TimeTravelProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(TimeTravelProvider.viewType, timeTravelProvider)
+    );
+
+    // Initialize trace quick view provider
+    const traceQuickViewProvider = new TraceQuickViewProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(TraceQuickViewProvider.viewType, traceQuickViewProvider)
+    );
+
+    // Register new commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('agenttrace.toggleInlineAnnotations', () => {
+            const enabled = !vscode.workspace.getConfiguration('agenttrace').get('inlineAnnotations', true);
+            vscode.workspace.getConfiguration('agenttrace').update('inlineAnnotations', enabled, true);
+            if (!enabled) { inlineTraceProvider.clearAnnotations(); }
+            vscode.window.showInformationMessage(`Inline annotations ${enabled ? 'enabled' : 'disabled'}`);
+        }),
+        vscode.commands.registerCommand('agenttrace.timeTravelStep', (direction: 'forward' | 'backward') => {
+            if (direction === 'forward') { timeTravelProvider.stepForward(); }
+            else { timeTravelProvider.stepBackward(); }
+        })
+    );
 
     // Register commands
     registerCommands(context, client, tracesProvider, sessionsProvider, gitHistoryProvider);

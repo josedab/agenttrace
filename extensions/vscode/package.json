@@ -55,6 +55,16 @@
           "id": "agenttrace.gitHistory",
           "name": "Git History",
           "icon": "images/git-icon.svg"
+        },
+        {
+          "id": "agenttrace.timeTravel",
+          "name": "Time Travel",
+          "type": "webview"
+        },
+        {
+          "id": "agenttrace.traceQuickView",
+          "name": "Trace Quick View",
+          "type": "webview"
         }
       ]
     },
@@ -104,6 +114,16 @@
       {
         "command": "agenttrace.copyTraceId",
         "title": "Copy Trace ID",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.toggleInlineAnnotations",
+        "title": "Toggle Inline Trace Annotations",
+        "category": "AgentTrace"
+      },
+      {
+        "command": "agenttrace.timeTravelStep",
+        "title": "Time Travel Step",
         "category": "AgentTrace"
       }
     ],
