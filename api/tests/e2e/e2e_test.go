@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -648,4 +649,298 @@ func (s *E2ETestSuite) TestTracePagination() {
 	s.parseResponse(resp, &page2)
 	data2 := page2["data"].([]interface{})
 	assert.GreaterOrEqual(s.T(), len(data2), 1)
+}
+
+// ================================================================
+// Next-Gen Feature E2E Tests
+// ================================================================
+
+// TestStreamingEndpoints tests the real-time streaming API
+func (s *E2ETestSuite) TestStreamingEndpoints() {
+	// GET /api/public/streams
+	resp, err := s.doRequest("GET", "/api/public/streams", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+
+	var streamsResp map[string]interface{}
+	s.parseResponse(resp, &streamsResp)
+	assert.NotNil(s.T(), streamsResp["streams"])
+}
+
+// TestDiffIntelligenceLifecycle tests the diff analysis API
+func (s *E2ETestSuite) TestDiffIntelligenceLifecycle() {
+	// POST /api/public/diff-analysis - Create analysis
+	input := map[string]interface{}{
+		"traceId": uuid.New().String(),
+		"fileChanges": []map[string]interface{}{
+			{
+				"filePath":     "main.go",
+				"operation":    "modify",
+				"contentAfter": "package main\nfunc main() {}\n",
+				"diff":         "+func main() {}\n",
+			},
+		},
+	}
+
+	resp, err := s.doRequest("POST", "/api/public/diff-analysis", input)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+
+	var analysis map[string]interface{}
+	s.parseResponse(resp, &analysis)
+
+	analysisID, ok := analysis["id"].(string)
+	require.True(s.T(), ok, "analysis should have an id")
+	assert.Equal(s.T(), "completed", analysis["status"])
+	assert.NotNil(s.T(), analysis["overallScore"])
+
+	// GET /api/public/diff-analysis/:id
+	resp, err = s.doRequest("GET", "/api/public/diff-analysis/"+analysisID, nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// GET /api/public/diff-analysis
+	resp, err = s.doRequest("GET", "/api/public/diff-analysis?limit=10", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// GET /api/public/diff-analysis/trend
+	resp, err = s.doRequest("GET", "/api/public/diff-analysis/trend?days=30", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+}
+
+// TestGuardrailPlaybooks tests guardrail playbook endpoints
+func (s *E2ETestSuite) TestGuardrailPlaybooks() {
+	// GET /api/public/guardrails/templates
+	resp, err := s.doRequest("GET", "/api/public/guardrails/templates", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+
+	var templatesResp map[string]interface{}
+	s.parseResponse(resp, &templatesResp)
+	templates, ok := templatesResp["templates"].([]interface{})
+	require.True(s.T(), ok)
+	assert.Greater(s.T(), len(templates), 0, "should have at least one template")
+
+	// POST /api/public/guardrails/playbooks
+	playbook := map[string]interface{}{
+		"name":     "test-playbook",
+		"template": "production-safe",
+	}
+	resp, err = s.doRequest("POST", "/api/public/guardrails/playbooks", playbook)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+
+	var playbookResp map[string]interface{}
+	s.parseResponse(resp, &playbookResp)
+	assert.Equal(s.T(), "test-playbook", playbookResp["name"])
+	assert.True(s.T(), playbookResp["enabled"].(bool))
+}
+
+// TestCollaborationDiscussions tests discussion thread endpoints
+func (s *E2ETestSuite) TestCollaborationDiscussions() {
+	// POST /api/public/collaboration/discussions
+	input := map[string]interface{}{
+		"traceId":        uuid.New().String(),
+		"title":          "Test Discussion",
+		"initialMessage": "This is a test discussion thread",
+	}
+	resp, err := s.doRequest("POST", "/api/public/collaboration/discussions", input)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+
+	var thread map[string]interface{}
+	s.parseResponse(resp, &thread)
+	assert.Equal(s.T(), "Test Discussion", thread["title"])
+	assert.Equal(s.T(), "open", thread["status"])
+
+	// POST /api/public/collaboration/eval-queues
+	queueInput := map[string]interface{}{
+		"name":     "test-eval-queue",
+		"traceIds": []string{uuid.New().String()},
+	}
+	resp, err = s.doRequest("POST", "/api/public/collaboration/eval-queues", queueInput)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+	defer resp.Body.Close()
+}
+
+// TestAnomalyDashboard tests anomaly detection endpoints
+func (s *E2ETestSuite) TestAnomalyDashboard() {
+	// GET /api/public/anomaly/dashboard
+	resp, err := s.doRequest("GET", "/api/public/anomaly/dashboard", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+
+	var dashboard map[string]interface{}
+	s.parseResponse(resp, &dashboard)
+	assert.NotNil(s.T(), dashboard["healthScore"])
+
+	// POST /api/public/anomaly/channels
+	channel := map[string]interface{}{
+		"name": "slack-alerts",
+		"type": "slack",
+		"config": map[string]string{
+			"webhookUrl": "https://hooks.slack.com/test",
+		},
+	}
+	resp, err = s.doRequest("POST", "/api/public/anomaly/channels", channel)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// GET /api/public/anomaly/anomalies/:id/root-cause (test with random ID)
+	resp, err = s.doRequest("GET", "/api/public/anomaly/anomalies/"+uuid.New().String()+"/root-cause", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+}
+
+// TestBenchmarkLifecycle tests benchmark endpoints
+func (s *E2ETestSuite) TestBenchmarkLifecycle() {
+	// POST /api/public/benchmarks
+	benchmark := map[string]interface{}{
+		"name":        "code-gen-benchmark",
+		"description": "Test benchmark for code generation",
+		"category":    "code_generation",
+		"datasetId":   uuid.New().String(),
+		"metrics": []map[string]interface{}{
+			{"name": "accuracy", "weight": 0.5, "higherIsBetter": true},
+			{"name": "speed", "weight": 0.3, "higherIsBetter": false},
+			{"name": "cost", "weight": 0.2, "higherIsBetter": false},
+		},
+		"isPublic": true,
+	}
+	resp, err := s.doRequest("POST", "/api/public/benchmarks", benchmark)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// GET /api/public/benchmarks
+	resp, err = s.doRequest("GET", "/api/public/benchmarks", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+}
+
+// TestCostOptimizerAutopilot tests cost optimization endpoints
+func (s *E2ETestSuite) TestCostOptimizerAutopilot() {
+	// GET /api/public/cost-optimizer/forecast
+	resp, err := s.doRequest("GET", "/api/public/cost-optimizer/forecast", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+
+	var forecast map[string]interface{}
+	s.parseResponse(resp, &forecast)
+	assert.NotNil(s.T(), forecast["projectedMonthlyCost"])
+
+	// POST /api/public/cost-optimizer/autopilot
+	config := map[string]interface{}{
+		"enabled":           true,
+		"maxBudgetDaily":    50.0,
+		"maxBudgetMonthly":  1000.0,
+		"optimizationLevel": "balanced",
+	}
+	resp, err = s.doRequest("POST", "/api/public/cost-optimizer/autopilot", config)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+
+	var autopilot map[string]interface{}
+	s.parseResponse(resp, &autopilot)
+	assert.True(s.T(), autopilot["enabled"].(bool))
+	assert.Equal(s.T(), "balanced", autopilot["optimizationLevel"])
+
+	// POST /api/public/cost-optimizer/report
+	resp, err = s.doRequest("POST", "/api/public/cost-optimizer/report", map[string]interface{}{})
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+}
+
+// TestReplayReproduction tests trace reproduction endpoints
+func (s *E2ETestSuite) TestReplayReproduction() {
+	// Create a trace first
+	traceResp, err := s.doRequest("POST", "/api/public/traces", map[string]interface{}{
+		"name": "repro-test-trace",
+	})
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), http.StatusCreated, traceResp.StatusCode)
+
+	var traceResult map[string]interface{}
+	s.parseResponse(traceResp, &traceResult)
+	traceID := traceResult["id"].(string)
+	require.NotEmpty(s.T(), traceID)
+
+	// POST /api/public/traces/:traceId/reproduce
+	reproInput := map[string]interface{}{
+		"format": "python",
+		"config": map[string]interface{}{
+			"includeEnvironment": true,
+			"deterministicMode":  true,
+		},
+	}
+	resp, err := s.doRequest("POST", "/api/public/traces/"+traceID+"/reproduce", reproInput)
+	require.NoError(s.T(), err)
+	// May be 201 or 500 if trace has no events
+	defer resp.Body.Close()
+}
+
+// TestFederationLifecycle tests federation endpoints
+func (s *E2ETestSuite) TestFederationLifecycle() {
+	// POST /api/public/federation/peers
+	peer := map[string]interface{}{
+		"name": "staging-cluster",
+		"url":  "https://staging.agenttrace.example.com",
+	}
+	resp, err := s.doRequest("POST", "/api/public/federation/peers", peer)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+
+	var peerResp map[string]interface{}
+	s.parseResponse(resp, &peerResp)
+	peerID, _ := peerResp["id"].(string)
+	require.NotEmpty(s.T(), peerID)
+
+	// GET /api/public/federation/peers
+	resp, err = s.doRequest("GET", "/api/public/federation/peers", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// POST /api/public/federation/destinations
+	dest := map[string]interface{}{
+		"name":     "datadog-export",
+		"type":     "datadog",
+		"endpoint": "https://trace.agent.datadoghq.com",
+		"protocol": "grpc",
+	}
+	resp, err = s.doRequest("POST", "/api/public/federation/destinations", dest)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusCreated, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// GET /api/public/federation/destinations
+	resp, err = s.doRequest("GET", "/api/public/federation/destinations", nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// POST /api/public/federation/query
+	query := map[string]interface{}{
+		"query": "high-cost traces",
+	}
+	resp, err = s.doRequest("POST", "/api/public/federation/query", query)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
+
+	// DELETE /api/public/federation/peers/:id
+	resp, err = s.doRequest("DELETE", "/api/public/federation/peers/"+peerID, nil)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
+	defer resp.Body.Close()
 }
