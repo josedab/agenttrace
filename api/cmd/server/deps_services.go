@@ -90,6 +90,32 @@ type Services struct {
 	FederatedLearning  *service.FederatedLearningService
 	Copilot            *service.CopilotService
 	LLM                   *service.LLMClient
+
+	// Next-Gen Features (v6)
+	ReplaySession          *service.ReplaySessionService
+	CostGuardrail          *service.CostGuardrailService
+	MultiAgentGraph        *service.MultiAgentGraphService
+	PromptCI               *service.PromptCIService
+	AgentBenchmark         *service.AgentBenchmarkService
+	SemanticTraceSearch    *service.SemanticTraceSearchService
+	AgentKnowledgeGraph    *service.AgentKnowledgeGraphService
+	IDETraceView           *service.IDETraceViewService
+	FederatedAggregation   *service.FederatedAggregationService
+	EmbeddingPipeline      *service.EmbeddingPipelineService
+	StripeWebhook          *service.StripeWebhookService
+	UsageMetering          *service.UsageMeteringService
+
+	// Next-Gen Features (v7)
+	WorkflowSimulator      *service.WorkflowSimulatorService
+	AutoDiscovery          *service.AutoDiscoveryService
+	CloudOnboarding        *service.CloudOnboardingService
+	AIDebugger             *service.AIDebuggerService
+	PromptOptimization     *service.PromptOptimizationService
+	CostAlerting           *service.CostAlertingService
+	RegressionSuite        *service.RegressionSuiteService
+	CollabHub              *service.CollabHubService
+	OTelCompat             *service.OTelCompatService
+	SecurityScanner        *service.SecurityScannerService
 }
 
 // initServices initializes all services
@@ -396,6 +422,37 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 
 	// Observability copilot service
 	svcs.Copilot = service.NewCopilotService(logger)
+
+	// Next-Gen Features (v6)
+	svcs.ReplaySession = service.NewReplaySessionService(logger)
+	svcs.CostGuardrail = service.NewCostGuardrailService(logger)
+	svcs.MultiAgentGraph = service.NewMultiAgentGraphService(logger)
+	svcs.PromptCI = service.NewPromptCIService(logger)
+	svcs.AgentBenchmark = service.NewAgentBenchmarkService(logger)
+	svcs.SemanticTraceSearch = service.NewSemanticTraceSearchService(logger)
+	svcs.AgentKnowledgeGraph = service.NewAgentKnowledgeGraphService(logger)
+	svcs.IDETraceView = service.NewIDETraceViewService(logger)
+	svcs.FederatedAggregation = service.NewFederatedAggregationService(logger)
+	svcs.EmbeddingPipeline = service.NewEmbeddingPipelineService(logger)
+	svcs.UsageMetering = service.NewUsageMeteringService(logger)
+	svcs.StripeWebhook = service.NewStripeWebhookService(
+		logger,
+		cfg.Server.StripeWebhookSecret,
+		svcs.Billing,
+		svcs.Tenant,
+	)
+
+	// Next-Gen Features (v7)
+	svcs.WorkflowSimulator = service.NewWorkflowSimulatorService(logger)
+	svcs.AutoDiscovery = service.NewAutoDiscoveryService(logger)
+	svcs.CloudOnboarding = service.NewCloudOnboardingService(logger)
+	svcs.AIDebugger = service.NewAIDebuggerService(logger)
+	svcs.PromptOptimization = service.NewPromptOptimizationService(logger)
+	svcs.CostAlerting = service.NewCostAlertingService(logger)
+	svcs.RegressionSuite = service.NewRegressionSuiteService(logger)
+	svcs.CollabHub = service.NewCollabHubService(logger)
+	svcs.OTelCompat = service.NewOTelCompatService(logger)
+	svcs.SecurityScanner = service.NewSecurityScannerService(logger)
 
 	return svcs
 }

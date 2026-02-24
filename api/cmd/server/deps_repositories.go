@@ -51,6 +51,29 @@ type Repositories struct {
 	Plugin             *pgrepo.PluginRepository
 	Privacy            *pgrepo.PrivacyRepository
 	PredictiveCost     *pgrepo.PredictiveCostRepository
+
+	// Next-Gen Feature repositories (v6)
+	ReplaySession      *pgrepo.ReplaySessionRepository
+	CostGuardrail      *pgrepo.CostGuardrailRepository
+	MultiAgentSession  *pgrepo.MultiAgentSessionRepository
+	PromptBaseline     *pgrepo.PromptBaselineRepository
+	AgentBenchmarkV6   *pgrepo.AgentBenchmarkRepository
+	TraceEmbedding     *pgrepo.TraceEmbeddingRepository
+	KnowledgeSnapshot  *pgrepo.KnowledgeSnapshotRepository
+	FileTraceMapping   *pgrepo.FileTraceMappingRepository
+	FederatedInstance  *pgrepo.FederatedInstanceRepository
+
+	// Next-Gen v7 Feature repositories
+	WorkflowDefinition  *pgrepo.WorkflowDefinitionRepository
+	DiscoveredFramework *pgrepo.DiscoveredFrameworkRepository
+	CloudOnboardingRepo *pgrepo.CloudOnboardingRepository
+	DebugQuery          *pgrepo.DebugQueryRepository
+	PromptOptimization  *pgrepo.PromptOptimizationRepository
+	CostAlertRepo       *pgrepo.CostAlertRepository
+	GoldenDataset       *pgrepo.GoldenDatasetRepository
+	ReviewQueueRepo     *pgrepo.ReviewQueueRepository
+	OTelDestination     *pgrepo.OTelDestinationRepository
+	SecurityScan        *pgrepo.SecurityScanRepository
 }
 
 // initRepositories initializes all repositories
@@ -98,5 +121,28 @@ func initRepositories(dbs *Databases, logger *zap.Logger) *Repositories {
 		Plugin:             pgrepo.NewPluginRepository(dbs.Postgres),
 		Privacy:            pgrepo.NewPrivacyRepository(dbs.Postgres),
 		PredictiveCost:     pgrepo.NewPredictiveCostRepository(dbs.Postgres),
+
+		// Next-Gen Feature repositories (v6)
+		ReplaySession:      pgrepo.NewReplaySessionRepository(dbs.Postgres),
+		CostGuardrail:      pgrepo.NewCostGuardrailRepository(dbs.Postgres),
+		MultiAgentSession:  pgrepo.NewMultiAgentSessionRepository(dbs.Postgres),
+		PromptBaseline:     pgrepo.NewPromptBaselineRepository(dbs.Postgres),
+		AgentBenchmarkV6:   pgrepo.NewAgentBenchmarkRepository(dbs.Postgres),
+		TraceEmbedding:     pgrepo.NewTraceEmbeddingRepository(dbs.Postgres),
+		KnowledgeSnapshot:  pgrepo.NewKnowledgeSnapshotRepository(dbs.Postgres),
+		FileTraceMapping:   pgrepo.NewFileTraceMappingRepository(dbs.Postgres),
+		FederatedInstance:  pgrepo.NewFederatedInstanceRepository(dbs.Postgres),
+
+		// Next-Gen v7 Feature repositories
+		WorkflowDefinition:  pgrepo.NewWorkflowDefinitionRepository(dbs.Postgres),
+		DiscoveredFramework: pgrepo.NewDiscoveredFrameworkRepository(dbs.Postgres),
+		CloudOnboardingRepo: pgrepo.NewCloudOnboardingRepository(dbs.Postgres),
+		DebugQuery:          pgrepo.NewDebugQueryRepository(dbs.Postgres),
+		PromptOptimization:  pgrepo.NewPromptOptimizationRepository(dbs.Postgres),
+		CostAlertRepo:       pgrepo.NewCostAlertRepository(dbs.Postgres),
+		GoldenDataset:       pgrepo.NewGoldenDatasetRepository(dbs.Postgres),
+		ReviewQueueRepo:     pgrepo.NewReviewQueueRepository(dbs.Postgres),
+		OTelDestination:     pgrepo.NewOTelDestinationRepository(dbs.Postgres),
+		SecurityScan:        pgrepo.NewSecurityScanRepository(dbs.Postgres),
 	}
 }

@@ -541,6 +541,151 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Post("/copilot/ask", h.Copilot.Ask)
 		public.Get("/copilot/suggestions", h.Copilot.GetSuggestions)
 		public.Get("/copilot/insights", h.Copilot.GetInsights)
+
+		// ===== Next-Gen Features (v6) =====
+
+		// Real-Time Agent Replay
+		public.Get("/replay-sessions", h.ReplaySession.ListSessions)
+		public.Post("/replay-sessions", h.ReplaySession.CreateSession)
+		public.Get("/replay-sessions/:sessionId", h.ReplaySession.GetSession)
+		public.Get("/replay-sessions/:sessionId/timeline", h.ReplaySession.GetTimeline)
+		public.Get("/replay-sessions/:sessionId/playback", h.ReplaySession.GetPlaybackState)
+		public.Post("/replay-sessions/:sessionId/branch", h.ReplaySession.BranchSession)
+		public.Post("/replay-sessions/:sessionId/share", h.ReplaySession.ShareSession)
+
+		// Intelligent Cost Guardrails
+		public.Get("/cost-guardrails/dashboard", h.CostGuardrail.GetDashboard)
+		public.Get("/cost-guardrails/policies", h.CostGuardrail.ListPolicies)
+		public.Post("/cost-guardrails/policies", h.CostGuardrail.CreatePolicy)
+		public.Post("/cost-guardrails/check", h.CostGuardrail.CheckBudget)
+		public.Get("/cost-guardrails/forecast", h.CostGuardrail.GetForecast)
+		public.Get("/cost-guardrails/violations", h.CostGuardrail.ListViolations)
+
+		// Multi-Agent Collaboration Graph
+		public.Get("/multi-agent/sessions", h.MultiAgentGraph.ListSessions)
+		public.Post("/multi-agent/analyze", h.MultiAgentGraph.AnalyzeSession)
+		public.Get("/multi-agent/sessions/:sessionId", h.MultiAgentGraph.GetSession)
+
+		// Prompt Regression Testing in CI
+		public.Get("/prompt-ci/baselines", h.PromptCI.ListBaselines)
+		public.Post("/prompt-ci/baselines", h.PromptCI.CreateBaseline)
+		public.Get("/prompt-ci/baselines/:baselineId", h.PromptCI.GetBaseline)
+		public.Post("/prompt-ci/compare", h.PromptCI.RunComparison)
+		public.Get("/prompt-ci/runs", h.PromptCI.ListRuns)
+
+		// Agent Performance Benchmarks (next-gen)
+		public.Get("/agent-benchmarks/suites", h.AgentBenchmark.ListSuites)
+		public.Post("/agent-benchmarks/suites", h.AgentBenchmark.CreateSuite)
+		public.Get("/agent-benchmarks/suites/:suiteId", h.AgentBenchmark.GetSuite)
+		public.Post("/agent-benchmarks/run", h.AgentBenchmark.RunBenchmark)
+		public.Get("/agent-benchmarks/suites/:suiteId/leaderboard", h.AgentBenchmark.GetLeaderboard)
+
+		// Semantic Trace Search
+		public.Post("/semantic-search", h.SemanticTraceSearch.Search)
+		public.Get("/semantic-search/clusters", h.SemanticTraceSearch.GetClusters)
+		public.Get("/semantic-search/anomaly-patterns", h.SemanticTraceSearch.GetAnomalyPatterns)
+		public.Get("/semantic-search/dashboard", h.SemanticTraceSearch.GetDashboard)
+
+		// Agent Knowledge Graph (next-gen)
+		public.Get("/agent-knowledge-graph", h.AgentKnowledgeGraph.BuildGraph)
+		public.Post("/agent-knowledge-graph/query", h.AgentKnowledgeGraph.QueryGraph)
+		public.Get("/agent-knowledge-graph/evolution", h.AgentKnowledgeGraph.GetEvolution)
+		public.Get("/agent-knowledge-graph/stats", h.AgentKnowledgeGraph.GetStats)
+
+		// IDE Inline Trace Viewer
+		public.Get("/ide/file-mapping", h.IDETraceView.GetFileMapping)
+		public.Post("/ide/batch-mappings", h.IDETraceView.GetBatchMappings)
+		public.Get("/ide/trace-context/:traceId", h.IDETraceView.GetTraceContext)
+
+		// Federated Trace Aggregation
+		public.Get("/federated-aggregation/dashboard", h.FederatedAggregation.GetDashboard)
+		public.Get("/federated-aggregation/instances", h.FederatedAggregation.ListInstances)
+		public.Post("/federated-aggregation/instances", h.FederatedAggregation.RegisterInstance)
+		public.Post("/federated-aggregation/metrics", h.FederatedAggregation.SubmitMetrics)
+		public.Get("/federated-aggregation/benchmarks", h.FederatedAggregation.GetBenchmarks)
+		public.Get("/federated-aggregation/insights", h.FederatedAggregation.GetInsights)
+
+		// ===== Next-Gen Features (v7) =====
+
+		// Agent Workflow Simulator
+		public.Get("/workflows", h.WorkflowSimulator.ListWorkflows)
+		public.Post("/workflows", h.WorkflowSimulator.CreateWorkflow)
+		public.Get("/workflows/:workflowId", h.WorkflowSimulator.GetWorkflow)
+		public.Put("/workflows/:workflowId", h.WorkflowSimulator.UpdateWorkflow)
+		public.Delete("/workflows/:workflowId", h.WorkflowSimulator.DeleteWorkflow)
+		public.Post("/workflows/validate", h.WorkflowSimulator.ValidateWorkflow)
+		public.Post("/workflows/simulate", h.WorkflowSimulator.RunSimulation)
+		public.Get("/workflows/simulations/:simulationId", h.WorkflowSimulator.GetSimulation)
+		public.Get("/workflows/:workflowId/simulations", h.WorkflowSimulator.ListSimulations)
+
+		// Zero-Config Auto-Discovery
+		public.Post("/discovery/scan", h.AutoDiscovery.ScanProject)
+		public.Get("/discovery/frameworks/:frameworkId", h.AutoDiscovery.GetFramework)
+		public.Put("/discovery/config", h.AutoDiscovery.UpdateConfig)
+		public.Post("/discovery/frameworks/:frameworkId/toggle", h.AutoDiscovery.ToggleInstrumentation)
+
+		// Cloud Onboarding
+		public.Get("/onboarding", h.CloudOnboarding.GetOnboarding)
+		public.Post("/onboarding/step", h.CloudOnboarding.CompleteStep)
+		public.Post("/onboarding/quickstart", h.CloudOnboarding.GenerateQuickstart)
+		public.Get("/onboarding/usage", h.CloudOnboarding.GetUsage)
+		public.Post("/onboarding/quota-check", h.CloudOnboarding.CheckQuota)
+
+		// AI-Powered Trace Debugger
+		public.Post("/debug", h.AIDebugger.DebugTrace)
+		public.Get("/traces/:traceId/debug-history", h.AIDebugger.GetDebugHistory)
+		public.Get("/traces/:traceId/debug-context", h.AIDebugger.BuildContext)
+
+		// Continuous Prompt Optimization
+		public.Post("/prompt-optimization", h.PromptOptimization.StartOptimization)
+		public.Get("/prompt-optimization/:optimizationId", h.PromptOptimization.GetOptimization)
+		public.Get("/prompt-optimization", h.PromptOptimization.ListOptimizations)
+		public.Get("/prompt-optimization/config", h.PromptOptimization.GetOptConfig)
+		public.Put("/prompt-optimization/config", h.PromptOptimization.UpdateOptConfig)
+		public.Post("/prompt-optimization/variants/:variantId/approve", h.PromptOptimization.ApproveVariant)
+		public.Post("/prompt-optimization/variants/:variantId/reject", h.PromptOptimization.RejectVariant)
+
+		// Real-Time Cost Anomaly Alerting
+		public.Post("/cost-alerts/rules", h.CostAlerting.CreateAlertRule)
+		public.Get("/cost-alerts/rules", h.CostAlerting.ListAlertRules)
+		public.Delete("/cost-alerts/rules/:ruleId", h.CostAlerting.DeleteAlertRule)
+		public.Get("/cost-alerts", h.CostAlerting.ListCostAlerts)
+		public.Post("/cost-alerts/:alertId/acknowledge", h.CostAlerting.AcknowledgeCostAlert)
+		public.Get("/cost-alerts/circuit-breaker", h.CostAlerting.GetCircuitBreakerConfig)
+		public.Put("/cost-alerts/circuit-breaker", h.CostAlerting.UpdateCircuitBreakerConfig)
+		public.Post("/cost-alerts/check", h.CostAlerting.CheckCost)
+
+		// Agent Regression Test Suite
+		public.Post("/regression/golden-datasets", h.RegressionSuite.CreateGoldenDataset)
+		public.Get("/regression/golden-datasets/:datasetId", h.RegressionSuite.GetGoldenDataset)
+		public.Get("/regression/golden-datasets", h.RegressionSuite.ListGoldenDatasets)
+		public.Post("/regression/run", h.RegressionSuite.RunRegression)
+		public.Get("/regression/runs/:runId", h.RegressionSuite.GetRegressionRun)
+		public.Get("/regression/runs", h.RegressionSuite.ListRegressionRuns)
+
+		// Collaboration Hub
+		public.Post("/collab/queues", h.CollabHub.CreateReviewQueue)
+		public.Get("/collab/queues", h.CollabHub.ListReviewQueues)
+		public.Post("/collab/reviews", h.CollabHub.AssignReview)
+		public.Post("/collab/reviews/:assignmentId/complete", h.CollabHub.CompleteReview)
+		public.Post("/collab/standards", h.CollabHub.CreateQualityStandard)
+		public.Get("/collab/standards", h.CollabHub.ListQualityStandards)
+		public.Get("/collab/activity", h.CollabHub.GetActivityFeed)
+
+		// OpenTelemetry Native Compatibility
+		public.Post("/otel/destinations", h.OTelCompat.CreateExportDestination)
+		public.Get("/otel/destinations", h.OTelCompat.ListExportDestinations)
+		public.Delete("/otel/destinations/:destinationId", h.OTelCompat.DeleteExportDestination)
+		public.Get("/otel/mappings", h.OTelCompat.GetOTelMappings)
+		public.Get("/otel/dashboard", h.OTelCompat.GetOTelDashboard)
+		public.Post("/otel/collector-config", h.OTelCompat.GenerateCollectorConfig)
+
+		// Agent Security Scanner
+		public.Post("/security/scan", h.SecurityScanner.ScanTrace)
+		public.Post("/security/policies", h.SecurityScanner.CreateSecurityPolicy)
+		public.Get("/security/policies", h.SecurityScanner.ListSecurityPolicies)
+		public.Get("/security/dashboard", h.SecurityScanner.GetSecurityDashboard)
+		public.Post("/security/findings/:findingId/acknowledge", h.SecurityScanner.AcknowledgeSecurityFinding)
 	}
 
 	// Internal API routes (JWT auth)

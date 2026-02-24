@@ -25,11 +25,12 @@ type Config struct {
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Host          string `mapstructure:"host"`
-	Port          int    `mapstructure:"port"`
-	Env           string `mapstructure:"env"`
-	CSRFEnabled   bool   `mapstructure:"csrf_enabled"`
-	SecureCookies bool   `mapstructure:"secure_cookies"`
+	Host                 string `mapstructure:"host"`
+	Port                 int    `mapstructure:"port"`
+	Env                  string `mapstructure:"env"`
+	CSRFEnabled          bool   `mapstructure:"csrf_enabled"`
+	SecureCookies        bool   `mapstructure:"secure_cookies"`
+	StripeWebhookSecret  string `mapstructure:"stripe_webhook_secret"`
 }
 
 // PostgresConfig holds PostgreSQL configuration

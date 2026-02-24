@@ -94,6 +94,29 @@ type Handlers struct {
 	CollabPattern      *handler.CollabPatternHandler
 	FederatedLearning  *handler.FederatedLearningHandler
 	Copilot            *handler.CopilotHandler
+
+	// Next-Gen Features (v6)
+	ReplaySession        *handler.ReplaySessionHandler
+	CostGuardrail        *handler.CostGuardrailHandler
+	MultiAgentGraph      *handler.MultiAgentGraphHandler
+	PromptCI             *handler.PromptCIHandler
+	AgentBenchmark       *handler.AgentBenchmarkHandler
+	SemanticTraceSearch  *handler.SemanticTraceSearchHandler
+	AgentKnowledgeGraph  *handler.AgentKnowledgeGraphHandler
+	IDETraceView         *handler.IDETraceViewHandler
+	FederatedAggregation *handler.FederatedAggregationHandler
+
+	// Next-Gen Features (v7)
+	WorkflowSimulator  *handler.WorkflowSimulatorHandler
+	AutoDiscovery      *handler.AutoDiscoveryHandler
+	CloudOnboarding    *handler.CloudOnboardingHandler
+	AIDebugger         *handler.AIDebuggerHandler
+	PromptOptimization *handler.PromptOptimizationHandler
+	CostAlerting       *handler.CostAlertingHandler
+	RegressionSuite    *handler.RegressionSuiteHandler
+	CollabHub          *handler.CollabHubHandler
+	OTelCompat         *handler.OTelCompatHandler
+	SecurityScanner    *handler.SecurityScannerHandler
 }
 
 // initHandlers initializes all handlers
@@ -367,5 +390,28 @@ func initHandlers(
 		CollabPattern:      handler.NewCollabPatternHandler(svcs.CollabPattern, logger),
 		FederatedLearning:  handler.NewFederatedLearningHandler(svcs.FederatedLearning, logger),
 		Copilot:            handler.NewCopilotHandler(svcs.Copilot, logger),
+
+		// Next-Gen Features (v6)
+		ReplaySession:        handler.NewReplaySessionHandler(svcs.ReplaySession, logger),
+		CostGuardrail:        handler.NewCostGuardrailHandler(svcs.CostGuardrail, logger),
+		MultiAgentGraph:      handler.NewMultiAgentGraphHandler(svcs.MultiAgentGraph, logger),
+		PromptCI:             handler.NewPromptCIHandler(svcs.PromptCI, logger),
+		AgentBenchmark:       handler.NewAgentBenchmarkHandler(svcs.AgentBenchmark, logger),
+		SemanticTraceSearch:  handler.NewSemanticTraceSearchHandler(svcs.SemanticTraceSearch, logger),
+		AgentKnowledgeGraph:  handler.NewAgentKnowledgeGraphHandler(svcs.AgentKnowledgeGraph, logger),
+		IDETraceView:         handler.NewIDETraceViewHandler(svcs.IDETraceView, logger),
+		FederatedAggregation: handler.NewFederatedAggregationHandler(svcs.FederatedAggregation, logger),
+
+		// Next-Gen Features (v7)
+		WorkflowSimulator:  handler.NewWorkflowSimulatorHandler(svcs.WorkflowSimulator, logger),
+		AutoDiscovery:      handler.NewAutoDiscoveryHandler(svcs.AutoDiscovery, logger),
+		CloudOnboarding:    handler.NewCloudOnboardingHandler(svcs.CloudOnboarding, logger),
+		AIDebugger:         handler.NewAIDebuggerHandler(svcs.AIDebugger, logger),
+		PromptOptimization: handler.NewPromptOptimizationHandler(svcs.PromptOptimization, logger),
+		CostAlerting:       handler.NewCostAlertingHandler(svcs.CostAlerting, logger),
+		RegressionSuite:    handler.NewRegressionSuiteHandler(svcs.RegressionSuite, logger),
+		CollabHub:          handler.NewCollabHubHandler(svcs.CollabHub, logger),
+		OTelCompat:         handler.NewOTelCompatHandler(svcs.OTelCompat, logger),
+		SecurityScanner:    handler.NewSecurityScannerHandler(svcs.SecurityScanner, logger),
 	}
 }
