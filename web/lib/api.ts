@@ -721,9 +721,135 @@ export const api = {
     createDestination: (data: any) =>
       fetchWithAuth<any>("/api/public/federation/destinations", { method: "POST", body: JSON.stringify(data) }),
   },
-};
 
-// Types
+  // Skill Profiles
+  skillProfiles: {
+    list: () =>
+      fetchWithAuth<any>("/api/public/skill-profiles"),
+    get: (agentName: string) =>
+      fetchWithAuth<any>(`/api/public/skill-profiles/${agentName}`),
+    compare: (agents: string[]) =>
+      fetchWithAuth<any>(`/api/public/skill-profiles/compare?agents=${agents.join(",")}`),
+  },
+
+  // Prompt Lab
+  promptLab: {
+    listExperiments: () =>
+      fetchWithAuth<any>("/api/public/prompt-lab/experiments"),
+    createExperiment: (data: any) =>
+      fetchWithAuth<any>("/api/public/prompt-lab/experiments", { method: "POST", body: JSON.stringify(data) }),
+    getExperiment: (id: string) =>
+      fetchWithAuth<any>(`/api/public/prompt-lab/experiments/${id}`),
+    startExperiment: (id: string) =>
+      fetchWithAuth<any>(`/api/public/prompt-lab/experiments/${id}/start`, { method: "POST" }),
+    completeExperiment: (id: string) =>
+      fetchWithAuth<any>(`/api/public/prompt-lab/experiments/${id}/complete`, { method: "POST" }),
+    getSuggestions: (promptName?: string) =>
+      fetchWithAuth<any>(`/api/public/prompt-lab/suggestions${promptName ? `?promptName=${promptName}` : ""}`),
+  },
+
+  // Sandbox
+  sandbox: {
+    listPending: () =>
+      fetchWithAuth<any>("/api/public/sandbox/reviews/pending"),
+    submitReview: (data: any) =>
+      fetchWithAuth<any>("/api/public/sandbox/reviews", { method: "POST", body: JSON.stringify(data) }),
+    getReview: (id: string) =>
+      fetchWithAuth<any>(`/api/public/sandbox/reviews/${id}`),
+    decide: (id: string, decision: any) =>
+      fetchWithAuth<any>(`/api/public/sandbox/reviews/${id}/decide`, { method: "POST", body: JSON.stringify(decision) }),
+    listPolicies: () =>
+      fetchWithAuth<any>("/api/public/sandbox/policies"),
+    createPolicy: (data: any) =>
+      fetchWithAuth<any>("/api/public/sandbox/policies", { method: "POST", body: JSON.stringify(data) }),
+    getStats: () =>
+      fetchWithAuth<any>("/api/public/sandbox/stats"),
+  },
+
+  // Team Intelligence
+  team: {
+    getDashboard: () =>
+      fetchWithAuth<any>("/api/public/team/dashboard"),
+    calculateROI: (hourlyRate?: number) =>
+      fetchWithAuth<any>(`/api/public/team/roi${hourlyRate ? `?hourlyRate=${hourlyRate}` : ""}`),
+  },
+
+  // Semantic Search
+  search: {
+    query: (data: any) =>
+      fetchWithAuth<any>("/api/public/search", { method: "POST", body: JSON.stringify(data) }),
+    suggestions: (prefix: string) =>
+      fetchWithAuth<any>(`/api/public/search/suggestions?prefix=${prefix}`),
+  },
+
+  // Training Pipeline
+  training: {
+    listDatasets: () =>
+      fetchWithAuth<any>("/api/public/training/datasets"),
+    createDataset: (data: any) =>
+      fetchWithAuth<any>("/api/public/training/datasets", { method: "POST", body: JSON.stringify(data) }),
+    exportDataset: (id: string) =>
+      fetchWithAuth<any>(`/api/public/training/datasets/${id}/export`, { method: "POST" }),
+    detectFailures: () =>
+      fetchWithAuth<any>("/api/public/training/failure-patterns"),
+  },
+
+  // RBAC
+  rbac: {
+    getPermissions: (role?: string) =>
+      fetchWithAuth<any>(`/api/public/rbac/permissions${role ? `?role=${role}` : ""}`),
+    assignRole: (data: any) =>
+      fetchWithAuth<any>("/api/public/rbac/roles", { method: "POST", body: JSON.stringify(data) }),
+    checkPermission: (data: any) =>
+      fetchWithAuth<any>("/api/public/rbac/check", { method: "POST", body: JSON.stringify(data) }),
+    getSSOConfig: () =>
+      fetchWithAuth<any>("/api/public/rbac/sso"),
+    configureSSO: (data: any) =>
+      fetchWithAuth<any>("/api/public/rbac/sso", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Webhook Rules
+  webhookRules: {
+    list: () =>
+      fetchWithAuth<any>("/api/public/webhook-rules"),
+    create: (data: any) =>
+      fetchWithAuth<any>("/api/public/webhook-rules", { method: "POST", body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      fetchWithAuth<any>(`/api/public/webhook-rules/${id}`, { method: "DELETE" }),
+    getTemplates: () =>
+      fetchWithAuth<any>("/api/public/webhook-rules/templates"),
+    test: (id: string) =>
+      fetchWithAuth<any>(`/api/public/webhook-rules/${id}/test`, { method: "POST" }),
+  },
+
+  // Marketplace
+  marketplace: {
+    search: (params?: any) =>
+      fetchWithAuth<any>(`/api/public/marketplace${params ? `?${new URLSearchParams(params)}` : ""}`),
+    featured: () =>
+      fetchWithAuth<any>("/api/public/marketplace/featured"),
+    get: (id: string) =>
+      fetchWithAuth<any>(`/api/public/marketplace/${id}`),
+    publish: (data: any) =>
+      fetchWithAuth<any>("/api/public/marketplace", { method: "POST", body: JSON.stringify(data) }),
+    install: (id: string) =>
+      fetchWithAuth<any>(`/api/public/marketplace/${id}/install`, { method: "POST" }),
+    rate: (id: string, data: any) =>
+      fetchWithAuth<any>(`/api/public/marketplace/${id}/rate`, { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Compliance Reports
+  complianceReports: {
+    list: () =>
+      fetchWithAuth<any>("/api/public/compliance-reports"),
+    generate: (data: any) =>
+      fetchWithAuth<any>("/api/public/compliance-reports", { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) =>
+      fetchWithAuth<any>(`/api/public/compliance-reports/${id}`),
+    getTemplates: () =>
+      fetchWithAuth<any>("/api/public/compliance-reports/templates"),
+  },
+};
 export interface User {
   id: string;
   email: string;
