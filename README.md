@@ -182,9 +182,16 @@ agenttrace/
 │   ├── typescript/       # TypeScript SDK
 │   ├── go/               # Go SDK
 │   └── cli/              # CLI wrapper
-└── deploy/               # Deployment configs
-    ├── docker-compose.yml
-    └── .env.example
+├── deploy/               # Deployment configs
+│   ├── docker-compose.yml
+│   └── .env.example
+├── docs/                  # Documentation (Docusaurus)
+├── examples/              # Example projects
+├── extensions/            # IDE extensions (VS Code, JetBrains)
+├── actions/               # GitHub Actions (reusable workflows)
+├── ci/                    # CI pipeline configuration
+├── scripts/               # Development and build scripts
+└── mobile/                # Mobile app (experimental)
 ```
 
 ## SDK Features

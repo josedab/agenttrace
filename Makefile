@@ -1,4 +1,4 @@
-.PHONY: all build test lint dev dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor
+.PHONY: all build test lint dev dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor test-e2e-api test-e2e-web
 
 # Default target
 all: lint test build
@@ -35,6 +35,8 @@ help:
 	@echo "  make test-sdk-py  - Run Python SDK tests"
 	@echo "  make test-sdk-ts  - Run TypeScript SDK tests"
 	@echo "  make test-sdk-go  - Run Go SDK tests"
+	@echo "  make test-e2e-api - Run API end-to-end tests"
+	@echo "  make test-e2e-web - Run web end-to-end tests"
 
 # ============================================
 # Development
@@ -71,8 +73,24 @@ docker-down:
 
 ## setup: One-command development environment setup
 setup: docker-up
+	@echo "Copying environment files (if missing)..."
+	@test -f api/.env || cp api/.env.example api/.env && echo "  Created api/.env"
+	@test -f web/.env.local || cp web/.env.example web/.env.local && echo "  Created web/.env.local"
+	@test -f deploy/.env || cp deploy/.env.example deploy/.env && echo "  Created deploy/.env"
 	@echo "Waiting for services to be healthy..."
-	@sleep 5
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+		if docker compose -f deploy/docker-compose.dev.yml ps --format json 2>/dev/null | grep -q '"Health":"healthy"' || \
+		   docker compose -f deploy/docker-compose.dev.yml ps 2>/dev/null | grep -q "(healthy)"; then \
+			echo "  ✓ All services healthy"; \
+			break; \
+		fi; \
+		if [ $$i -eq 12 ]; then \
+			echo "  ⚠ Timeout waiting for services (continuing anyway)"; \
+		else \
+			echo "  Waiting for services... ($$i/12)"; \
+			sleep 5; \
+		fi; \
+	done
 	@echo "Installing web dependencies..."
 	cd web && npm install
 	@echo "Downloading Go modules..."
@@ -186,6 +204,16 @@ test-cli:
 	@echo "Testing CLI..."
 	cd sdk/cli && go test -race ./...
 
+## test-e2e-api: Run API end-to-end tests
+test-e2e-api:
+	@echo "Running API E2E tests..."
+	cd api && $(MAKE) test-e2e
+
+## test-e2e-web: Run web end-to-end tests
+test-e2e-web:
+	@echo "Running web E2E tests..."
+	cd web && npx playwright test
+
 # ============================================
 # Lint
 # ============================================
@@ -232,6 +260,10 @@ format:
 	cd web && npx prettier --write .
 	@echo "Formatting Python SDK..."
 	cd sdk/python && ruff format .
+	@echo "Formatting Go SDK..."
+	cd sdk/go && gofmt -w .
+	@echo "Formatting CLI..."
+	cd sdk/cli && gofmt -w .
 
 # ============================================
 # Documentation

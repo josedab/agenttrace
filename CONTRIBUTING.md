@@ -217,10 +217,12 @@ agenttrace/
 │   └── cli/              # CLI wrapper
 ├── docs/                  # Documentation (Docusaurus)
 ├── deploy/               # Deployment configs
-├── extensions/           # IDE extensions
-│   ├── vscode/
-│   └── jetbrains/
-└── examples/             # Example projects
+├── examples/             # Example projects
+├── extensions/           # IDE extensions (VS Code, JetBrains)
+├── actions/              # GitHub Actions (reusable workflows)
+├── ci/                   # CI pipeline configuration
+├── scripts/              # Development and build scripts
+└── mobile/               # Mobile app (experimental)
 ```
 
 ## Making Contributions

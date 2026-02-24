@@ -127,7 +127,7 @@ jobs:
         run: go mod download
 
       - name: Run linter
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           working-directory: api
@@ -153,7 +153,7 @@ jobs:
           echo "::notice::Coverage ${COVERAGE}% meets ${THRESHOLD}% threshold"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: api/coverage.out
           flags: go-backend
@@ -195,7 +195,7 @@ jobs:
         run: npm run build
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: web/coverage/lcov.info
           flags: nextjs-frontend
@@ -236,7 +236,7 @@ jobs:
         run: pytest -v --cov=agenttrace --cov-report=xml --cov-fail-under=60
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: sdk/python/coverage.xml
           flags: python-sdk
@@ -278,7 +278,7 @@ jobs:
         run: npm run build
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: sdk/typescript/coverage/lcov.info
           flags: typescript-sdk
@@ -327,7 +327,7 @@ jobs:
           echo "::notice::Coverage ${COVERAGE}% meets ${THRESHOLD}% threshold"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: sdk/go/coverage.out
           flags: go-sdk
