@@ -295,6 +295,39 @@ export class AgentTraceClient {
         }
     }
 
+    // IDE Trace View API
+
+    async getFileMapping(filePath: string): Promise<FileTraceMapping | null> {
+        try {
+            const params = new URLSearchParams({ filePath });
+            const response = await this.client.get(`/api/public/ide/file-mapping?${params.toString()}`);
+            return response.data;
+        } catch (error) {
+            this.handleError(error);
+            return null;
+        }
+    }
+
+    async getBatchFileMappings(filePaths: string[]): Promise<FileTraceMapping[]> {
+        try {
+            const response = await this.client.post('/api/public/ide/batch-mappings', { filePaths });
+            return response.data.mappings || [];
+        } catch (error) {
+            this.handleError(error);
+            return [];
+        }
+    }
+
+    async getIDETraceContext(traceId: string): Promise<IDETraceContext | null> {
+        try {
+            const response = await this.client.get(`/api/public/ide/trace-context/${traceId}`);
+            return response.data;
+        } catch (error) {
+            this.handleError(error);
+            return null;
+        }
+    }
+
     private handleError(error: unknown) {
         if (axios.isAxiosError(error)) {
             const axiosError = error as AxiosError;
@@ -309,4 +342,50 @@ export class AgentTraceClient {
             console.error('AgentTrace error:', error);
         }
     }
+}
+
+// IDE Trace View types
+
+export interface FileTraceMapping {
+    filePath: string;
+    projectId: string;
+    annotations: LineAnnotation[];
+    summary: FileTraceSummary;
+}
+
+export interface LineAnnotation {
+    line: number;
+    traceId: string;
+    traceName: string;
+    type: 'created' | 'modified' | 'read';
+    agentName: string;
+    cost: number;
+    latencyMs: number;
+    timestamp: string;
+    confidence: number;
+}
+
+export interface FileTraceSummary {
+    totalTraces: number;
+    totalModifications: number;
+    topAgents: string[];
+    totalCost: number;
+    avgLatencyMs: number;
+    lastModified?: string;
+}
+
+export interface IDETraceContext {
+    traceId: string;
+    traceName: string;
+    agentSession: string;
+    reasoning: string;
+    cost: number;
+    latencyMs: number;
+    fileChanges: IDEFileChange[];
+}
+
+export interface IDEFileChange {
+    path: string;
+    operation: string;
+    diffSummary: string;
 }
