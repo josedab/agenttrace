@@ -849,6 +849,73 @@ export const api = {
     getTemplates: () =>
       fetchWithAuth<any>("/api/public/compliance-reports/templates"),
   },
+  orchestration: {
+    listSessions: () => fetchWithAuth<any>("/api/public/orchestration/sessions"),
+    createSession: (data: any) => fetchWithAuth<any>("/api/public/orchestration/sessions", { method: "POST", body: JSON.stringify(data) }),
+    getSession: (id: string) => fetchWithAuth<any>(`/api/public/orchestration/sessions/${id}`),
+    executeCommand: (id: string, cmd: any) => fetchWithAuth<any>(`/api/public/orchestration/sessions/${id}/command`, { method: "POST", body: JSON.stringify(cmd) }),
+    addBreakpoint: (id: string, bp: any) => fetchWithAuth<any>(`/api/public/orchestration/sessions/${id}/breakpoints`, { method: "POST", body: JSON.stringify(bp) }),
+  },
+  rca: {
+    analyze: (data: any) => fetchWithAuth<any>("/api/public/rca/analyze", { method: "POST", body: JSON.stringify(data) }),
+    listReports: () => fetchWithAuth<any>("/api/public/rca/reports"),
+    getReport: (id: string) => fetchWithAuth<any>(`/api/public/rca/reports/${id}`),
+  },
+  agentVersions: {
+    list: (agentName?: string) => fetchWithAuth<any>(`/api/public/agent-versions${agentName ? `?agentName=${agentName}` : ""}`),
+    create: (data: any) => fetchWithAuth<any>("/api/public/agent-versions", { method: "POST", body: JSON.stringify(data) }),
+    getActive: (agentName?: string) => fetchWithAuth<any>(`/api/public/agent-versions/active${agentName ? `?agentName=${agentName}` : ""}`),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/agent-versions/${id}`),
+    rollback: (id: string) => fetchWithAuth<any>(`/api/public/agent-versions/${id}/rollback`, { method: "POST" }),
+    diff: (data: { versionIdA: string; versionIdB: string }) => fetchWithAuth<any>("/api/public/agent-versions/diff", { method: "POST", body: JSON.stringify(data) }),
+  },
+  predictions: {
+    predict: (data: any) => fetchWithAuth<any>("/api/public/predictions/cost", { method: "POST", body: JSON.stringify(data) }),
+    list: () => fetchWithAuth<any>("/api/public/predictions"),
+    requestApproval: (id: string) => fetchWithAuth<any>(`/api/public/predictions/${id}/approve`, { method: "POST" }),
+    decideApproval: (id: string, decision: any) => fetchWithAuth<any>(`/api/public/approvals/${id}/decide`, { method: "POST", body: JSON.stringify(decision) }),
+  },
+  embed: {
+    getConfig: () => fetchWithAuth<any>("/api/public/embed/config"),
+    createConfig: (data: any) => fetchWithAuth<any>("/api/public/embed/config", { method: "POST", body: JSON.stringify(data) }),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/embed/config", { method: "PUT", body: JSON.stringify(data) }),
+    generateToken: () => fetchWithAuth<any>("/api/public/embed/token", { method: "POST" }),
+  },
+  agentBuilder: {
+    generate: (data: any) => fetchWithAuth<any>("/api/public/agent-builder/generate", { method: "POST", body: JSON.stringify(data) }),
+    list: () => fetchWithAuth<any>("/api/public/agent-builder/blueprints"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/agent-builder/blueprints/${id}`),
+    deploy: (id: string) => fetchWithAuth<any>(`/api/public/agent-builder/blueprints/${id}/deploy`, { method: "POST" }),
+  },
+  fleet: {
+    getDashboard: () => fetchWithAuth<any>("/api/public/fleet/dashboard"),
+    listAgents: () => fetchWithAuth<any>("/api/public/fleet/agents"),
+    listPolicies: () => fetchWithAuth<any>("/api/public/fleet/policies"),
+    createPolicy: (data: any) => fetchWithAuth<any>("/api/public/fleet/policies", { method: "POST", body: JSON.stringify(data) }),
+    bulkUpdate: (data: any) => fetchWithAuth<any>("/api/public/fleet/bulk-update", { method: "POST", body: JSON.stringify(data) }),
+    getScaling: () => fetchWithAuth<any>("/api/public/fleet/scaling"),
+  },
+  privacy: {
+    scan: (data: any) => fetchWithAuth<any>("/api/public/privacy/scan", { method: "POST", body: JSON.stringify(data) }),
+    getConfig: () => fetchWithAuth<any>("/api/public/privacy/config"),
+    updateConfig: (data: any) => fetchWithAuth<any>("/api/public/privacy/config", { method: "PUT", body: JSON.stringify(data) }),
+    requestDeletion: (data: any) => fetchWithAuth<any>("/api/public/privacy/deletion-requests", { method: "POST", body: JSON.stringify(data) }),
+    listDeletionRequests: () => fetchWithAuth<any>("/api/public/privacy/deletion-requests"),
+  },
+  mobile: {
+    registerDevice: (data: any) => fetchWithAuth<any>("/api/public/mobile/devices", { method: "POST", body: JSON.stringify(data) }),
+    getDashboard: () => fetchWithAuth<any>("/api/public/mobile/dashboard"),
+    listNotifications: () => fetchWithAuth<any>("/api/public/mobile/notifications"),
+  },
+  plugins: {
+    list: () => fetchWithAuth<any>("/api/public/plugins"),
+    install: (data: any) => fetchWithAuth<any>("/api/public/plugins", { method: "POST", body: JSON.stringify(data) }),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/plugins/${id}`),
+    activate: (id: string) => fetchWithAuth<any>(`/api/public/plugins/${id}/activate`, { method: "POST" }),
+    disable: (id: string) => fetchWithAuth<any>(`/api/public/plugins/${id}/disable`, { method: "POST" }),
+    execute: (id: string, data: any) => fetchWithAuth<any>(`/api/public/plugins/${id}/execute`, { method: "POST", body: JSON.stringify(data) }),
+    uninstall: (id: string) => fetchWithAuth<any>(`/api/public/plugins/${id}`, { method: "DELETE" }),
+  },
 };
 export interface User {
   id: string;
