@@ -1,0 +1,22 @@
+-- Rollback Next-Gen v7 Features
+
+DROP TABLE IF EXISTS security_policies;
+DROP TABLE IF EXISTS security_scan_results;
+DROP TABLE IF EXISTS otel_export_destinations;
+DROP TABLE IF EXISTS activity_feed;
+DROP TABLE IF EXISTS quality_standards;
+DROP TABLE IF EXISTS review_assignments;
+DROP TABLE IF EXISTS review_queues;
+DROP TABLE IF EXISTS regression_runs;
+DROP TABLE IF EXISTS golden_datasets;
+DROP TABLE IF EXISTS circuit_breaker_configs;
+DROP TABLE IF EXISTS cost_alerts;
+DROP TABLE IF EXISTS cost_alert_rules;
+DROP TABLE IF EXISTS optimization_configs;
+DROP TABLE IF EXISTS prompt_optimizations;
+DROP TABLE IF EXISTS debug_queries;
+DROP TABLE IF EXISTS usage_meters;
+DROP TABLE IF EXISTS cloud_onboarding;
+DROP TABLE IF EXISTS discovered_frameworks;
+DROP TABLE IF EXISTS workflow_simulations;
+DROP TABLE IF EXISTS workflow_definitions;
