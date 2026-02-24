@@ -57,6 +57,13 @@ type Handlers struct {
 	DiffIntelligence   *handler.DiffIntelligenceHandler
 	Anomaly            *handler.AnomalyHandler
 	Federation         *handler.FederationHandler
+	TeamIntelligence   *handler.TeamIntelligenceHandler
+	SemanticSearch     *handler.SemanticSearchHandler
+	TrainingPipeline   *handler.TrainingPipelineHandler
+	RBAC                 *handler.RBACHandler
+	WebhookOrchestration *handler.WebhookOrchestrationHandler
+	Marketplace          *handler.MarketplaceHandler
+	ComplianceReport     *handler.ComplianceReportHandler
 }
 
 // initHandlers initializes all handlers
@@ -255,6 +262,34 @@ func initHandlers(
 		),
 		Federation: handler.NewFederationHandler(
 			svcs.Federation,
+			logger,
+		),
+		TeamIntelligence: handler.NewTeamIntelligenceHandler(
+			logger,
+			svcs.TeamIntelligence,
+		),
+		SemanticSearch: handler.NewSemanticSearchHandler(
+			logger,
+			svcs.SemanticSearch,
+		),
+		TrainingPipeline: handler.NewTrainingPipelineHandler(
+			logger,
+			svcs.TrainingPipeline,
+		),
+		RBAC: handler.NewRBACHandler(
+			logger,
+			svcs.RBAC,
+		),
+		WebhookOrchestration: handler.NewWebhookOrchestrationHandler(
+			svcs.WebhookOrchestration,
+			logger,
+		),
+		Marketplace: handler.NewMarketplaceHandler(
+			svcs.Marketplace,
+			logger,
+		),
+		ComplianceReport: handler.NewComplianceReportHandler(
+			svcs.ComplianceReport,
 			logger,
 		),
 	}

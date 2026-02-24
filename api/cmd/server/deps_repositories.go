@@ -19,6 +19,7 @@ type Repositories struct {
 	FileOperation   *chrepo.FileOperationRepository
 	TerminalCommand *chrepo.TerminalCommandRepository
 	CIRun           *chrepo.CIRunRepository
+	SkillProfile    *chrepo.SkillProfileRepository
 
 	// PostgreSQL repositories (relational data)
 	User               *pgrepo.UserRepository
@@ -59,6 +60,7 @@ func initRepositories(dbs *Databases, logger *zap.Logger) *Repositories {
 		FileOperation:   chrepo.NewFileOperationRepository(dbs.ClickHouse),
 		TerminalCommand: chrepo.NewTerminalCommandRepository(dbs.ClickHouse),
 		CIRun:           chrepo.NewCIRunRepository(dbs.ClickHouse),
+		SkillProfile:    chrepo.NewSkillProfileRepository(dbs.ClickHouse),
 
 		// PostgreSQL repositories
 		User:       pgrepo.NewUserRepository(dbs.Postgres),

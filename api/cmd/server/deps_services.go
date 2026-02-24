@@ -49,8 +49,16 @@ type Services struct {
 	Audit           *service.AuditService
 	Streaming       *service.StreamingService
 	DiffIntelligence *service.DiffIntelligenceService
-	Anomaly         *service.AnomalyService
-	Federation      *service.FederationService
+	Anomaly          *service.AnomalyService
+	Federation       *service.FederationService
+	TeamIntelligence *service.TeamIntelligenceService
+	SemanticSearch   *service.SemanticSearchService
+	TrainingPipeline *service.TrainingPipelineService
+	RBAC                 *service.RBACService
+	WebhookOrchestration *service.WebhookOrchestrationService
+	Marketplace          *service.MarketplaceService
+	ComplianceReport     *service.ComplianceReportService
+	Embedding            *service.EmbeddingService
 }
 
 // initServices initializes all services
@@ -240,6 +248,30 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 
 	// Federation service (cross-instance federation and export)
 	svcs.Federation = service.NewFederationService(logger)
+
+	// Team intelligence service
+	svcs.TeamIntelligence = service.NewTeamIntelligenceService(logger, svcs.Query, svcs.Cost)
+
+	// Semantic search service
+	svcs.SemanticSearch = service.NewSemanticSearchService(logger, svcs.Query)
+
+	// Training pipeline service
+	svcs.TrainingPipeline = service.NewTrainingPipelineService(logger)
+
+	// RBAC service
+	svcs.RBAC = service.NewRBACService(logger)
+
+	// Webhook orchestration service
+	svcs.WebhookOrchestration = service.NewWebhookOrchestrationService(logger)
+
+	// Marketplace service
+	svcs.Marketplace = service.NewMarketplaceService(logger)
+
+	// Compliance report service
+	svcs.ComplianceReport = service.NewComplianceReportService(logger)
+
+	// Embedding service (vector semantic search)
+	svcs.Embedding = service.NewEmbeddingService(logger)
 
 	return svcs
 }

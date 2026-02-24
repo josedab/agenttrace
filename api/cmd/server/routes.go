@@ -299,6 +299,28 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Get("/traces/:traceId/interventions", h.Streaming.GetPendingInterventions)
 		public.Post("/traces/:traceId/interventions/:interventionId/ack", h.Streaming.AcknowledgeIntervention)
 
+		// Team Intelligence
+		public.Get("/team/dashboard", h.TeamIntelligence.GetDashboard)
+		public.Get("/team/roi", h.TeamIntelligence.CalculateROI)
+
+		// Semantic Search
+		public.Post("/search", h.SemanticSearch.Search)
+		public.Get("/search/suggestions", h.SemanticSearch.GetSuggestions)
+
+		// Training Pipeline
+		public.Get("/training/datasets", h.TrainingPipeline.ListDatasets)
+		public.Post("/training/datasets", h.TrainingPipeline.CreateDataset)
+		public.Post("/training/datasets/:datasetId/export", h.TrainingPipeline.ExportDataset)
+		public.Get("/training/failure-patterns", h.TrainingPipeline.DetectFailures)
+
+		// RBAC & SSO
+		public.Get("/rbac/permissions", h.RBAC.GetPermissions)
+		public.Post("/rbac/roles", h.RBAC.AssignRole)
+		public.Post("/rbac/check", h.RBAC.CheckPermission)
+		public.Get("/rbac/sso", h.RBAC.GetSSOConfig)
+		public.Post("/rbac/sso", h.RBAC.ConfigureSSO)
+		public.Post("/rbac/api-key-scope", h.RBAC.ScopeAPIKey)
+
 		// Federation & OTLP Export
 		public.Get("/federation/peers", h.Federation.ListPeers)
 		public.Post("/federation/peers", h.Federation.AddPeer)
@@ -306,6 +328,28 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Post("/federation/query", h.Federation.FederatedQuery)
 		public.Get("/federation/destinations", h.Federation.ListExportDestinations)
 		public.Post("/federation/destinations", h.Federation.CreateExportDestination)
+
+		// Webhook Orchestration
+		public.Get("/webhook-rules", h.WebhookOrchestration.ListRules)
+		public.Post("/webhook-rules", h.WebhookOrchestration.CreateRule)
+		public.Delete("/webhook-rules/:ruleId", h.WebhookOrchestration.DeleteRule)
+		public.Get("/webhook-rules/templates", h.WebhookOrchestration.GetTemplates)
+		public.Get("/webhook-rules/deliveries", h.WebhookOrchestration.ListDeliveries)
+		public.Post("/webhook-rules/:ruleId/test", h.WebhookOrchestration.TestRule)
+
+		// Agent Marketplace
+		public.Get("/marketplace", h.Marketplace.Search)
+		public.Get("/marketplace/featured", h.Marketplace.Featured)
+		public.Get("/marketplace/:packageId", h.Marketplace.Get)
+		public.Post("/marketplace", h.Marketplace.Publish)
+		public.Post("/marketplace/:packageId/install", h.Marketplace.Install)
+		public.Post("/marketplace/:packageId/rate", h.Marketplace.Rate)
+
+		// Compliance Reports
+		public.Get("/compliance-reports", h.ComplianceReport.List)
+		public.Post("/compliance-reports", h.ComplianceReport.Generate)
+		public.Get("/compliance-reports/templates", h.ComplianceReport.GetTemplates)
+		public.Get("/compliance-reports/:reportId", h.ComplianceReport.Get)
 	}
 
 	// Internal API routes (JWT auth)
