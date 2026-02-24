@@ -36,6 +36,23 @@ import {
   Server,
   Eye,
   Puzzle,
+  Brain,
+  Share2,
+  Flame,
+  LineChart,
+  ArrowRightLeft,
+  Leaf,
+  FlaskRound,
+  Target,
+  Gauge,
+  Globe,
+  CheckCircle,
+  Receipt,
+  ClipboardCheck,
+  Image,
+  Blocks,
+  Link,
+  Bot,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -202,6 +219,101 @@ const navigation = [
     name: "Plugins",
     href: "/plugins",
     icon: Puzzle,
+  },
+  {
+    name: "Memory",
+    href: "/memory",
+    icon: Brain,
+  },
+  {
+    name: "Distributed",
+    href: "/distributed-traces",
+    icon: Share2,
+  },
+  {
+    name: "Cache",
+    href: "/prompt-cache",
+    icon: Database,
+  },
+  {
+    name: "Chaos Testing",
+    href: "/chaos",
+    icon: Flame,
+  },
+  {
+    name: "Metrics",
+    href: "/custom-metrics",
+    icon: LineChart,
+  },
+  {
+    name: "Handoffs",
+    href: "/handoffs",
+    icon: ArrowRightLeft,
+  },
+  {
+    name: "Carbon",
+    href: "/carbon",
+    icon: Leaf,
+  },
+  {
+    name: "Synthetic Data",
+    href: "/synthetic-data",
+    icon: FlaskRound,
+  },
+  {
+    name: "SLOs",
+    href: "/slos",
+    icon: Target,
+  },
+  {
+    name: "Autonomy",
+    href: "/autonomy",
+    icon: Gauge,
+  },
+  {
+    name: "Cross-Org",
+    href: "/cross-org",
+    icon: Globe,
+  },
+  {
+    name: "Intents",
+    href: "/intents",
+    icon: CheckCircle,
+  },
+  {
+    name: "Cost ROI",
+    href: "/cost-attribution",
+    icon: Receipt,
+  },
+  {
+    name: "Knowledge Graph",
+    href: "/knowledge-graph",
+    icon: Share2,
+  },
+  {
+    name: "Compliance",
+    href: "/compliance-monitor",
+    icon: ClipboardCheck,
+  },
+  {
+    name: "Multi-Modal",
+    href: "/multimodal",
+    icon: Image,
+  },
+  {
+    name: "Patterns",
+    href: "/collab-patterns",
+    icon: Blocks,
+  },
+  {
+    name: "Federation",
+    href: "/federated",
+    icon: Link,
+  },
+  {
+    name: "Copilot",
+    href: "/copilot",
+    icon: Bot,
   },
   {
     name: "Settings",
