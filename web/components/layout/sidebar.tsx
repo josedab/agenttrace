@@ -53,6 +53,22 @@ import {
   Blocks,
   Link,
   Bot,
+  PlayCircle,
+  ShieldCheck,
+  GitFork,
+  TestTube2,
+  Trophy,
+  Sparkles,
+  GitGraph,
+  FileCode,
+  ScanSearch,
+  Rocket,
+  Bug,
+  Zap,
+  BellRing,
+  ClipboardList,
+  MessagesSquare,
+  Satellite,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -314,6 +330,96 @@ const navigation = [
     name: "Copilot",
     href: "/copilot",
     icon: Bot,
+  },
+  {
+    name: "Replay",
+    href: "/replay",
+    icon: PlayCircle,
+  },
+  {
+    name: "Cost Guardrails",
+    href: "/cost-guardrails",
+    icon: ShieldCheck,
+  },
+  {
+    name: "Multi-Agent",
+    href: "/multi-agent",
+    icon: GitFork,
+  },
+  {
+    name: "Prompt CI",
+    href: "/prompt-ci",
+    icon: TestTube2,
+  },
+  {
+    name: "Benchmarks",
+    href: "/agent-benchmarks",
+    icon: Trophy,
+  },
+  {
+    name: "Semantic Search",
+    href: "/semantic-search",
+    icon: Sparkles,
+  },
+  {
+    name: "Knowledge Graph",
+    href: "/agent-knowledge",
+    icon: GitGraph,
+  },
+  {
+    name: "IDE Traces",
+    href: "/ide-traces",
+    icon: FileCode,
+  },
+  {
+    name: "Workflows",
+    href: "/workflows",
+    icon: Workflow,
+  },
+  {
+    name: "Discovery",
+    href: "/discovery",
+    icon: ScanSearch,
+  },
+  {
+    name: "Onboarding",
+    href: "/onboarding",
+    icon: Rocket,
+  },
+  {
+    name: "AI Debugger",
+    href: "/ai-debugger",
+    icon: Bug,
+  },
+  {
+    name: "Prompt Opt",
+    href: "/prompt-optimization",
+    icon: Zap,
+  },
+  {
+    name: "Cost Alerts",
+    href: "/cost-alerts",
+    icon: BellRing,
+  },
+  {
+    name: "Regression",
+    href: "/regression",
+    icon: ClipboardList,
+  },
+  {
+    name: "Collaboration",
+    href: "/collab",
+    icon: MessagesSquare,
+  },
+  {
+    name: "OpenTelemetry",
+    href: "/otel",
+    icon: Satellite,
+  },
+  {
+    name: "Security",
+    href: "/security",
+    icon: Shield,
   },
   {
     name: "Settings",
