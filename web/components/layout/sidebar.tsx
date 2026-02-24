@@ -28,6 +28,14 @@ import {
   Webhook,
   Store,
   FileCheck,
+  Network,
+  SearchCheck,
+  TrendingUp,
+  Code,
+  Wand2,
+  Server,
+  Eye,
+  Puzzle,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -149,6 +157,51 @@ const navigation = [
     name: "Compliance",
     href: "/compliance-reports",
     icon: FileCheck,
+  },
+  {
+    name: "Orchestration",
+    href: "/orchestration",
+    icon: Network,
+  },
+  {
+    name: "Root Cause",
+    href: "/rca",
+    icon: SearchCheck,
+  },
+  {
+    name: "Agent Versions",
+    href: "/agent-versions",
+    icon: GitBranch,
+  },
+  {
+    name: "Predictions",
+    href: "/predictions",
+    icon: TrendingUp,
+  },
+  {
+    name: "Embed",
+    href: "/embed",
+    icon: Code,
+  },
+  {
+    name: "Agent Builder",
+    href: "/agent-builder",
+    icon: Wand2,
+  },
+  {
+    name: "Fleet",
+    href: "/fleet",
+    icon: Server,
+  },
+  {
+    name: "Privacy",
+    href: "/privacy",
+    icon: Eye,
+  },
+  {
+    name: "Plugins",
+    href: "/plugins",
+    icon: Puzzle,
   },
   {
     name: "Settings",
