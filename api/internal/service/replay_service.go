@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -432,6 +434,234 @@ func (s *ReplayService) GetTimelineForTrace(
 
 	// Build the timeline
 	return s.BuildTimeline(ctx, trace, observations, fileOps, terminalCmds, checkpoints, gitLinks)
+}
+
+// GenerateReproductionScript generates an executable script from a trace
+func (s *ReplayService) GenerateReproductionScript(ctx context.Context, projectID uuid.UUID, traceID uuid.UUID, input *domain.ReproductionInput) (*domain.ReproductionScript, error) {
+	timeline, err := s.GetTimelineForTrace(ctx, projectID, traceID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get timeline: %w", err)
+	}
+
+	script := &domain.ReproductionScript{
+		ID:        uuid.New(),
+		TraceID:   traceID,
+		Format:    input.Format,
+		Language:  string(input.Format),
+		Config:    input.Config,
+		CreatedAt: time.Now(),
+	}
+
+	switch input.Format {
+	case domain.ReproFormatPython:
+		script.Script = s.generatePythonScript(timeline, input.Config)
+	case domain.ReproFormatTypeScript:
+		script.Script = s.generateTypeScriptScript(timeline, input.Config)
+	case domain.ReproFormatJSON:
+		script.Script = s.generateJSONExport(timeline)
+	default:
+		script.Script = s.generateShellScript(timeline, input.Config)
+	}
+
+	s.logger.Info("generated reproduction script",
+		zap.String("traceId", traceID.String()),
+		zap.String("format", string(input.Format)),
+	)
+
+	return script, nil
+}
+
+// CompareReplays performs A/B comparison of two traces
+func (s *ReplayService) CompareReplays(ctx context.Context, projectID uuid.UUID, traceIDA, traceIDB uuid.UUID) (*domain.ReplayComparison, error) {
+	timelineA, err := s.GetTimelineForTrace(ctx, projectID, traceIDA.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get timeline A: %w", err)
+	}
+
+	timelineB, err := s.GetTimelineForTrace(ctx, projectID, traceIDB.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get timeline B: %w", err)
+	}
+
+	comparison := &domain.ReplayComparison{
+		ID:        uuid.New(),
+		TraceIDA:  traceIDA,
+		TraceIDB:  traceIDB,
+		TimelineA: *timelineA,
+		TimelineB: *timelineB,
+		CreatedAt: time.Now(),
+	}
+
+	comparison.Differences = s.findDifferences(timelineA, timelineB)
+	comparison.Summary = s.calculateComparisonSummary(timelineA, timelineB)
+
+	return comparison, nil
+}
+
+func (s *ReplayService) generatePythonScript(timeline *domain.ReplayTimeline, config domain.ReproductionConfig) string {
+	var sb strings.Builder
+	sb.WriteString("#!/usr/bin/env python3\n")
+	sb.WriteString("\"\"\"Auto-generated reproduction script from AgentTrace\"\"\"\n")
+	sb.WriteString("# Trace: " + timeline.TraceID.String() + "\n")
+	sb.WriteString("# Generated at: " + time.Now().Format(time.RFC3339) + "\n\n")
+	sb.WriteString("from agenttrace import AgentTrace\n\n")
+	sb.WriteString("client = AgentTrace()\n")
+	sb.WriteString("trace = client.trace(name=\"" + timeline.TraceName + "\")\n\n")
+
+	for _, event := range timeline.Events {
+		switch event.Type {
+		case domain.ReplayEventLLMCall:
+			model := event.Data.Model
+			if config.SwapModel != "" {
+				model = config.SwapModel
+			}
+			sb.WriteString(fmt.Sprintf("# Step: %s\n", event.Title))
+			sb.WriteString(fmt.Sprintf("generation = trace.generation(name=\"%s\", model=\"%s\")\n", event.Title, model))
+			sb.WriteString("generation.end()\n\n")
+		case domain.ReplayEventToolCall:
+			sb.WriteString(fmt.Sprintf("# Tool call: %s\n", event.Data.ToolName))
+			sb.WriteString(fmt.Sprintf("span = trace.span(name=\"%s\")\n", event.Data.ToolName))
+			sb.WriteString("span.end()\n\n")
+		}
+	}
+
+	sb.WriteString("trace.end()\nclient.flush()\n")
+	sb.WriteString("print(\"Reproduction complete\")\n")
+	return sb.String()
+}
+
+func (s *ReplayService) generateTypeScriptScript(timeline *domain.ReplayTimeline, config domain.ReproductionConfig) string {
+	var sb strings.Builder
+	sb.WriteString("#!/usr/bin/env npx ts-node\n")
+	sb.WriteString("// Auto-generated reproduction script from AgentTrace\n")
+	sb.WriteString("// Trace: " + timeline.TraceID.String() + "\n\n")
+	sb.WriteString("import { AgentTrace } from 'agenttrace';\n\n")
+	sb.WriteString("const client = new AgentTrace();\n\n")
+	sb.WriteString("async function reproduce() {\n")
+	sb.WriteString("  const trace = client.trace({ name: \"" + timeline.TraceName + "\" });\n\n")
+
+	for _, event := range timeline.Events {
+		if event.Type == domain.ReplayEventLLMCall {
+			model := event.Data.Model
+			if config.SwapModel != "" {
+				model = config.SwapModel
+			}
+			sb.WriteString(fmt.Sprintf("  // %s\n", event.Title))
+			sb.WriteString(fmt.Sprintf("  const gen = trace.generation({ name: \"%s\", model: \"%s\" });\n", event.Title, model))
+			sb.WriteString("  gen.end();\n\n")
+		}
+	}
+
+	sb.WriteString("  trace.end();\n")
+	sb.WriteString("  await client.flush();\n")
+	sb.WriteString("  console.log('Reproduction complete');\n")
+	sb.WriteString("}\n\nreproduce();\n")
+	return sb.String()
+}
+
+func (s *ReplayService) generateShellScript(timeline *domain.ReplayTimeline, config domain.ReproductionConfig) string {
+	var sb strings.Builder
+	sb.WriteString("#!/bin/bash\n")
+	sb.WriteString("# Auto-generated reproduction script from AgentTrace\n")
+	sb.WriteString("# Trace: " + timeline.TraceID.String() + "\n\n")
+	sb.WriteString("echo \"Starting reproduction...\"\n\n")
+
+	for _, event := range timeline.Events {
+		if event.Type == domain.ReplayEventTerminalCmd && event.Data.Command != "" {
+			sb.WriteString(fmt.Sprintf("# %s\n", event.Title))
+			sb.WriteString(fmt.Sprintf("echo \"Executing: %s\"\n", event.Data.Command))
+			sb.WriteString(event.Data.Command + "\n\n")
+		}
+	}
+
+	sb.WriteString("echo \"Reproduction complete\"\n")
+	return sb.String()
+}
+
+func (s *ReplayService) generateJSONExport(timeline *domain.ReplayTimeline) string {
+	data, _ := json.Marshal(domain.ReplayExport{
+		Version:    "1.0",
+		ExportedAt: time.Now(),
+		Timeline:   *timeline,
+	})
+	return string(data)
+}
+
+func (s *ReplayService) findDifferences(a, b *domain.ReplayTimeline) []domain.ReplayDifference {
+	var diffs []domain.ReplayDifference
+
+	maxLen := len(a.Events)
+	if len(b.Events) > maxLen {
+		maxLen = len(b.Events)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		if i >= len(a.Events) {
+			diffs = append(diffs, domain.ReplayDifference{
+				EventIndexA: -1,
+				EventIndexB: i,
+				Type:        "added",
+				Description: fmt.Sprintf("Event '%s' only in trace B", b.Events[i].Title),
+				Impact:      "medium",
+			})
+		} else if i >= len(b.Events) {
+			diffs = append(diffs, domain.ReplayDifference{
+				EventIndexA: i,
+				EventIndexB: -1,
+				Type:        "removed",
+				Description: fmt.Sprintf("Event '%s' only in trace A", a.Events[i].Title),
+				Impact:      "medium",
+			})
+		} else if a.Events[i].Type != b.Events[i].Type {
+			diffs = append(diffs, domain.ReplayDifference{
+				EventIndexA: i,
+				EventIndexB: i,
+				Type:        "modified",
+				Description: fmt.Sprintf("Event type changed: %s → %s", a.Events[i].Type, b.Events[i].Type),
+				Impact:      "high",
+			})
+		}
+	}
+
+	return diffs
+}
+
+func (s *ReplayService) calculateComparisonSummary(a, b *domain.ReplayTimeline) domain.ComparisonSummary {
+	summary := domain.ComparisonSummary{
+		CostDelta:       b.Summary.TotalCost - a.Summary.TotalCost,
+		LatencyDelta:    b.Duration - a.Duration,
+		TokenDelta:      b.Summary.TotalTokens - a.Summary.TotalTokens,
+		EventCountDelta: b.Summary.TotalEvents - a.Summary.TotalEvents,
+	}
+
+	if a.Summary.TotalCost > 0 {
+		summary.CostDeltaPct = summary.CostDelta / a.Summary.TotalCost * 100
+	}
+	if a.Duration > 0 {
+		summary.LatencyDeltaPct = float64(summary.LatencyDelta) / float64(a.Duration) * 100
+	}
+
+	aBetter, bBetter := 0, 0
+	if summary.CostDelta < 0 {
+		bBetter++
+	} else if summary.CostDelta > 0 {
+		aBetter++
+	}
+	if summary.LatencyDelta < 0 {
+		bBetter++
+	} else if summary.LatencyDelta > 0 {
+		aBetter++
+	}
+
+	if bBetter > aBetter {
+		summary.Verdict = "b_better"
+	} else if aBetter > bBetter {
+		summary.Verdict = "a_better"
+	} else {
+		summary.Verdict = "equivalent"
+	}
+
+	return summary
 }
 
 // ExportTimeline exports a timeline in a portable format

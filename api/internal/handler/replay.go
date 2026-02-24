@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -430,4 +431,53 @@ type TimelineDifference struct {
 	Description string `json:"description"`
 	Event1      *domain.ReplayEvent `json:"event1,omitempty"`
 	Event2      *domain.ReplayEvent `json:"event2,omitempty"`
+}
+
+// GenerateReproduction handles POST /api/public/traces/:traceId/reproduce
+func (h *ReplayHandler) GenerateReproduction(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	traceID, err := uuid.Parse(c.Params("traceId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid trace ID"})
+	}
+
+	var input domain.ReproductionInput
+	if err := c.BodyParser(&input); err != nil {
+		input = domain.ReproductionInput{Format: domain.ReproFormatPython}
+	}
+
+	script, err := h.replayService.GenerateReproductionScript(c.Context(), projectID, traceID, &input)
+	if err != nil {
+		h.logger.Error("failed to generate reproduction", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate reproduction script"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(script)
+}
+
+// CompareReplaysAB handles POST /api/public/replay/compare-ab
+func (h *ReplayHandler) CompareReplaysAB(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input struct {
+		TraceIDA uuid.UUID `json:"traceIdA"`
+		TraceIDB uuid.UUID `json:"traceIdB"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	comparison, err := h.replayService.CompareReplays(c.Context(), projectID, input.TraceIDA, input.TraceIDB)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to compare"})
+	}
+
+	return c.JSON(comparison)
 }
