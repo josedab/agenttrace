@@ -19,6 +19,15 @@ import {
   GitCompareArrows,
   ShieldAlert,
   PiggyBank,
+  UserCheck,
+  Shield,
+  Users,
+  Search,
+  GraduationCap,
+  Lock,
+  Webhook,
+  Store,
+  FileCheck,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -90,6 +99,56 @@ const navigation = [
     name: "Cost Optimizer",
     href: "/cost-optimizer",
     icon: PiggyBank,
+  },
+  {
+    name: "Skill Profiles",
+    href: "/skill-profiles",
+    icon: UserCheck,
+  },
+  {
+    name: "Prompt Lab",
+    href: "/prompt-lab",
+    icon: FlaskConical,
+  },
+  {
+    name: "Sandbox",
+    href: "/sandbox",
+    icon: Shield,
+  },
+  {
+    name: "Team",
+    href: "/team",
+    icon: Users,
+  },
+  {
+    name: "Search",
+    href: "/search",
+    icon: Search,
+  },
+  {
+    name: "Training",
+    href: "/training",
+    icon: GraduationCap,
+  },
+  {
+    name: "Access Control",
+    href: "/rbac",
+    icon: Lock,
+  },
+  {
+    name: "Webhooks",
+    href: "/webhook-rules",
+    icon: Webhook,
+  },
+  {
+    name: "Marketplace",
+    href: "/marketplace",
+    icon: Store,
+  },
+  {
+    name: "Compliance",
+    href: "/compliance-reports",
+    icon: FileCheck,
   },
   {
     name: "Settings",
