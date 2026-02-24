@@ -20,6 +20,7 @@ type Repositories struct {
 	TerminalCommand *chrepo.TerminalCommandRepository
 	CIRun           *chrepo.CIRunRepository
 	SkillProfile    *chrepo.SkillProfileRepository
+	PredictiveCostCH *chrepo.PredictiveCostRepository
 
 	// PostgreSQL repositories (relational data)
 	User               *pgrepo.UserRepository
@@ -45,6 +46,11 @@ type Repositories struct {
 	Discussion         *pgrepo.DiscussionRepository
 	AlertChannel       *pgrepo.AlertChannelRepository
 	CostAutopilot      *pgrepo.CostAutopilotRepository
+	RCA                *pgrepo.RCARepository
+	AgentVersion       *pgrepo.AgentVersionRepository
+	Plugin             *pgrepo.PluginRepository
+	Privacy            *pgrepo.PrivacyRepository
+	PredictiveCost     *pgrepo.PredictiveCostRepository
 }
 
 // initRepositories initializes all repositories
@@ -61,6 +67,7 @@ func initRepositories(dbs *Databases, logger *zap.Logger) *Repositories {
 		TerminalCommand: chrepo.NewTerminalCommandRepository(dbs.ClickHouse),
 		CIRun:           chrepo.NewCIRunRepository(dbs.ClickHouse),
 		SkillProfile:    chrepo.NewSkillProfileRepository(dbs.ClickHouse),
+		PredictiveCostCH: chrepo.NewPredictiveCostRepository(dbs.ClickHouse),
 
 		// PostgreSQL repositories
 		User:       pgrepo.NewUserRepository(dbs.Postgres),
@@ -86,5 +93,10 @@ func initRepositories(dbs *Databases, logger *zap.Logger) *Repositories {
 		Discussion:         pgrepo.NewDiscussionRepository(dbs.Postgres),
 		AlertChannel:       pgrepo.NewAlertChannelRepository(dbs.Postgres),
 		CostAutopilot:      pgrepo.NewCostAutopilotRepository(dbs.Postgres),
+		RCA:                pgrepo.NewRCARepository(dbs.Postgres),
+		AgentVersion:       pgrepo.NewAgentVersionRepository(dbs.Postgres),
+		Plugin:             pgrepo.NewPluginRepository(dbs.Postgres),
+		Privacy:            pgrepo.NewPrivacyRepository(dbs.Postgres),
+		PredictiveCost:     pgrepo.NewPredictiveCostRepository(dbs.Postgres),
 	}
 }

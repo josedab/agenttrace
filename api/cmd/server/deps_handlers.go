@@ -64,6 +64,16 @@ type Handlers struct {
 	WebhookOrchestration *handler.WebhookOrchestrationHandler
 	Marketplace          *handler.MarketplaceHandler
 	ComplianceReport     *handler.ComplianceReportHandler
+	AgentBuilder         *handler.AgentBuilderHandler
+	Fleet                *handler.FleetHandler
+	Privacy              *handler.PrivacyHandler
+	Mobile               *handler.MobileHandler
+	Plugin                *handler.PluginHandler
+	OrchestrationDebugger *handler.OrchestrationDebuggerHandler
+	RCA                   *handler.RCAHandler
+	AgentVersion          *handler.AgentVersionHandler
+	PredictiveCost        *handler.PredictiveCostHandler
+	Embed                 *handler.EmbedHandler
 }
 
 // initHandlers initializes all handlers
@@ -292,5 +302,30 @@ func initHandlers(
 			svcs.ComplianceReport,
 			logger,
 		),
+		AgentBuilder: handler.NewAgentBuilderHandler(
+			svcs.AgentBuilder,
+			logger,
+		),
+		Fleet: handler.NewFleetHandler(
+			svcs.Fleet,
+			logger,
+		),
+		Privacy: handler.NewPrivacyHandler(
+			svcs.Privacy,
+			logger,
+		),
+		Mobile: handler.NewMobileHandler(
+			svcs.Mobile,
+			logger,
+		),
+		Plugin: handler.NewPluginHandler(
+			svcs.Plugin,
+			logger,
+		),
+		OrchestrationDebugger: handler.NewOrchestrationDebuggerHandler(svcs.OrchestrationDebugger, logger),
+		RCA:                   handler.NewRCAHandler(svcs.RCA, logger),
+		AgentVersion:          handler.NewAgentVersionHandler(svcs.AgentVersion, logger),
+		PredictiveCost:        handler.NewPredictiveCostHandler(svcs.PredictiveCost, logger),
+		Embed:                 handler.NewEmbedHandler(svcs.Embed, logger),
 	}
 }

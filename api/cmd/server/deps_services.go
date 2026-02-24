@@ -59,11 +59,25 @@ type Services struct {
 	Marketplace          *service.MarketplaceService
 	ComplianceReport     *service.ComplianceReportService
 	Embedding            *service.EmbeddingService
+	AgentBuilder         *service.AgentBuilderService
+	Fleet                *service.FleetService
+	Privacy              *service.PrivacyService
+	Mobile               *service.MobileService
+	Plugin                *service.PluginService
+	OrchestrationDebugger *service.OrchestrationDebuggerService
+	RCA                   *service.RCAService
+	AgentVersion          *service.AgentVersionService
+	PredictiveCost        *service.PredictiveCostService
+	Embed                 *service.EmbedService
+	LLM                   *service.LLMClient
 }
 
 // initServices initializes all services
 func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *Services {
 	svcs := &Services{}
+
+	// LLM client (no dependencies, used by RCA and Agent Builder)
+	svcs.LLM = service.NewLLMClient(logger)
 
 	// Cost service (no dependencies)
 	svcs.Cost = service.NewCostService(logger)
@@ -272,6 +286,36 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 
 	// Embedding service (vector semantic search)
 	svcs.Embedding = service.NewEmbeddingService(logger)
+
+	// NL Agent Builder service
+	svcs.AgentBuilder = service.NewAgentBuilderService(logger)
+
+	// Fleet management service
+	svcs.Fleet = service.NewFleetService(logger)
+
+	// Privacy-preserving analytics service
+	svcs.Privacy = service.NewPrivacyService(logger)
+
+	// Mobile companion service
+	svcs.Mobile = service.NewMobileService(logger)
+
+	// Plugin architecture service
+	svcs.Plugin = service.NewPluginService(logger)
+
+	// Orchestration debugger service
+	svcs.OrchestrationDebugger = service.NewOrchestrationDebuggerService(logger)
+
+	// Root cause analysis service
+	svcs.RCA = service.NewRCAService(logger)
+
+	// Agent version service
+	svcs.AgentVersion = service.NewAgentVersionService(logger)
+
+	// Predictive cost service
+	svcs.PredictiveCost = service.NewPredictiveCostService(logger)
+
+	// Embed service (white-label)
+	svcs.Embed = service.NewEmbedService(logger)
 
 	return svcs
 }

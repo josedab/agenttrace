@@ -350,6 +350,73 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Post("/compliance-reports", h.ComplianceReport.Generate)
 		public.Get("/compliance-reports/templates", h.ComplianceReport.GetTemplates)
 		public.Get("/compliance-reports/:reportId", h.ComplianceReport.Get)
+
+		// NL Agent Builder
+		public.Post("/agent-builder/generate", h.AgentBuilder.Generate)
+		public.Get("/agent-builder/blueprints", h.AgentBuilder.List)
+		public.Get("/agent-builder/blueprints/:blueprintId", h.AgentBuilder.Get)
+		public.Post("/agent-builder/blueprints/:blueprintId/deploy", h.AgentBuilder.Deploy)
+
+		// Fleet Management
+		public.Get("/fleet/dashboard", h.Fleet.GetDashboard)
+		public.Get("/fleet/agents", h.Fleet.ListAgents)
+		public.Get("/fleet/policies", h.Fleet.ListPolicies)
+		public.Post("/fleet/policies", h.Fleet.CreatePolicy)
+		public.Post("/fleet/bulk-update", h.Fleet.BulkUpdate)
+		public.Get("/fleet/scaling", h.Fleet.GetScalingRecommendations)
+
+		// Privacy
+		public.Post("/privacy/scan", h.Privacy.ScanPII)
+		public.Get("/privacy/config", h.Privacy.GetConfig)
+		public.Put("/privacy/config", h.Privacy.UpdateConfig)
+		public.Post("/privacy/deletion-requests", h.Privacy.RequestDeletion)
+		public.Get("/privacy/deletion-requests", h.Privacy.ListDeletionRequests)
+
+		// Mobile API
+		public.Post("/mobile/devices", h.Mobile.RegisterDevice)
+		public.Get("/mobile/dashboard", h.Mobile.GetDashboard)
+		public.Get("/mobile/notifications", h.Mobile.ListNotifications)
+
+		// Plugin System
+		public.Get("/plugins", h.Plugin.List)
+		public.Post("/plugins", h.Plugin.Install)
+		public.Get("/plugins/:pluginId", h.Plugin.Get)
+		public.Post("/plugins/:pluginId/activate", h.Plugin.Activate)
+		public.Post("/plugins/:pluginId/disable", h.Plugin.Disable)
+		public.Post("/plugins/:pluginId/execute", h.Plugin.Execute)
+		public.Delete("/plugins/:pluginId", h.Plugin.Uninstall)
+
+		// Multi-Agent Orchestration Debugger
+		public.Get("/orchestration/sessions", h.OrchestrationDebugger.ListSessions)
+		public.Post("/orchestration/sessions", h.OrchestrationDebugger.CreateSession)
+		public.Get("/orchestration/sessions/:sessionId", h.OrchestrationDebugger.GetSession)
+		public.Post("/orchestration/sessions/:sessionId/command", h.OrchestrationDebugger.ExecuteCommand)
+		public.Post("/orchestration/sessions/:sessionId/breakpoints", h.OrchestrationDebugger.AddBreakpoint)
+
+		// AI-Powered Root Cause Analysis
+		public.Post("/rca/analyze", h.RCA.Analyze)
+		public.Get("/rca/reports", h.RCA.ListReports)
+		public.Get("/rca/reports/:reportId", h.RCA.GetReport)
+
+		// Agent Rollback & Versioning
+		public.Get("/agent-versions", h.AgentVersion.ListVersions)
+		public.Post("/agent-versions", h.AgentVersion.CreateVersion)
+		public.Get("/agent-versions/active", h.AgentVersion.GetActive)
+		public.Get("/agent-versions/:versionId", h.AgentVersion.GetVersion)
+		public.Post("/agent-versions/:versionId/rollback", h.AgentVersion.Rollback)
+		public.Post("/agent-versions/diff", h.AgentVersion.DiffVersions)
+
+		// Predictive Cost Modeling
+		public.Post("/predictions/cost", h.PredictiveCost.Predict)
+		public.Get("/predictions", h.PredictiveCost.ListPredictions)
+		public.Post("/predictions/:predictionId/approve", h.PredictiveCost.RequestApproval)
+		public.Post("/approvals/:approvalId/decide", h.PredictiveCost.DecideApproval)
+
+		// White-Label & Embedding
+		public.Get("/embed/config", h.Embed.GetConfig)
+		public.Post("/embed/config", h.Embed.CreateConfig)
+		public.Put("/embed/config", h.Embed.UpdateConfig)
+		public.Post("/embed/token", h.Embed.GenerateToken)
 	}
 
 	// Internal API routes (JWT auth)
