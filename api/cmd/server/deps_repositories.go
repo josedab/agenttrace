@@ -38,6 +38,12 @@ type Repositories struct {
 	Tenant             *pgrepo.TenantRepository
 	DebugSession       *pgrepo.DebugSessionRepository
 	CostRecommendation *pgrepo.CostRecommendationRepository
+	DiffAnalysis       *pgrepo.DiffAnalysisRepository
+	Federation         *pgrepo.FederationRepository
+	Intervention       *pgrepo.InterventionRepository
+	Discussion         *pgrepo.DiscussionRepository
+	AlertChannel       *pgrepo.AlertChannelRepository
+	CostAutopilot      *pgrepo.CostAutopilotRepository
 }
 
 // initRepositories initializes all repositories
@@ -72,5 +78,11 @@ func initRepositories(dbs *Databases, logger *zap.Logger) *Repositories {
 		Tenant:             pgrepo.NewTenantRepository(dbs.Postgres),
 		DebugSession:       pgrepo.NewDebugSessionRepository(dbs.Postgres),
 		CostRecommendation: pgrepo.NewCostRecommendationRepository(dbs.Postgres),
+		DiffAnalysis:       pgrepo.NewDiffAnalysisRepository(dbs.Postgres),
+		Federation:         pgrepo.NewFederationRepository(dbs.Postgres),
+		Intervention:       pgrepo.NewInterventionRepository(dbs.Postgres),
+		Discussion:         pgrepo.NewDiscussionRepository(dbs.Postgres),
+		AlertChannel:       pgrepo.NewAlertChannelRepository(dbs.Postgres),
+		CostAutopilot:      pgrepo.NewCostAutopilotRepository(dbs.Postgres),
 	}
 }

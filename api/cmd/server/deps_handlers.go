@@ -53,6 +53,10 @@ type Handlers struct {
 	ComplianceExport   *handler.ComplianceExportHandler
 	Scorecard          *handler.ScorecardHandler
 	Tickets            *handler.TicketHandler
+	Streaming          *handler.StreamingHandler
+	DiffIntelligence   *handler.DiffIntelligenceHandler
+	Anomaly            *handler.AnomalyHandler
+	Federation         *handler.FederationHandler
 }
 
 // initHandlers initializes all handlers
@@ -235,6 +239,22 @@ func initHandlers(
 		),
 		Tickets: handler.NewTicketHandler(
 			svcs.Ticket,
+			logger,
+		),
+		DiffIntelligence: handler.NewDiffIntelligenceHandler(
+			svcs.DiffIntelligence,
+			logger,
+		),
+		Streaming: handler.NewStreamingHandler(
+			svcs.Streaming,
+			logger,
+		),
+		Anomaly: handler.NewAnomalyHandler(
+			logger,
+			svcs.Anomaly,
+		),
+		Federation: handler.NewFederationHandler(
+			svcs.Federation,
 			logger,
 		),
 	}

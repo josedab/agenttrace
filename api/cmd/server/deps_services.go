@@ -47,6 +47,10 @@ type Services struct {
 	Scorecard       *service.ScorecardService
 	Ticket          *service.TicketService
 	Audit           *service.AuditService
+	Streaming       *service.StreamingService
+	DiffIntelligence *service.DiffIntelligenceService
+	Anomaly         *service.AnomalyService
+	Federation      *service.FederationService
 }
 
 // initServices initializes all services
@@ -222,8 +226,20 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 	// Scorecard service
 	svcs.Scorecard = service.NewScorecardService(logger, nil, svcs.Query)
 
+	// Diff intelligence service
+	svcs.DiffIntelligence = service.NewDiffIntelligenceService(logger, repos.DiffAnalysis)
+
 	// Ticket service (trace-to-ticket pipeline)
 	svcs.Ticket = service.NewTicketService(logger, nil, svcs.Query)
+
+	// Streaming service (per-trace real-time streaming)
+	svcs.Streaming = service.NewStreamingService(logger, svcs.Realtime)
+
+	// Anomaly detection service
+	svcs.Anomaly = service.NewAnomalyService(logger)
+
+	// Federation service (cross-instance federation and export)
+	svcs.Federation = service.NewFederationService(logger)
 
 	return svcs
 }

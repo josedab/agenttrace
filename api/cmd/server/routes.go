@@ -160,6 +160,8 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Get("/traces/:traceId/replay/events", h.Replay.GetTimelineEvents)
 		public.Get("/traces/:traceId/replay/events/:eventId", h.Replay.GetEventDetails)
 		public.Post("/replay/compare", h.Replay.CompareTimelines)
+		public.Post("/traces/:traceId/reproduce", h.Replay.GenerateReproduction)
+		public.Post("/replay/compare-ab", h.Replay.CompareReplaysAB)
 
 		// Debug Sessions (extends replay with interactive debugging)
 		public.Post("/debug/sessions", h.Debug.CreateSession)
@@ -179,6 +181,9 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Get("/cost-optimizer/recommendations", h.CostOptimizer.GetRecommendations)
 		public.Post("/cost-optimizer/recommendations/:id/apply", h.CostOptimizer.ApplyRecommendation)
 		public.Post("/cost-optimizer/recommendations/:id/dismiss", h.CostOptimizer.DismissRecommendation)
+		public.Get("/cost-optimizer/forecast", h.CostOptimizer.GetForecast)
+		public.Post("/cost-optimizer/report", h.CostOptimizer.GenerateReport)
+		public.Post("/cost-optimizer/autopilot", h.CostOptimizer.ConfigureAutopilot)
 
 		// Agent Graph (multi-agent visualization)
 		public.Get("/traces/:traceId/graph", h.AgentGraph.BuildGraph)
@@ -191,12 +196,22 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Delete("/guardrails/:ruleId", h.Guardrails.DeleteRule)
 		public.Get("/guardrails/violations", h.Guardrails.ListViolations)
 		public.Get("/guardrails/violations/stats", h.Guardrails.GetViolationStats)
+		public.Get("/guardrails/templates", h.Guardrails.GetPlaybookTemplates)
+		public.Post("/guardrails/playbooks", h.Guardrails.CreatePlaybook)
 
 		// Benchmarks
 		public.Get("/benchmarks", h.Benchmarks.ListBenchmarks)
 		public.Get("/benchmarks/:benchmarkId", h.Benchmarks.GetBenchmark)
+		public.Post("/benchmarks", h.Benchmarks.CreateBenchmark)
 		public.Post("/benchmarks/:benchmarkId/submit", h.Benchmarks.Submit)
 		public.Get("/benchmarks/:benchmarkId/leaderboard", h.Benchmarks.GetLeaderboard)
+		public.Post("/benchmarks/:benchmarkId/compare", h.Benchmarks.CompareSubmissions)
+		public.Get("/benchmarks/:benchmarkId/stats", h.Benchmarks.GetStats)
+
+		// Anomaly Detection & Alerting
+		public.Get("/anomaly/dashboard", h.Anomaly.GetDashboard)
+		public.Post("/anomaly/channels", h.Anomaly.CreateAlertChannel)
+		public.Get("/anomaly/anomalies/:anomalyId/root-cause", h.Anomaly.GetRootCause)
 
 		// Collaboration
 		public.Get("/collaboration/traces/:traceId/presence", h.Collaboration.GetPresence)
@@ -204,6 +219,13 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Get("/collaboration/traces/:traceId/annotations", h.Collaboration.ListAnnotations)
 		public.Post("/collaboration/annotations/:annotationId/resolve", h.Collaboration.ResolveAnnotation)
 		public.Post("/collaboration/sessions", h.Collaboration.CreateSharedSession)
+
+		// Collaboration - Discussions
+		public.Post("/collaboration/discussions", h.Collaboration.CreateDiscussion)
+		public.Post("/collaboration/discussions/:threadId/messages", h.Collaboration.AddMessage)
+
+		// Collaboration - Evaluation Queues
+		public.Post("/collaboration/eval-queues", h.Collaboration.CreateEvalQueue)
 
 		// Migration
 		public.Get("/migrations", h.Migration.ListMigrations)
@@ -254,12 +276,36 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		public.Post("/scorecards/config", h.Scorecard.ConfigureAuto)
 		public.Get("/scorecards/:id", h.Scorecard.GetScorecard)
 
+		// Diff Intelligence
+		public.Get("/diff-analysis", h.DiffIntelligence.ListAnalyses)
+		public.Post("/diff-analysis", h.DiffIntelligence.AnalyzeDiff)
+		public.Get("/diff-analysis/trend", h.DiffIntelligence.GetQualityTrend)
+		public.Get("/diff-analysis/:id", h.DiffIntelligence.GetAnalysis)
+		public.Get("/traces/:traceId/diff-analysis", h.DiffIntelligence.GetTraceAnalyses)
+
 		// Trace-to-Ticket Pipeline
 		public.Get("/tickets", h.Tickets.ListTickets)
 		public.Post("/tickets", h.Tickets.CreateTicket)
 		public.Post("/tickets/preview", h.Tickets.PreviewTicket)
 		public.Get("/tickets/integrations", h.Tickets.GetIntegrations)
 		public.Post("/tickets/integrations", h.Tickets.ConfigureIntegration)
+
+		// Real-time streaming
+		public.Get("/streams", h.Streaming.GetActiveStreams)
+		public.Get("/traces/:traceId/stream", h.Streaming.StreamTrace)
+		public.Get("/traces/:traceId/live-metrics", h.Streaming.GetLiveMetrics)
+		public.Get("/traces/:traceId/activities", h.Streaming.GetRecentActivities)
+		public.Post("/traces/:traceId/intervene", h.Streaming.RequestIntervention)
+		public.Get("/traces/:traceId/interventions", h.Streaming.GetPendingInterventions)
+		public.Post("/traces/:traceId/interventions/:interventionId/ack", h.Streaming.AcknowledgeIntervention)
+
+		// Federation & OTLP Export
+		public.Get("/federation/peers", h.Federation.ListPeers)
+		public.Post("/federation/peers", h.Federation.AddPeer)
+		public.Delete("/federation/peers/:peerId", h.Federation.RemovePeer)
+		public.Post("/federation/query", h.Federation.FederatedQuery)
+		public.Get("/federation/destinations", h.Federation.ListExportDestinations)
+		public.Post("/federation/destinations", h.Federation.CreateExportDestination)
 	}
 
 	// Internal API routes (JWT auth)
