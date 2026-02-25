@@ -152,3 +152,58 @@ type AutopilotConfigInput struct {
 	OptimizationLevel string   `json:"optimizationLevel,omitempty"`
 	AutoApply         *bool    `json:"autoApply,omitempty"`
 }
+
+// CostHotspot represents a cost-intensive area identified by analysis
+type CostHotspot struct {
+	Type           string  `json:"type"`           // model, prompt, agent, endpoint
+	Identifier     string  `json:"identifier"`
+	TotalCost      float64 `json:"totalCost"`
+	PercentOfTotal float64 `json:"percentOfTotal"`
+	TraceCount     int     `json:"traceCount"`
+	Trend          string  `json:"trend"`          // increasing, stable, decreasing
+	Severity       string  `json:"severity"`       // low, medium, high, critical
+}
+
+// CachingStrategy represents a recommended caching optimization
+type CachingStrategy struct {
+	ID              uuid.UUID `json:"id"`
+	Type            string    `json:"type"` // prompt_cache, semantic_cache, response_cache
+	Description     string    `json:"description"`
+	EstimatedSaving float64   `json:"estimatedMonthlySaving"`
+	HitRateEstimate float64   `json:"hitRateEstimate"`
+	Implementation  string    `json:"implementation"`
+	Complexity      string    `json:"complexity"` // low, medium, high
+}
+
+// ModelRoutingSuggestion recommends using different models for different task types
+type ModelRoutingSuggestion struct {
+	TaskType        string  `json:"taskType"`
+	CurrentModel    string  `json:"currentModel"`
+	SuggestedModel  string  `json:"suggestedModel"`
+	CostReduction   float64 `json:"costReductionPercent"`
+	QualityImpact   float64 `json:"qualityImpactPercent"`
+	Confidence      float64 `json:"confidence"`
+	SampleSize      int     `json:"sampleSize"`
+}
+
+// CostAutopilotReport represents the autopilot's comprehensive analysis
+type CostAutopilotReport struct {
+	ProjectID          uuid.UUID                `json:"projectId"`
+	Hotspots           []CostHotspot            `json:"hotspots"`
+	CachingStrategies  []CachingStrategy        `json:"cachingStrategies"`
+	ModelRouting       []ModelRoutingSuggestion  `json:"modelRouting"`
+	BudgetAlerts       []BudgetAlert            `json:"budgetAlerts"`
+	TotalSavingsPotential float64               `json:"totalSavingsPotential"`
+	GeneratedAt        time.Time                `json:"generatedAt"`
+}
+
+// BudgetAlert represents a budget threshold alert
+type BudgetAlert struct {
+	ID          uuid.UUID `json:"id"`
+	Type        string    `json:"type"` // warning, exceeded, projected_exceed
+	Message     string    `json:"message"`
+	CurrentCost float64   `json:"currentCost"`
+	BudgetLimit float64   `json:"budgetLimit"`
+	Percentage  float64   `json:"percentage"`
+	CreatedAt   time.Time `json:"createdAt"`
+}

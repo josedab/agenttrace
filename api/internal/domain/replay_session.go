@@ -145,3 +145,37 @@ type AgentReplaySessionList struct {
 	TotalCount int64                `json:"totalCount"`
 	HasMore    bool                 `json:"hasMore"`
 }
+
+// ReplayControlCommand represents a playback control command sent via WebSocket
+type ReplayControlCommand struct {
+	Action     string  `json:"action"` // play, pause, seek, speed, step_forward, step_backward
+	EventIndex *int    `json:"eventIndex,omitempty"`
+	Speed      float64 `json:"speed,omitempty"`
+}
+
+// ReplayStreamEvent represents a real-time event sent to WebSocket clients
+type ReplayStreamEvent struct {
+	Type      string                    `json:"type"` // event, state, milestone, complete, error
+	Event     *AgentReplayTimelineEvent `json:"event,omitempty"`
+	State     *AgentReplayPlaybackState `json:"state,omitempty"`
+	Milestone *AgentReplayMilestone     `json:"milestone,omitempty"`
+	Error     string                    `json:"error,omitempty"`
+}
+
+// AgentReplayRecordEventInput represents input for recording a replay event
+type AgentReplayRecordEventInput struct {
+	Type       ReplayEventType        `json:"type" validate:"required"`
+	Data       map[string]interface{} `json:"data"`
+	Input      interface{}            `json:"input,omitempty"`
+	Output     interface{}            `json:"output,omitempty"`
+	DurationMs int64                  `json:"durationMs,omitempty"`
+	FileDelta  *ReplayFileDelta       `json:"fileDelta,omitempty"`
+}
+
+// ReplayFileStateSnapshot represents the reconstructed file state at a point in time
+type ReplayFileStateSnapshot struct {
+	SessionID  uuid.UUID         `json:"sessionId"`
+	EventIndex int               `json:"eventIndex"`
+	Files      map[string]string `json:"files"`
+	Timestamp  time.Time         `json:"timestamp"`
+}

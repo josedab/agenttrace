@@ -92,3 +92,53 @@ type FederatedDashboard struct {
 	ParticipantCount int                  `json:"participantCount"`
 	LastAggregation  *time.Time           `json:"lastAggregation,omitempty"`
 }
+
+// DifferentialPrivacyConfig configures the differential privacy parameters
+type DifferentialPrivacyConfig struct {
+	Epsilon      float64 `json:"epsilon"`      // Privacy budget (lower = more private)
+	Delta        float64 `json:"delta"`         // Probability of privacy breach
+	Sensitivity  float64 `json:"sensitivity"`   // Max influence of single record
+	NoiseType    string  `json:"noiseType"`     // laplacian, gaussian
+}
+
+// AnonymizedBenchmarkSubmission represents anonymized metrics submitted to the mesh
+type AnonymizedBenchmarkSubmission struct {
+	ID               uuid.UUID           `json:"id"`
+	InstanceHash     string              `json:"instanceHash"` // Hashed instance ID
+	Metrics          []AnonymizedMetric  `json:"metrics"`
+	PrivacyConfig    DifferentialPrivacyConfig `json:"privacyConfig"`
+	SubmittedAt      time.Time           `json:"submittedAt"`
+}
+
+// AnonymizedMetric represents a single metric with noise applied
+type AnonymizedMetric struct {
+	MetricType  FederatedMetricType `json:"metricType"`
+	Value       float64             `json:"value"`       // Noise-injected value
+	NoiseAdded  float64             `json:"noiseAdded"`  // Amount of noise (for transparency)
+	SampleSize  int64               `json:"sampleSize"`
+	Period      string              `json:"period"`      // daily, weekly, monthly
+}
+
+// IndustryBaseline represents aggregated industry baseline statistics
+type IndustryBaseline struct {
+	MetricType    FederatedMetricType `json:"metricType"`
+	P10           float64             `json:"p10"`
+	P25           float64             `json:"p25"`
+	P50           float64             `json:"p50"`
+	P75           float64             `json:"p75"`
+	P90           float64             `json:"p90"`
+	Mean          float64             `json:"mean"`
+	StdDev        float64             `json:"stdDev"`
+	Participants  int                 `json:"participants"`
+	LastUpdated   time.Time           `json:"lastUpdated"`
+}
+
+// MeshStatus represents the health and status of the federated mesh
+type MeshStatus struct {
+	TotalInstances   int        `json:"totalInstances"`
+	ActiveInstances  int        `json:"activeInstances"`
+	TotalMetrics     int64      `json:"totalMetrics"`
+	AvgPrivacyLevel  string     `json:"avgPrivacyLevel"`
+	MeshHealth       string     `json:"meshHealth"` // healthy, degraded, unhealthy
+	LastSync         *time.Time `json:"lastSync,omitempty"`
+}

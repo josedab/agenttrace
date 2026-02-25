@@ -111,3 +111,67 @@ type MultiAgentSessionList struct {
 	TotalCount int64               `json:"totalCount"`
 	HasMore    bool                `json:"hasMore"`
 }
+
+// TopologyGraph represents the graph data for topology visualization (ReactFlow compatible)
+type TopologyGraph struct {
+	SessionID uuid.UUID          `json:"sessionId"`
+	Nodes     []TopologyNode     `json:"nodes"`
+	Edges     []TopologyEdge     `json:"edges"`
+	Stats     TopologyStats      `json:"stats"`
+	Layout    string             `json:"layout"` // dagre, force, circular
+}
+
+// TopologyNode represents a node in the topology graph
+type TopologyNode struct {
+	ID       string            `json:"id"`
+	Type     string            `json:"type"` // agent, tool, external
+	Label    string            `json:"label"`
+	Position TopologyPosition  `json:"position"`
+	Data     TopologyNodeData  `json:"data"`
+}
+
+// TopologyPosition represents x,y coordinates for graph layout
+type TopologyPosition struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+// TopologyNodeData contains data for a topology node
+type TopologyNodeData struct {
+	Role         AgentRole `json:"role"`
+	Framework    string    `json:"framework,omitempty"`
+	Model        string    `json:"model,omitempty"`
+	Status       string    `json:"status"`
+	TaskCount    int       `json:"taskCount"`
+	AvgLatencyMs float64  `json:"avgLatencyMs"`
+	TotalCostUsd float64  `json:"totalCostUsd"`
+	ErrorRate    float64   `json:"errorRate"`
+}
+
+// TopologyEdge represents a connection between nodes
+type TopologyEdge struct {
+	ID        string           `json:"id"`
+	Source    string           `json:"source"`
+	Target    string           `json:"target"`
+	Label     string           `json:"label,omitempty"`
+	Type      string           `json:"type"` // delegation, response, data_flow
+	Animated  bool             `json:"animated"`
+	Data      TopologyEdgeData `json:"data"`
+}
+
+// TopologyEdgeData contains data for a topology edge
+type TopologyEdgeData struct {
+	MessageCount int     `json:"messageCount"`
+	AvgLatencyMs float64 `json:"avgLatencyMs"`
+	TotalTokens  int64   `json:"totalTokens"`
+}
+
+// TopologyStats contains aggregate stats for the topology
+type TopologyStats struct {
+	TotalAgents    int     `json:"totalAgents"`
+	TotalMessages  int     `json:"totalMessages"`
+	TotalCost      float64 `json:"totalCost"`
+	AvgLatency     float64 `json:"avgLatencyMs"`
+	DelegationDepth int    `json:"delegationDepth"`
+	ParallelPaths  int     `json:"parallelPaths"`
+}

@@ -99,3 +99,67 @@ type PromptCIRunList struct {
 	TotalCount int64         `json:"totalCount"`
 	HasMore    bool          `json:"hasMore"`
 }
+
+// PromptCIGateConfig represents configurable thresholds for the CI gate
+type PromptCIGateConfig struct {
+	ID              uuid.UUID                    `json:"id"`
+	ProjectID       uuid.UUID                    `json:"projectId"`
+	Name            string                       `json:"name"`
+	BaselineID      uuid.UUID                    `json:"baselineId"`
+	Thresholds      map[string]MetricThreshold   `json:"thresholds"`
+	BlockOnSeverity RegressionSeverity           `json:"blockOnSeverity"` // minimum severity to block PR
+	ConfidenceLevel float64                      `json:"confidenceLevel"` // 0.0-1.0, default 0.95
+	RequiredMetrics []string                     `json:"requiredMetrics,omitempty"`
+	Enabled         bool                         `json:"enabled"`
+	CreatedAt       time.Time                    `json:"createdAt"`
+	UpdatedAt       time.Time                    `json:"updatedAt"`
+}
+
+// MetricThreshold represents a configurable threshold for a single metric
+type MetricThreshold struct {
+	MaxRegressionPct float64 `json:"maxRegressionPercent"` // max allowed regression as percentage
+	MinAbsoluteValue float64 `json:"minAbsoluteValue"`     // minimum acceptable absolute value
+	Direction        string  `json:"direction"`             // higher_better, lower_better
+}
+
+// PromptCIGateConfigInput represents input for creating a gate config
+type PromptCIGateConfigInput struct {
+	Name            string                     `json:"name" validate:"required,min=1,max=200"`
+	BaselineID      uuid.UUID                  `json:"baselineId" validate:"required"`
+	Thresholds      map[string]MetricThreshold `json:"thresholds" validate:"required"`
+	BlockOnSeverity RegressionSeverity         `json:"blockOnSeverity,omitempty"`
+	ConfidenceLevel float64                    `json:"confidenceLevel,omitempty"`
+	RequiredMetrics []string                   `json:"requiredMetrics,omitempty"`
+}
+
+// PromptCIGateResult represents the result of a CI gate evaluation
+type PromptCIGateResult struct {
+	RunID           uuid.UUID          `json:"runId"`
+	GateConfigID    uuid.UUID          `json:"gateConfigId"`
+	Passed          bool               `json:"passed"`
+	OverallSeverity RegressionSeverity `json:"overallSeverity"`
+	MetricResults   []MetricGateResult `json:"metricResults"`
+	Summary         string             `json:"summary"`
+	BlockReason     string             `json:"blockReason,omitempty"`
+	EvaluatedAt     time.Time          `json:"evaluatedAt"`
+}
+
+// MetricGateResult represents the gate evaluation result for a single metric
+type MetricGateResult struct {
+	MetricName       string             `json:"metricName"`
+	BaselineValue    float64            `json:"baselineValue"`
+	CurrentValue     float64            `json:"currentValue"`
+	ThresholdPct     float64            `json:"thresholdPercent"`
+	ActualChangePct  float64            `json:"actualChangePercent"`
+	Passed           bool               `json:"passed"`
+	Severity         RegressionSeverity `json:"severity"`
+}
+
+// PromptCIGateEvalInput represents input for evaluating a CI gate
+type PromptCIGateEvalInput struct {
+	GateConfigID uuid.UUID          `json:"gateConfigId" validate:"required"`
+	Branch       string             `json:"branch" validate:"required"`
+	CommitSHA    string             `json:"commitSha" validate:"required"`
+	PRNumber     *int               `json:"prNumber,omitempty"`
+	Scores       map[string]float64 `json:"scores" validate:"required"`
+}

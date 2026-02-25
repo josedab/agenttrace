@@ -102,3 +102,43 @@ type PathBlockCount struct {
 	Path  string `json:"path"`
 	Count int    `json:"count"`
 }
+
+// CloudSandboxSession represents a browser-based demo environment
+type CloudSandboxSession struct {
+	ID            uuid.UUID            `json:"id"`
+	Status        CloudSandboxStatus   `json:"status"`
+	URL           string               `json:"url"`
+	DashboardURL  string               `json:"dashboardUrl"`
+	APIURL        string               `json:"apiUrl"`
+	APIKey        string               `json:"apiKey"`
+	ExpiresAt     time.Time            `json:"expiresAt"`
+	SampleData    CloudSandboxData     `json:"sampleData"`
+	CreatedAt     time.Time            `json:"createdAt"`
+}
+
+// CloudSandboxStatus represents the status of a cloud sandbox session
+type CloudSandboxStatus string
+
+const (
+	CloudSandboxProvisioning CloudSandboxStatus = "provisioning"
+	CloudSandboxReady        CloudSandboxStatus = "ready"
+	CloudSandboxExpired      CloudSandboxStatus = "expired"
+	CloudSandboxError        CloudSandboxStatus = "error"
+)
+
+// CloudSandboxData describes the pre-loaded sample data
+type CloudSandboxData struct {
+	TraceCount       int      `json:"traceCount"`
+	AgentCount       int      `json:"agentCount"`
+	PromptCount      int      `json:"promptCount"`
+	DatasetCount     int      `json:"datasetCount"`
+	Features         []string `json:"features"`
+	SampleAgents     []string `json:"sampleAgents"`
+}
+
+// CloudSandboxInput represents input for creating a cloud sandbox
+type CloudSandboxInput struct {
+	Email       string `json:"email,omitempty"`
+	UseCase     string `json:"useCase,omitempty"`
+	PreloadData bool   `json:"preloadData"`
+}
