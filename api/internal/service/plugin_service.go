@@ -150,3 +150,136 @@ func (s *PluginService) UninstallPlugin(ctx context.Context, id uuid.UUID) error
 	s.logger.Info("uninstalled plugin", zap.String("id", id.String()))
 	return nil
 }
+
+// InstallAdapter installs an agent framework adapter
+func (s *PluginService) InstallAdapter(ctx context.Context, projectID uuid.UUID, input *domain.AdapterInstallInput) (*domain.AgentProtocolAdapter, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	templates := s.getAdapterTemplates()
+	var tmpl *domain.AdapterTemplate
+	for i, t := range templates {
+		if t.Framework == input.Framework {
+			tmpl = &templates[i]
+			break
+		}
+	}
+
+	name := input.Name
+	if name == "" && tmpl != nil {
+		name = tmpl.DisplayName
+	}
+	if name == "" {
+		name = string(input.Framework) + " adapter"
+	}
+
+	description := ""
+	capabilities := []string{"trace_capture"}
+	if tmpl != nil {
+		description = tmpl.Description
+		capabilities = tmpl.Capabilities
+	}
+
+	adapter := &domain.AgentProtocolAdapter{
+		ID:           uuid.New(),
+		ProjectID:    projectID,
+		Framework:    input.Framework,
+		Name:         name,
+		Description:  description,
+		Version:      "1.0.0",
+		Config:       input.Config,
+		Status:       domain.PluginStatusInstalled,
+		Capabilities: capabilities,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	s.logger.Info("installed agent protocol adapter",
+		zap.String("adapterId", adapter.ID.String()),
+		zap.String("framework", string(input.Framework)),
+	)
+	return adapter, nil
+}
+
+// ListAdapters returns the adapter registry with installed and available adapters
+func (s *PluginService) ListAdapters(ctx context.Context, projectID uuid.UUID) (*domain.AdapterRegistry, error) {
+	return &domain.AdapterRegistry{
+		Installed: []domain.AgentProtocolAdapter{},
+		Available: s.getAdapterTemplates(),
+	}, nil
+}
+
+// IngestAdapterEvent receives trace events from framework adapters
+func (s *PluginService) IngestAdapterEvent(ctx context.Context, projectID uuid.UUID, input *domain.AdapterEventInput) error {
+	if input.EventType == "" {
+		return fmt.Errorf("event type is required")
+	}
+
+	s.logger.Debug("ingested adapter event",
+		zap.String("adapterId", input.AdapterID.String()),
+		zap.String("eventType", input.EventType),
+		zap.String("name", input.Name),
+	)
+	return nil
+}
+
+func (s *PluginService) getAdapterTemplates() []domain.AdapterTemplate {
+	return []domain.AdapterTemplate{
+		{
+			Framework:    domain.FrameworkLangChain,
+			DisplayName:  "LangChain",
+			Description:  "Automatic trace capture for LangChain agents, chains, and tools",
+			SetupGuide:   "pip install agenttrace[langchain] && export AGENTTRACE_API_KEY=...",
+			Capabilities: []string{"trace_capture", "cost_tracking", "prompt_logging", "tool_tracking"},
+			SDKSupport:   []string{"python", "typescript"},
+		},
+		{
+			Framework:    domain.FrameworkCrewAI,
+			DisplayName:  "CrewAI",
+			Description:  "Trace capture for CrewAI multi-agent orchestrations",
+			SetupGuide:   "pip install agenttrace[crewai] && export AGENTTRACE_API_KEY=...",
+			Capabilities: []string{"trace_capture", "cost_tracking", "agent_handoff_tracking", "multi_agent"},
+			SDKSupport:   []string{"python"},
+		},
+		{
+			Framework:    domain.FrameworkAutoGen,
+			DisplayName:  "AutoGen",
+			Description:  "Trace capture for Microsoft AutoGen multi-agent conversations",
+			SetupGuide:   "pip install agenttrace[autogen] && export AGENTTRACE_API_KEY=...",
+			Capabilities: []string{"trace_capture", "cost_tracking", "conversation_tracking", "multi_agent"},
+			SDKSupport:   []string{"python"},
+		},
+		{
+			Framework:    domain.FrameworkLlamaIndex,
+			DisplayName:  "LlamaIndex",
+			Description:  "Trace capture for LlamaIndex RAG pipelines and agents",
+			SetupGuide:   "pip install agenttrace[llamaindex] && export AGENTTRACE_API_KEY=...",
+			Capabilities: []string{"trace_capture", "cost_tracking", "retrieval_tracking"},
+			SDKSupport:   []string{"python", "typescript"},
+		},
+		{
+			Framework:    domain.FrameworkOpenAI,
+			DisplayName:  "OpenAI Agents SDK",
+			Description:  "Trace capture for OpenAI Agents SDK",
+			SetupGuide:   "pip install agenttrace[openai] && export AGENTTRACE_API_KEY=...",
+			Capabilities: []string{"trace_capture", "cost_tracking", "tool_tracking"},
+			SDKSupport:   []string{"python"},
+		},
+		{
+			Framework:    domain.FrameworkDSPy,
+			DisplayName:  "DSPy",
+			Description:  "Trace capture for DSPy prompt optimization programs",
+			SetupGuide:   "pip install agenttrace[dspy] && export AGENTTRACE_API_KEY=...",
+			Capabilities: []string{"trace_capture", "prompt_logging", "optimization_tracking"},
+			SDKSupport:   []string{"python"},
+		},
+		{
+			Framework:    domain.FrameworkCustom,
+			DisplayName:  "Custom Framework",
+			Description:  "Generic adapter for custom agent frameworks using the AgentTrace Protocol",
+			SetupGuide:   "Implement the AgentTrace adapter interface for your framework",
+			Capabilities: []string{"trace_capture"},
+			SDKSupport:   []string{"python", "typescript", "go"},
+		},
+	}
+}

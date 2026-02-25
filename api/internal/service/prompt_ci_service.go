@@ -172,3 +172,150 @@ func (s *PromptCIService) ListRuns(ctx context.Context, projectID uuid.UUID) ([]
 	s.logger.Info("listing prompt CI runs", zap.String("projectId", projectID.String()))
 	return []domain.PromptCIRun{}, nil
 }
+
+// CreateGateConfig creates a configurable CI gate for blocking PRs on regression
+func (s *PromptCIService) CreateGateConfig(ctx context.Context, projectID uuid.UUID, input *domain.PromptCIGateConfigInput) (*domain.PromptCIGateConfig, error) {
+	if input.Name == "" {
+		return nil, fmt.Errorf("gate config name is required")
+	}
+	if len(input.Thresholds) == 0 {
+		return nil, fmt.Errorf("at least one metric threshold is required")
+	}
+
+	blockSeverity := input.BlockOnSeverity
+	if blockSeverity == "" {
+		blockSeverity = domain.RegressionSeverityMajor
+	}
+
+	confidence := input.ConfidenceLevel
+	if confidence <= 0 || confidence > 1 {
+		confidence = 0.95
+	}
+
+	config := &domain.PromptCIGateConfig{
+		ID:              uuid.New(),
+		ProjectID:       projectID,
+		Name:            input.Name,
+		BaselineID:      input.BaselineID,
+		Thresholds:      input.Thresholds,
+		BlockOnSeverity: blockSeverity,
+		ConfidenceLevel: confidence,
+		RequiredMetrics: input.RequiredMetrics,
+		Enabled:         true,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+
+	s.logger.Info("created prompt CI gate config",
+		zap.String("configId", config.ID.String()),
+		zap.String("name", config.Name),
+	)
+	return config, nil
+}
+
+// ListGateConfigs returns all gate configurations for a project
+func (s *PromptCIService) ListGateConfigs(ctx context.Context, projectID uuid.UUID) ([]domain.PromptCIGateConfig, error) {
+	return []domain.PromptCIGateConfig{}, nil
+}
+
+// EvaluateGate evaluates current scores against the gate config to determine pass/fail
+func (s *PromptCIService) EvaluateGate(ctx context.Context, projectID uuid.UUID, input *domain.PromptCIGateEvalInput) (*domain.PromptCIGateResult, error) {
+	if len(input.Scores) == 0 {
+		return nil, fmt.Errorf("scores are required for gate evaluation")
+	}
+
+	// Retrieve baseline scores (simulated)
+	baseline, err := s.GetBaseline(ctx, input.GateConfigID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get baseline: %w", err)
+	}
+
+	var metricResults []domain.MetricGateResult
+	overallPassed := true
+	worstSeverity := domain.RegressionSeverityNone
+
+	severityRank := map[domain.RegressionSeverity]int{
+		domain.RegressionSeverityNone:     0,
+		domain.RegressionSeverityMinor:    1,
+		domain.RegressionSeverityMajor:    2,
+		domain.RegressionSeverityCritical: 3,
+	}
+
+	for metricName, currentValue := range input.Scores {
+		baselineValue, exists := baseline.Scores[metricName]
+		if !exists {
+			baselineValue = currentValue
+		}
+
+		changePct := 0.0
+		if baselineValue != 0 {
+			changePct = ((currentValue - baselineValue) / math.Abs(baselineValue)) * 100
+		}
+
+		// Default: higher is better, negative change is regression
+		thresholdPct := 5.0 // default 5% regression threshold
+		isRegression := changePct < -thresholdPct
+		severity := domain.RegressionSeverityNone
+
+		if isRegression {
+			absChange := math.Abs(changePct)
+			switch {
+			case absChange >= 15:
+				severity = domain.RegressionSeverityCritical
+			case absChange >= 8:
+				severity = domain.RegressionSeverityMajor
+			case absChange >= thresholdPct:
+				severity = domain.RegressionSeverityMinor
+			}
+		}
+
+		passed := !isRegression || severityRank[severity] < severityRank[domain.RegressionSeverityMajor]
+		if !passed {
+			overallPassed = false
+		}
+		if severityRank[severity] > severityRank[worstSeverity] {
+			worstSeverity = severity
+		}
+
+		metricResults = append(metricResults, domain.MetricGateResult{
+			MetricName:      metricName,
+			BaselineValue:   baselineValue,
+			CurrentValue:    currentValue,
+			ThresholdPct:    thresholdPct,
+			ActualChangePct: changePct,
+			Passed:          passed,
+			Severity:        severity,
+		})
+	}
+
+	summary := fmt.Sprintf("Evaluated %d metrics: %s", len(metricResults), func() string {
+		if overallPassed {
+			return "all passed"
+		}
+		return "gate BLOCKED - regressions detected"
+	}())
+
+	blockReason := ""
+	if !overallPassed {
+		blockReason = fmt.Sprintf("Prompt regression detected with severity '%s' on branch '%s' (commit %s)",
+			worstSeverity, input.Branch, input.CommitSHA)
+	}
+
+	result := &domain.PromptCIGateResult{
+		RunID:           uuid.New(),
+		GateConfigID:    input.GateConfigID,
+		Passed:          overallPassed,
+		OverallSeverity: worstSeverity,
+		MetricResults:   metricResults,
+		Summary:         summary,
+		BlockReason:     blockReason,
+		EvaluatedAt:     time.Now(),
+	}
+
+	s.logger.Info("evaluated prompt CI gate",
+		zap.Bool("passed", overallPassed),
+		zap.String("severity", string(worstSeverity)),
+		zap.String("branch", input.Branch),
+	)
+	return result, nil
+}

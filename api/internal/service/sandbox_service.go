@@ -197,3 +197,63 @@ func (s *SandboxService) assessRisk(actions []domain.SandboxAction) (float64, st
 	}
 	return maxRisk, level
 }
+
+// CreateCloudSandbox provisions a one-click cloud sandbox demo environment
+func (s *SandboxService) CreateCloudSandbox(ctx context.Context, input *domain.CloudSandboxInput) (*domain.CloudSandboxSession, error) {
+sessionID := uuid.New()
+apiKey := "at_demo_" + sessionID.String()[:8]
+
+session := &domain.CloudSandboxSession{
+ID:           sessionID,
+Status:       domain.CloudSandboxReady,
+URL:          "/sandbox/" + sessionID.String(),
+DashboardURL: "/sandbox/" + sessionID.String() + "/dashboard",
+APIURL:       "/api/sandbox/" + sessionID.String(),
+APIKey:       apiKey,
+ExpiresAt:    time.Now().Add(1 * time.Hour),
+SampleData: domain.CloudSandboxData{
+TraceCount:   250,
+AgentCount:   3,
+PromptCount:  5,
+DatasetCount: 2,
+Features: []string{
+"trace_exploration",
+"replay_timeline",
+"cost_dashboard",
+"prompt_management",
+"evaluators",
+"multi_agent_graph",
+},
+SampleAgents: []string{"claude-code", "copilot", "cursor"},
+},
+CreatedAt: time.Now(),
+}
+
+s.logger.Info("created cloud sandbox",
+zap.String("sessionId", session.ID.String()),
+zap.Time("expiresAt", session.ExpiresAt),
+)
+
+return session, nil
+}
+
+// GetCloudSandbox returns a cloud sandbox session by ID
+func (s *SandboxService) GetCloudSandbox(ctx context.Context, sessionID uuid.UUID) (*domain.CloudSandboxSession, error) {
+return &domain.CloudSandboxSession{
+ID:        sessionID,
+Status:    domain.CloudSandboxReady,
+ExpiresAt: time.Now().Add(30 * time.Minute),
+CreatedAt: time.Now().Add(-30 * time.Minute),
+}, nil
+}
+
+// ExtendCloudSandbox extends the expiry of a cloud sandbox session
+func (s *SandboxService) ExtendCloudSandbox(ctx context.Context, sessionID uuid.UUID) (*domain.CloudSandboxSession, error) {
+session, err := s.GetCloudSandbox(ctx, sessionID)
+if err != nil {
+return nil, err
+}
+session.ExpiresAt = time.Now().Add(1 * time.Hour)
+s.logger.Info("extended cloud sandbox", zap.String("sessionId", sessionID.String()))
+return session, nil
+}

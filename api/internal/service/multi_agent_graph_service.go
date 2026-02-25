@@ -173,3 +173,57 @@ func (s *MultiAgentGraphService) GetSession(ctx context.Context, sessionID uuid.
 
 	return session, nil
 }
+
+// GetTopologyGraph builds a ReactFlow-compatible graph from a multi-agent session
+func (s *MultiAgentGraphService) GetTopologyGraph(ctx context.Context, sessionID uuid.UUID) (*domain.TopologyGraph, error) {
+session, err := s.GetSession(ctx, sessionID)
+if err != nil {
+return nil, err
+}
+
+graph := &domain.TopologyGraph{
+SessionID: sessionID,
+Layout:    "dagre",
+}
+
+for i, agent := range session.Agents {
+graph.Nodes = append(graph.Nodes, domain.TopologyNode{
+ID:    agent.ID.String(),
+Type:  "agent",
+Label: agent.Name,
+Position: domain.TopologyPosition{X: float64(i%3) * 250, Y: float64(i/3) * 200},
+Data: domain.TopologyNodeData{
+Role: agent.Role, Framework: agent.Framework, Status: agent.Status,
+TaskCount: agent.TaskCount, AvgLatencyMs: agent.AvgLatencyMs, TotalCostUsd: agent.TotalCostUsd,
+},
+})
+}
+
+edgeMap := make(map[string]*domain.TopologyEdge)
+for _, msg := range session.Messages {
+key := msg.FromAgentID.String() + "->" + msg.ToAgentID.String()
+if edge, exists := edgeMap[key]; exists {
+edge.Data.MessageCount++
+} else {
+edgeMap[key] = &domain.TopologyEdge{
+ID: key, Source: msg.FromAgentID.String(), Target: msg.ToAgentID.String(),
+Label: string(msg.Type), Type: string(msg.Type),
+Animated: msg.Type == domain.MessageTypeDelegation,
+Data:     domain.TopologyEdgeData{MessageCount: 1, AvgLatencyMs: float64(msg.DurationMs)},
+}
+}
+}
+for _, edge := range edgeMap {
+graph.Edges = append(graph.Edges, *edge)
+}
+
+totalCost := 0.0
+for _, a := range session.Agents {
+totalCost += a.TotalCostUsd
+}
+graph.Stats = domain.TopologyStats{
+TotalAgents: len(session.Agents), TotalMessages: len(session.Messages), TotalCost: totalCost,
+}
+
+return graph, nil
+}

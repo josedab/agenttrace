@@ -189,3 +189,122 @@ func (s *ReplaySessionService) GetSession(
 ) (*domain.AgentReplaySession, error) {
 	return nil, fmt.Errorf("replay session not found: %s", sessionID.String())
 }
+
+// RecordEvents records a batch of events in a replay session
+func (s *ReplaySessionService) RecordEvents(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	inputs []domain.AgentReplayRecordEventInput,
+) ([]domain.AgentReplayTimelineEvent, error) {
+	if len(inputs) == 0 {
+		return nil, fmt.Errorf("no events to record")
+	}
+
+	events := make([]domain.AgentReplayTimelineEvent, 0, len(inputs))
+	for i, input := range inputs {
+		event := domain.AgentReplayTimelineEvent{
+			ID:         uuid.New(),
+			SessionID:  sessionID,
+			Index:      i,
+			Type:       input.Type,
+			Timestamp:  time.Now(),
+			Data:       input.Data,
+			Input:      input.Input,
+			Output:     input.Output,
+			DurationMs: input.DurationMs,
+			FileDelta:  input.FileDelta,
+		}
+		events = append(events, event)
+	}
+
+	s.logger.Info("recorded replay events",
+		zap.String("sessionId", sessionID.String()),
+		zap.Int("eventCount", len(events)),
+	)
+	return events, nil
+}
+
+// ControlPlayback handles playback control commands
+func (s *ReplaySessionService) ControlPlayback(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	cmd *domain.ReplayControlCommand,
+) (*domain.AgentReplayPlaybackState, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("control command is required")
+	}
+
+	state := &domain.AgentReplayPlaybackState{
+		SessionID: sessionID,
+		Speed:     1.0,
+	}
+
+	switch cmd.Action {
+	case "play":
+		state.IsPlaying = true
+	case "pause":
+		state.IsPlaying = false
+	case "seek":
+		if cmd.EventIndex != nil {
+			state.CurrentIndex = *cmd.EventIndex
+		}
+	case "speed":
+		if cmd.Speed > 0 && cmd.Speed <= 16 {
+			state.Speed = cmd.Speed
+		}
+	case "step_forward":
+		state.IsPlaying = false
+		state.CurrentIndex++
+	case "step_backward":
+		state.IsPlaying = false
+		if state.CurrentIndex > 0 {
+			state.CurrentIndex--
+		}
+	default:
+		return nil, fmt.Errorf("unknown control action: %s", cmd.Action)
+	}
+
+	s.logger.Debug("playback control",
+		zap.String("sessionId", sessionID.String()),
+		zap.String("action", cmd.Action),
+	)
+	return state, nil
+}
+
+// GetFileStateAt reconstructs the file system state at a given event index
+func (s *ReplaySessionService) GetFileStateAt(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	eventIndex int,
+) (*domain.ReplayFileStateSnapshot, error) {
+	timeline, err := s.GetTimeline(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get timeline: %w", err)
+	}
+
+	files := make(map[string]string)
+	maxIdx := eventIndex
+	if maxIdx >= len(timeline.Events) {
+		maxIdx = len(timeline.Events) - 1
+	}
+
+	// Reconstruct file state by replaying file deltas up to the target index
+	for i := 0; i <= maxIdx; i++ {
+		event := timeline.Events[i]
+		if event.FileDelta != nil {
+			switch event.FileDelta.Operation {
+			case "create", "write":
+				files[event.FileDelta.Path] = event.FileDelta.After
+			case "delete":
+				delete(files, event.FileDelta.Path)
+			}
+		}
+	}
+
+	return &domain.ReplayFileStateSnapshot{
+		SessionID:  sessionID,
+		EventIndex: eventIndex,
+		Files:      files,
+		Timestamp:  time.Now(),
+	}, nil
+}

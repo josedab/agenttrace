@@ -117,3 +117,96 @@ func (s *SkillProfileService) CompareAgents(ctx context.Context, projectID uuid.
 
 	return comparison, nil
 }
+
+// TaskRoutingRecommendation represents a recommendation for which agent to use
+type TaskRoutingRecommendation struct {
+	TaskType          string  `json:"taskType"`
+	RecommendedAgent  string  `json:"recommendedAgent"`
+	Score             float64 `json:"score"`
+	Confidence        float64 `json:"confidence"`
+	AlternativeAgents []struct {
+		AgentName string  `json:"agentName"`
+		Score     float64 `json:"score"`
+	} `json:"alternativeAgents"`
+	Reasoning string `json:"reasoning"`
+}
+
+// GetTaskRouting recommends the best agent for a given task type
+func (s *SkillProfileService) GetTaskRouting(ctx context.Context, projectID uuid.UUID, taskType string) (*TaskRoutingRecommendation, error) {
+	profiles, err := s.ListProfiles(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Map task type to skill dimension
+	dimensionMap := map[string]domain.SkillDimension{
+		"code_generation": domain.SkillCodeGeneration,
+		"refactoring":     domain.SkillRefactoring,
+		"bug_fixing":      domain.SkillBugFixing,
+		"testing":         domain.SkillTesting,
+		"debugging":       domain.SkillDebugging,
+		"documentation":   domain.SkillDocumentation,
+		"code_review":     domain.SkillCodeReview,
+	}
+
+	dim, ok := dimensionMap[taskType]
+	if !ok {
+		dim = domain.SkillCodeGeneration
+	}
+
+	rec := &TaskRoutingRecommendation{
+		TaskType: taskType,
+	}
+
+	bestScore := -1.0
+	for _, profile := range profiles {
+		skill, exists := profile.Skills[dim]
+		if !exists {
+			continue
+		}
+
+		// Weighted score combining skill score, confidence, and success rate
+		weightedScore := skill.Score*0.5 + skill.Confidence*100*0.2 + skill.SuccessRate*100*0.3
+
+		if weightedScore > bestScore {
+			// Move current best to alternatives
+			if rec.RecommendedAgent != "" {
+				rec.AlternativeAgents = append(rec.AlternativeAgents, struct {
+					AgentName string  `json:"agentName"`
+					Score     float64 `json:"score"`
+				}{rec.RecommendedAgent, rec.Score})
+			}
+			bestScore = weightedScore
+			rec.RecommendedAgent = profile.AgentName
+			rec.Score = weightedScore
+			rec.Confidence = skill.Confidence
+		} else {
+			rec.AlternativeAgents = append(rec.AlternativeAgents, struct {
+				AgentName string  `json:"agentName"`
+				Score     float64 `json:"score"`
+			}{profile.AgentName, weightedScore})
+		}
+	}
+
+	rec.Reasoning = "Based on historical performance across " + taskType + " tasks"
+	return rec, nil
+}
+
+// GetCapabilityMatrix returns a full capability matrix for all agents
+func (s *SkillProfileService) GetCapabilityMatrix(ctx context.Context, projectID uuid.UUID) (map[string]map[string]float64, error) {
+	profiles, err := s.ListProfiles(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	matrix := make(map[string]map[string]float64)
+	for _, profile := range profiles {
+		skills := make(map[string]float64)
+		for dim, score := range profile.Skills {
+			skills[string(dim)] = score.Score
+		}
+		matrix[profile.AgentName] = skills
+	}
+
+	return matrix, nil
+}

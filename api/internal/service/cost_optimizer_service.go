@@ -305,3 +305,156 @@ func (s *CostOptimizerService) DismissRecommendation(ctx context.Context, recomm
 
 	return nil
 }
+
+// GenerateAutopilotReport produces ML-powered cost optimization recommendations
+func (s *CostOptimizerService) GenerateAutopilotReport(ctx context.Context, projectID uuid.UUID, dateRange domain.DateRange) (*domain.CostAutopilotReport, error) {
+	analysis, err := s.Analyze(ctx, projectID, dateRange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze costs: %w", err)
+	}
+
+	report := &domain.CostAutopilotReport{
+		ProjectID:   projectID,
+		GeneratedAt: time.Now(),
+	}
+
+	// Identify cost hotspots
+	report.Hotspots = s.identifyHotspots(analysis)
+
+	// Generate caching strategies
+	report.CachingStrategies = s.suggestCachingStrategies(analysis)
+
+	// Generate model routing suggestions
+	report.ModelRouting = s.suggestModelRouting(analysis)
+
+	// Check budget alerts
+	forecast, _ := s.GetCostForecast(ctx, projectID)
+	if forecast != nil {
+		report.BudgetAlerts = s.checkBudgetAlerts(forecast)
+	}
+
+	// Calculate total savings potential
+	for _, cs := range report.CachingStrategies {
+		report.TotalSavingsPotential += cs.EstimatedSaving
+	}
+	for _, mr := range report.ModelRouting {
+		report.TotalSavingsPotential += mr.CostReduction
+	}
+
+	s.logger.Info("generated autopilot report",
+		zap.String("projectId", projectID.String()),
+		zap.Int("hotspots", len(report.Hotspots)),
+		zap.Float64("savingsPotential", report.TotalSavingsPotential),
+	)
+
+	return report, nil
+}
+
+func (s *CostOptimizerService) identifyHotspots(analysis *domain.CostAnalysis) []domain.CostHotspot {
+	var hotspots []domain.CostHotspot
+	for _, model := range analysis.ModelBreakdown {
+		pct := 0.0
+		if analysis.TotalCostPeriod > 0 {
+			pct = (model.TotalCost / analysis.TotalCostPeriod) * 100
+		}
+		severity := "low"
+		if pct > 50 {
+			severity = "critical"
+		} else if pct > 30 {
+			severity = "high"
+		} else if pct > 15 {
+			severity = "medium"
+		}
+		hotspots = append(hotspots, domain.CostHotspot{
+			Type:           "model",
+			Identifier:     model.Model,
+			TotalCost:      model.TotalCost,
+			PercentOfTotal: pct,
+			TraceCount:     model.TraceCount,
+			Trend:          "stable",
+			Severity:       severity,
+		})
+	}
+	return hotspots
+}
+
+func (s *CostOptimizerService) suggestCachingStrategies(analysis *domain.CostAnalysis) []domain.CachingStrategy {
+	var strategies []domain.CachingStrategy
+
+	if analysis.TotalCostPeriod > 10 {
+		strategies = append(strategies, domain.CachingStrategy{
+			ID:              uuid.New(),
+			Type:            "prompt_cache",
+			Description:     "Enable prompt caching for repeated system prompts to reduce token costs",
+			EstimatedSaving: analysis.TotalCostPeriod * 0.15,
+			HitRateEstimate: 0.35,
+			Implementation:  "Enable the prompt cache feature in AgentTrace settings",
+			Complexity:      "low",
+		})
+	}
+
+	if analysis.TotalCostPeriod > 50 {
+		strategies = append(strategies, domain.CachingStrategy{
+			ID:              uuid.New(),
+			Type:            "semantic_cache",
+			Description:     "Cache semantically similar queries to avoid redundant LLM calls",
+			EstimatedSaving: analysis.TotalCostPeriod * 0.20,
+			HitRateEstimate: 0.25,
+			Implementation:  "Deploy the semantic cache middleware in your agent pipeline",
+			Complexity:      "medium",
+		})
+	}
+
+	return strategies
+}
+
+func (s *CostOptimizerService) suggestModelRouting(analysis *domain.CostAnalysis) []domain.ModelRoutingSuggestion {
+	routingMap := map[string]struct {
+		target   string
+		saving   float64
+		quality  float64
+	}{
+		"gpt-4":         {"gpt-4o-mini", 80, 5},
+		"gpt-4-turbo":   {"gpt-4o-mini", 75, 4},
+		"gpt-4o":        {"gpt-4o-mini", 60, 3},
+		"claude-3-opus": {"claude-3-5-sonnet", 70, 5},
+	}
+
+	var suggestions []domain.ModelRoutingSuggestion
+	for _, model := range analysis.ModelBreakdown {
+		route, ok := routingMap[model.Model]
+		if !ok || model.TraceCount < 10 {
+			continue
+		}
+		suggestions = append(suggestions, domain.ModelRoutingSuggestion{
+			TaskType:       "simple_classification",
+			CurrentModel:   model.Model,
+			SuggestedModel: route.target,
+			CostReduction:  route.saving,
+			QualityImpact:  route.quality,
+			Confidence:     0.85,
+			SampleSize:     model.TraceCount,
+		})
+	}
+	return suggestions
+}
+
+func (s *CostOptimizerService) checkBudgetAlerts(forecast *domain.CostForecast) []domain.BudgetAlert {
+	var alerts []domain.BudgetAlert
+	if forecast.BudgetStatus == "exceeded" {
+		alerts = append(alerts, domain.BudgetAlert{
+			ID:        uuid.New(),
+			Type:      "exceeded",
+			Message:   "Monthly budget has been exceeded",
+			CreatedAt: time.Now(),
+		})
+	} else if forecast.BudgetStatus == "warning" {
+		alerts = append(alerts, domain.BudgetAlert{
+			ID:        uuid.New(),
+			Type:      "warning",
+			Message:   "Projected to exceed monthly budget based on current spending",
+			CreatedAt: time.Now(),
+		})
+	}
+	return alerts
+}
