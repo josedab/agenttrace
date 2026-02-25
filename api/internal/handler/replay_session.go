@@ -157,3 +157,86 @@ func (h *ReplaySessionHandler) ShareSession(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"shareUrl": shareURL, "isPublic": true})
 }
+
+// RecordEvents handles POST /api/public/replay-sessions/:sessionId/events
+func (h *ReplaySessionHandler) RecordEvents(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	var inputs []domain.AgentReplayRecordEventInput
+	if err := c.BodyParser(&inputs); err != nil {
+		// Try single event
+		var single domain.AgentReplayRecordEventInput
+		if err := c.BodyParser(&single); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		}
+		inputs = []domain.AgentReplayRecordEventInput{single}
+	}
+
+	if len(inputs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "At least one event is required"})
+	}
+
+	events, err := h.service.RecordEvents(c.Context(), sessionID, inputs)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to record events"})
+	}
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"events": events, "count": len(events)})
+}
+
+// ControlPlayback handles POST /api/public/replay-sessions/:sessionId/control
+func (h *ReplaySessionHandler) ControlPlayback(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	var cmd domain.ReplayControlCommand
+	if err := c.BodyParser(&cmd); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if cmd.Action == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Action is required"})
+	}
+
+	state, err := h.service.ControlPlayback(c.Context(), sessionID, &cmd)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(state)
+}
+
+// GetFileState handles GET /api/public/replay-sessions/:sessionId/files?eventIndex=N
+func (h *ReplaySessionHandler) GetFileState(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	eventIndex := c.QueryInt("eventIndex", 0)
+	if eventIndex < 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid event index"})
+	}
+
+	snapshot, err := h.service.GetFileStateAt(c.Context(), sessionID, eventIndex)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get file state"})
+	}
+	return c.JSON(snapshot)
+}
+
+// CompleteSession handles POST /api/public/replay-sessions/:sessionId/complete
+func (h *ReplaySessionHandler) CompleteSession(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	if err := h.service.CompleteSession(c.Context(), sessionID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to complete session"})
+	}
+	return c.JSON(fiber.Map{"status": "completed"})
+}

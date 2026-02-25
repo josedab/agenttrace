@@ -125,3 +125,24 @@ func (h *MultiAgentGraphHandler) GetSession(c *fiber.Ctx) error {
 
 	return c.JSON(session)
 }
+
+// GetTopologyGraph handles GET /api/public/multi-agent-graph/sessions/:sessionId/topology
+func (h *MultiAgentGraphHandler) GetTopologyGraph(c *fiber.Ctx) error {
+	_, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	graph, err := h.multiAgentGraphService.GetTopologyGraph(c.Context(), sessionID)
+	if err != nil {
+		h.logger.Error("failed to get topology graph", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get topology graph"})
+	}
+
+	return c.JSON(graph)
+}

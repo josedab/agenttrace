@@ -114,3 +114,49 @@ func (h *SandboxHandler) GetStats(c *fiber.Ctx) error {
 	}
 	return c.JSON(stats)
 }
+
+// CreateCloudSandbox handles POST /api/public/cloud-sandbox
+func (h *SandboxHandler) CreateCloudSandbox(c *fiber.Ctx) error {
+var input domain.CloudSandboxInput
+if err := c.BodyParser(&input); err != nil {
+input = domain.CloudSandboxInput{PreloadData: true}
+}
+
+session, err := h.sandboxService.CreateCloudSandbox(c.Context(), &input)
+if err != nil {
+h.logger.Error("failed to create cloud sandbox", zap.Error(err))
+return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create sandbox"})
+}
+
+return c.Status(fiber.StatusCreated).JSON(session)
+}
+
+// GetCloudSandbox handles GET /api/public/cloud-sandbox/:sessionId
+func (h *SandboxHandler) GetCloudSandbox(c *fiber.Ctx) error {
+sessionID, err := uuid.Parse(c.Params("sessionId"))
+if err != nil {
+return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+}
+
+session, err := h.sandboxService.GetCloudSandbox(c.Context(), sessionID)
+if err != nil {
+return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Sandbox not found"})
+}
+
+return c.JSON(session)
+}
+
+// ExtendCloudSandbox handles POST /api/public/cloud-sandbox/:sessionId/extend
+func (h *SandboxHandler) ExtendCloudSandbox(c *fiber.Ctx) error {
+sessionID, err := uuid.Parse(c.Params("sessionId"))
+if err != nil {
+return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+}
+
+session, err := h.sandboxService.ExtendCloudSandbox(c.Context(), sessionID)
+if err != nil {
+return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to extend sandbox"})
+}
+
+return c.JSON(session)
+}

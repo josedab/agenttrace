@@ -186,3 +186,60 @@ func (h *PromptCIHandler) ListRuns(c *fiber.Ctx) error {
 
 	return c.JSON(runs)
 }
+
+// CreateGateConfig handles POST /api/public/prompt-ci/gates
+func (h *PromptCIHandler) CreateGateConfig(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.PromptCIGateConfigInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	config, err := h.promptCIService.CreateGateConfig(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to create gate config", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(config)
+}
+
+// ListGateConfigs handles GET /api/public/prompt-ci/gates
+func (h *PromptCIHandler) ListGateConfigs(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	configs, err := h.promptCIService.ListGateConfigs(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list gate configs"})
+	}
+	return c.JSON(configs)
+}
+
+// EvaluateGate handles POST /api/public/prompt-ci/gates/evaluate
+func (h *PromptCIHandler) EvaluateGate(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.PromptCIGateEvalInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	result, err := h.promptCIService.EvaluateGate(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to evaluate gate", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Return 200 for pass, still 200 for fail but with passed=false so CI can check
+	return c.JSON(result)
+}

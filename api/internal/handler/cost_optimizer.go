@@ -202,6 +202,24 @@ func (h *CostOptimizerHandler) ConfigureAutopilot(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(config)
 }
 
+// GetAutopilotReport handles GET /api/public/cost-optimizer/autopilot/report
+func (h *CostOptimizerHandler) GetAutopilotReport(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	dateRange := parseDateRange(c.Query("dateRange", "30d"))
+
+	report, err := h.costOptimizerService.GenerateAutopilotReport(c.Context(), projectID, dateRange)
+	if err != nil {
+		h.logger.Error("failed to generate autopilot report", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate autopilot report"})
+	}
+
+	return c.JSON(report)
+}
+
 // parseDateRange converts a date range string like "7d", "30d" into a domain.DateRange
 func parseDateRange(s string) domain.DateRange {
 	now := time.Now()

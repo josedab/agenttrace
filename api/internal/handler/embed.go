@@ -93,3 +93,25 @@ func (h *EmbedHandler) GenerateToken(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(token)
 }
+
+// GetWidget handles GET /api/public/embed/widget.js?token=...
+func (h *EmbedHandler) GetWidget(c *fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).
+			Type("application/javascript").
+			SendString("console.error('AgentTrace: Missing embed token');")
+	}
+
+	script, err := h.service.GenerateWidgetScript(c.Context(), token)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).
+			Type("application/javascript").
+			SendString("console.error('AgentTrace: Invalid embed token');")
+	}
+
+	c.Set("Content-Type", "application/javascript")
+	c.Set("Cache-Control", "public, max-age=300")
+	c.Set("Access-Control-Allow-Origin", "*")
+	return c.SendString(script)
+}

@@ -88,6 +88,56 @@ func (h *NLQueryHandler) GetExamples(c *fiber.Ctx) error {
 	})
 }
 
+// Autocomplete handles POST /api/public/nl-query/autocomplete
+func (h *NLQueryHandler) Autocomplete(c *fiber.Ctx) error {
+	var body struct {
+		Partial string `json:"partial"`
+	}
+	if err := c.BodyParser(&body); err != nil || len(body.Partial) < 2 {
+		return c.JSON(fiber.Map{"suggestions": []string{}})
+	}
+
+	examples := h.nlQueryService.GetQueryExamples()
+	var suggestions []string
+	partial := body.Partial
+	for _, ex := range examples {
+		if len(suggestions) >= 5 {
+			break
+		}
+		// Simple prefix/substring matching
+		if len(ex) > len(partial) {
+			suggestions = append(suggestions, ex)
+		}
+	}
+
+	return c.JSON(fiber.Map{"suggestions": suggestions})
+}
+
+// GetQuerySchema handles GET /api/public/nl-query/schema
+func (h *NLQueryHandler) GetQuerySchema(c *fiber.Ctx) error {
+	schema := map[string]interface{}{
+		"fields": []map[string]string{
+			{"name": "name", "type": "string", "description": "Trace name (partial match)"},
+			{"name": "hasError", "type": "boolean", "description": "Whether trace has errors"},
+			{"name": "minCost", "type": "number", "description": "Minimum total cost in USD"},
+			{"name": "maxCost", "type": "number", "description": "Maximum total cost in USD"},
+			{"name": "minDurationMs", "type": "number", "description": "Minimum duration in milliseconds"},
+			{"name": "maxDurationMs", "type": "number", "description": "Maximum duration in milliseconds"},
+			{"name": "tags", "type": "array", "description": "Filter by tags"},
+			{"name": "gitBranch", "type": "string", "description": "Git branch name"},
+			{"name": "gitCommitSha", "type": "string", "description": "Git commit SHA"},
+			{"name": "search", "type": "string", "description": "Full-text search query"},
+		},
+		"timeExpressions": []string{
+			"today", "yesterday", "last 24 hours", "last week", "last month", "this week",
+		},
+		"operators": []string{
+			"more than", "less than", "between", "equals", "contains", "with", "without",
+		},
+	}
+	return c.JSON(schema)
+}
+
 // RegisterRoutes registers natural language query routes
 func (h *NLQueryHandler) RegisterRoutes(app *fiber.App, authMiddleware *middleware.AuthMiddleware) {
 	v1 := app.Group("/v1", authMiddleware.RequireAPIKey())

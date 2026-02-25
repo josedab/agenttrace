@@ -171,3 +171,54 @@ func (h *PluginHandler) Uninstall(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
+
+// ListAdapters handles GET /api/public/adapters
+func (h *PluginHandler) ListAdapters(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	registry, err := h.service.ListAdapters(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list adapters"})
+	}
+	return c.JSON(registry)
+}
+
+// InstallAdapter handles POST /api/public/adapters
+func (h *PluginHandler) InstallAdapter(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.AdapterInstallInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	adapter, err := h.service.InstallAdapter(c.Context(), projectID, &input)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusCreated).JSON(adapter)
+}
+
+// IngestAdapterEvent handles POST /api/public/adapters/events
+func (h *PluginHandler) IngestAdapterEvent(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.AdapterEventInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if err := h.service.IngestAdapterEvent(c.Context(), projectID, &input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"status": "accepted"})
+}

@@ -63,3 +63,32 @@ func (h *SkillProfileHandler) CompareAgents(c *fiber.Ctx) error {
 	}
 	return c.JSON(comparison)
 }
+
+// GetTaskRouting handles GET /api/public/skill-profiles/routing?taskType=...
+func (h *SkillProfileHandler) GetTaskRouting(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	taskType := c.Query("taskType", "code_generation")
+	rec, err := h.skillProfileService.GetTaskRouting(c.Context(), projectID, taskType)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get routing"})
+	}
+	return c.JSON(rec)
+}
+
+// GetCapabilityMatrix handles GET /api/public/skill-profiles/matrix
+func (h *SkillProfileHandler) GetCapabilityMatrix(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	matrix, err := h.skillProfileService.GetCapabilityMatrix(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get matrix"})
+	}
+	return c.JSON(fiber.Map{"matrix": matrix})
+}
