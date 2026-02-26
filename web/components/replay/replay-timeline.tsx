@@ -73,6 +73,7 @@ const eventIcons: Record<string, React.ElementType> = {
 export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
   const [currentStep, setCurrentStep] = React.useState(0);
   const [isPlaying, setIsPlaying] = React.useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = React.useState(1);
 
   const { data: timeline, isLoading } = useQuery<ReplayTimeline>({
     queryKey: ["replay-timeline", traceId],
@@ -89,6 +90,7 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
   React.useEffect(() => {
     if (!isPlaying || !timeline) return;
 
+    const interval = Math.max(100, 1000 / playbackSpeed);
     const timer = setInterval(() => {
       setCurrentStep((prev) => {
         if (prev >= timeline.events.length - 1) {
@@ -97,10 +99,10 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
         }
         return prev + 1;
       });
-    }, 1000);
+    }, interval);
 
     return () => clearInterval(timer);
-  }, [isPlaying, timeline]);
+  }, [isPlaying, timeline, playbackSpeed]);
 
   if (isLoading || !timeline) {
     return <ReplayTimelineSkeleton />;
@@ -108,6 +110,7 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
 
   const events = timeline.events;
   const currentEvent = events[currentStep];
+  const progress = events.length > 0 ? ((currentStep + 1) / events.length) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -131,6 +134,16 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
             {timeline.summary.errors} errors
           </Badge>
         )}
+      </div>
+
+      {/* Progress Bar */}
+      <div className="px-4">
+        <div className="w-full bg-muted rounded-full h-1.5">
+          <div
+            className="bg-primary h-1.5 rounded-full transition-all duration-200"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
       </div>
 
       {/* Playback Controls */}
@@ -180,6 +193,25 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
         >
           <SkipForward className="h-4 w-4" />
         </Button>
+
+        {/* Speed Control */}
+        <div className="flex items-center gap-1 ml-2 border rounded-md px-2 py-1">
+          {[0.5, 1, 2, 4, 8].map((speed) => (
+            <button
+              key={speed}
+              onClick={() => setPlaybackSpeed(speed)}
+              className={cn(
+                "px-1.5 py-0.5 text-xs rounded",
+                playbackSpeed === speed
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              )}
+            >
+              {speed}x
+            </button>
+          ))}
+        </div>
+
         <span className="text-sm text-muted-foreground ml-2">
           Step {currentStep + 1} / {events.length}
         </span>
