@@ -131,3 +131,83 @@ type CreateBenchmarkInput struct {
 	Metrics      []BenchmarkMetric `json:"metrics"`
 	IsPublic     bool              `json:"isPublic"`
 }
+
+// ELORating represents an agent's ELO-style rating for a benchmark
+type ELORating struct {
+	ID          uuid.UUID `json:"id"`
+	BenchmarkID uuid.UUID `json:"benchmarkId"`
+	AgentName   string    `json:"agentName"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	Rating      float64   `json:"rating"`
+	Wins        int       `json:"wins"`
+	Losses      int       `json:"losses"`
+	Draws       int       `json:"draws"`
+	TotalGames  int       `json:"totalGames"`
+	Confidence  float64   `json:"confidence"` // 0-1 confidence interval
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// BenchmarkSuite represents a collection of related benchmarks
+type BenchmarkSuite struct {
+	ID          uuid.UUID   `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	Benchmarks  []uuid.UUID `json:"benchmarkIds"`
+	ScoringRule string      `json:"scoringRule"` // "average", "weighted", "min"
+	IsPublic    bool        `json:"isPublic"`
+	CreatedBy   uuid.UUID   `json:"createdBy"`
+	CreatedAt   time.Time   `json:"createdAt"`
+}
+
+// CreateBenchmarkSuiteInput for creating benchmark suites
+type CreateBenchmarkSuiteInput struct {
+	Name         string      `json:"name" validate:"required"`
+	Description  string      `json:"description,omitempty"`
+	BenchmarkIDs []uuid.UUID `json:"benchmarkIds" validate:"required,min=1"`
+	ScoringRule  string      `json:"scoringRule,omitempty"`
+	IsPublic     bool        `json:"isPublic"`
+}
+
+// CommunitySubmission represents a submission from the community API
+type CommunitySubmission struct {
+	ID           uuid.UUID          `json:"id"`
+	BenchmarkID  uuid.UUID          `json:"benchmarkId"`
+	SubmitterID  uuid.UUID          `json:"submitterId"`
+	AgentName    string             `json:"agentName"`
+	AgentVersion string             `json:"agentVersion"`
+	RepoURL      string             `json:"repoUrl,omitempty"`
+	Scores       map[string]float64 `json:"scores"`
+	OverallScore float64            `json:"overallScore"`
+	Verified     bool               `json:"verified"`
+	Metadata     map[string]string  `json:"metadata,omitempty"`
+	CreatedAt    time.Time          `json:"createdAt"`
+}
+
+// CommunitySubmissionInput for community API submissions
+type CommunitySubmissionInput struct {
+	BenchmarkID  uuid.UUID          `json:"benchmarkId" validate:"required"`
+	AgentName    string             `json:"agentName" validate:"required"`
+	AgentVersion string             `json:"agentVersion" validate:"required"`
+	RepoURL      string             `json:"repoUrl,omitempty"`
+	Scores       map[string]float64 `json:"scores" validate:"required"`
+	Metadata     map[string]string  `json:"metadata,omitempty"`
+}
+
+// GHABenchmarkConfig represents GitHub Actions integration config
+type GHABenchmarkConfig struct {
+	BenchmarkID  uuid.UUID `json:"benchmarkId"`
+	RepoOwner    string    `json:"repoOwner"`
+	RepoName     string    `json:"repoName"`
+	WorkflowFile string    `json:"workflowFile"`
+	TriggerEvent string    `json:"triggerEvent"` // push, pull_request, schedule
+	Schedule     string    `json:"schedule,omitempty"` // cron expression
+	Enabled      bool      `json:"enabled"`
+}
+
+// LeaderboardEntry extends BenchmarkSubmission with ELO data
+type LeaderboardEntry struct {
+	BenchmarkSubmission
+	ELORating   float64 `json:"eloRating"`
+	RatingDelta float64 `json:"ratingDelta"` // Change since last submission
+	Trend       string  `json:"trend"`       // "up", "down", "stable"
+}
