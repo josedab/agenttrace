@@ -130,3 +130,94 @@
     - curl -sSL https://get.agenttrace.io/cli | sh
     - export PATH="$HOME/.agenttrace/bin:$PATH"
     - !reference [.agenttrace-setup, before_script]
+
+# Template for Prompt CI Regression Gate
+# Usage:
+#   prompt-ci-gate:
+#     extends: .agenttrace-prompt-ci-gate
+#     variables:
+#       AGENTTRACE_BASELINE_ID: "your-baseline-id"
+#       AGENTTRACE_GATE_CONFIG_ID: "your-gate-config-id"  # optional
+#       AGENTTRACE_REGRESSION_THRESHOLD: "0.05"            # optional
+.agenttrace-prompt-ci-gate:
+  extends:
+    - .agenttrace-setup
+    - .agenttrace-complete
+  stage: test
+  script:
+    - |
+      echo "🧪 AgentTrace Prompt CI Gate"
+      echo "================================"
+      echo "Branch: ${CI_COMMIT_REF_NAME}"
+      echo "Commit: ${CI_COMMIT_SHA}"
+      echo "MR: ${CI_MERGE_REQUEST_IID:-N/A}"
+
+      THRESHOLD="${AGENTTRACE_REGRESSION_THRESHOLD:-0.05}"
+
+      # Run comparison against baseline
+      RESPONSE=$(curl -s -w "\n%{http_code}" \
+        -X POST "${AGENTTRACE_API_URL}/api/public/prompt-ci/compare" \
+        -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+        -H "X-Project-ID: ${AGENTTRACE_PROJECT_ID}" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"baselineId\": \"${AGENTTRACE_BASELINE_ID}\",
+          \"branch\": \"${CI_COMMIT_REF_NAME}\",
+          \"commitSHA\": \"${CI_COMMIT_SHA}\",
+          \"regressionThreshold\": ${THRESHOLD}
+        }")
+
+      HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+      BODY=$(echo "$RESPONSE" | sed '$d')
+
+      if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+        echo "❌ API request failed with status ${HTTP_CODE}"
+        exit 1
+      fi
+
+      SEVERITY=$(echo "$BODY" | jq -r '.overallSeverity // "none"')
+      SUMMARY=$(echo "$BODY" | jq -r '.summary // "No summary"')
+      echo "📊 Severity: ${SEVERITY}"
+      echo "📊 Summary: ${SUMMARY}"
+
+      # Evaluate gate if configured
+      if [ -n "${AGENTTRACE_GATE_CONFIG_ID}" ]; then
+        echo ""
+        echo "🚦 Evaluating CI Gate..."
+        SCORES=$(echo "$BODY" | jq -c '[.scoreComparison[] | {(.metricName): .currentValue}] | add // {}')
+
+        GATE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -X POST "${AGENTTRACE_API_URL}/api/public/prompt-ci/gates/evaluate" \
+          -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+          -H "X-Project-ID: ${AGENTTRACE_PROJECT_ID}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"gateConfigId\": \"${AGENTTRACE_GATE_CONFIG_ID}\",
+            \"branch\": \"${CI_COMMIT_REF_NAME}\",
+            \"commitSha\": \"${CI_COMMIT_SHA}\",
+            \"scores\": ${SCORES}
+          }")
+
+        GATE_HTTP=$(echo "$GATE_RESPONSE" | tail -1)
+        GATE_BODY=$(echo "$GATE_RESPONSE" | sed '$d')
+
+        if [ "$GATE_HTTP" = "200" ]; then
+          GATE_PASSED=$(echo "$GATE_BODY" | jq -r '.passed // true')
+          if [ "$GATE_PASSED" = "false" ]; then
+            BLOCK_REASON=$(echo "$GATE_BODY" | jq -r '.blockReason // "Regression detected"')
+            echo "🚫 CI Gate BLOCKED: ${BLOCK_REASON}"
+            exit 1
+          fi
+          echo "✅ CI Gate passed"
+        fi
+      else
+        # Fallback: block on major/critical severity
+        if [ "$SEVERITY" = "major" ] || [ "$SEVERITY" = "critical" ]; then
+          echo "❌ Prompt regression detected (severity: ${SEVERITY})"
+          exit 1
+        fi
+        echo "✅ No blocking regressions detected"
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

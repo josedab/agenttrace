@@ -39,6 +39,12 @@ inputs:
     description: "Maximum number of dataset samples to run"
     required: false
     default: "100"
+  gate-config-id:
+    description: "CI Gate configuration ID for configurable threshold evaluation"
+    required: false
+  scores:
+    description: "JSON object of metric scores to evaluate against the gate (e.g., '{\"accuracy\": 0.92}')"
+    required: false
 
 outputs:
   run-id:
@@ -49,6 +55,8 @@ outputs:
     description: "Whether any regressions were detected"
   summary:
     description: "Human-readable summary of results"
+  gate-passed:
+    description: "Whether the CI gate passed (true/false)"
 
 runs:
   using: "composite"
@@ -193,3 +201,66 @@ runs:
           exit 1
         fi
         echo "✅ No blocking regressions detected"
+
+    - name: Evaluate CI Gate
+      if: ${{ inputs.gate-config-id != '' }}
+      shell: bash
+      env:
+        AGENTTRACE_API_KEY: ${{ inputs.api-key }}
+        AGENTTRACE_API_URL: ${{ inputs.api-url }}
+        AGENTTRACE_PROJECT_ID: ${{ inputs.project-id }}
+      run: |
+        echo "🚦 Evaluating CI Gate..."
+
+        BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+        COMMIT_SHA="${GITHUB_SHA}"
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+
+        SCORES='${{ inputs.scores }}'
+        if [ -z "$SCORES" ] || [ "$SCORES" = "" ]; then
+          # Extract scores from comparison results
+          SCORES=$(cat /tmp/prompt-ci-results.json 2>/dev/null | jq -c '{accuracy: .scoreComparison[0].currentValue, relevance: .scoreComparison[1].currentValue}' 2>/dev/null || echo '{}')
+        fi
+
+        GATE_PAYLOAD=$(cat <<EOF
+        {
+          "gateConfigId": "${{ inputs.gate-config-id }}",
+          "branch": "${BRANCH}",
+          "commitSha": "${COMMIT_SHA}",
+          "prNumber": ${PR_NUMBER:-null},
+          "scores": ${SCORES}
+        }
+        EOF
+        )
+
+        GATE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -X POST "${AGENTTRACE_API_URL}/api/public/prompt-ci/gates/evaluate" \
+          -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+          -H "X-Project-ID: ${AGENTTRACE_PROJECT_ID}" \
+          -H "Content-Type: application/json" \
+          -d "${GATE_PAYLOAD}")
+
+        GATE_HTTP_CODE=$(echo "$GATE_RESPONSE" | tail -1)
+        GATE_BODY=$(echo "$GATE_RESPONSE" | sed '$d')
+
+        if [ "$GATE_HTTP_CODE" != "200" ]; then
+          echo "⚠️ Gate evaluation API returned ${GATE_HTTP_CODE}, skipping gate check"
+          echo "gate-passed=true" >> $GITHUB_OUTPUT
+        else
+          GATE_PASSED=$(echo "$GATE_BODY" | jq -r '.passed // true')
+          GATE_SEVERITY=$(echo "$GATE_BODY" | jq -r '.overallSeverity // "none"')
+          BLOCK_REASON=$(echo "$GATE_BODY" | jq -r '.blockReason // ""')
+
+          echo "gate-passed=${GATE_PASSED}" >> $GITHUB_OUTPUT
+
+          if [ "$GATE_PASSED" = "false" ]; then
+            echo "🚫 CI Gate BLOCKED: ${BLOCK_REASON}"
+            echo "  Severity: ${GATE_SEVERITY}"
+            echo ""
+            echo "Metric results:"
+            echo "$GATE_BODY" | jq -r '.metricResults[] | "  \(.metricName): \(.currentValue) (change: \(.actualChangePercent | . * 100 | round / 100)%) - \(if .passed then "✅" else "❌" end)"'
+            exit 1
+          else
+            echo "✅ CI Gate passed"
+          fi
+        fi
