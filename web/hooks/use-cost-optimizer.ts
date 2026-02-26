@@ -73,3 +73,19 @@ export function useConfigureAutopilot() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cost-forecast"] }),
   });
 }
+
+export function useAutopilotReport(dateRange?: string) {
+  return useQuery({
+    queryKey: ["cost-autopilot-report", dateRange],
+    queryFn: () =>
+      api.costOptimizer.getAutopilotReport(dateRange) as Promise<{
+        projectId: string;
+        hotspots: { type: string; identifier: string; totalCost: number; percentOfTotal: number; severity: string }[];
+        cachingStrategies: { id: string; type: string; description: string; estimatedMonthlySaving: number; complexity: string }[];
+        modelRouting: { taskType: string; currentModel: string; suggestedModel: string; costReductionPercent: number }[];
+        budgetAlerts: { id: string; type: string; message: string }[];
+        totalSavingsPotential: number;
+      }>,
+    refetchInterval: 300000, // 5 minutes
+  });
+}

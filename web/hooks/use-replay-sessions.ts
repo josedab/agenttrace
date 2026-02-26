@@ -99,3 +99,49 @@ export function useShareSession() {
       api.replaySessions.share(sessionId),
   });
 }
+
+export function useRecordReplayEvents(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (events: { type: string; data: Record<string, unknown>; durationMs?: number; fileDelta?: { path: string; operation: string; before?: string; after?: string } }[]) =>
+      api.replaySessions.recordEvents(sessionId, events),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["replay-timeline", sessionId] });
+    },
+  });
+}
+
+export function useControlPlayback(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (cmd: { action: string; eventIndex?: number; speed?: number }) =>
+      api.replaySessions.control(sessionId, cmd),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["replay-playback", sessionId] });
+    },
+  });
+}
+
+export function useReplayFileState(sessionId: string | null, eventIndex: number) {
+  return useQuery({
+    queryKey: ["replay-file-state", sessionId, eventIndex],
+    queryFn: () =>
+      api.replaySessions.getFileState(sessionId!, eventIndex) as Promise<{
+        sessionId: string;
+        eventIndex: number;
+        files: Record<string, string>;
+        timestamp: string;
+      }>,
+    enabled: !!sessionId && eventIndex >= 0,
+  });
+}
+
+export function useCompleteReplaySession(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.replaySessions.complete(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["replay-sessions"] });
+    },
+  });
+}

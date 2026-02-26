@@ -672,6 +672,8 @@ export const api = {
       fetchWithAuth<any>("/api/public/cost-optimizer/report", { method: "POST", body: JSON.stringify(period || {}) }),
     configureAutopilot: (config: any) =>
       fetchWithAuth<any>("/api/public/cost-optimizer/autopilot", { method: "POST", body: JSON.stringify(config) }),
+    getAutopilotReport: (dateRange?: string) =>
+      fetchWithAuth<any>(`/api/public/cost-optimizer/autopilot/report?dateRange=${dateRange || '30d'}`),
   },
 
   // Guardrails
@@ -1092,6 +1094,10 @@ export const api = {
     branch: (id: string, data: any) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/branch`, { method: "POST", body: JSON.stringify(data) }),
     getPlayback: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/playback`),
     share: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/share`, { method: "POST" }),
+    recordEvents: (id: string, events: any[]) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/events`, { method: "POST", body: JSON.stringify(events) }),
+    control: (id: string, cmd: any) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/control`, { method: "POST", body: JSON.stringify(cmd) }),
+    getFileState: (id: string, eventIndex: number) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/files?eventIndex=${eventIndex}`),
+    complete: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/complete`, { method: "POST" }),
   },
 
   // Cost Guardrails
@@ -1109,6 +1115,7 @@ export const api = {
     listSessions: () => fetchWithAuth<any>("/api/public/multi-agent/sessions"),
     analyze: (data: any) => fetchWithAuth<any>("/api/public/multi-agent/analyze", { method: "POST", body: JSON.stringify(data) }),
     getSession: (id: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${id}`),
+    getTopologyGraph: (id: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${id}/topology`),
   },
 
   // Prompt CI
@@ -1118,6 +1125,9 @@ export const api = {
     getBaseline: (id: string) => fetchWithAuth<any>(`/api/public/prompt-ci/baselines/${id}`),
     runComparison: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/compare", { method: "POST", body: JSON.stringify(data) }),
     listRuns: () => fetchWithAuth<any>("/api/public/prompt-ci/runs"),
+    createGateConfig: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/gates", { method: "POST", body: JSON.stringify(data) }),
+    listGateConfigs: () => fetchWithAuth<any>("/api/public/prompt-ci/gates"),
+    evaluateGate: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/gates/evaluate", { method: "POST", body: JSON.stringify(data) }),
   },
 
   // Agent Benchmarks
@@ -1260,6 +1270,35 @@ export const api = {
     listPolicies: () => fetchWithAuth<any>("/api/public/security-scanner/policies"),
     getDashboard: () => fetchWithAuth<any>("/api/public/security-scanner/dashboard"),
     acknowledgeFinding: (id: string) => fetchWithAuth<any>(`/api/public/security-scanner/findings/${id}/acknowledge`, { method: "POST" }),
+  },
+
+  // Agent Protocol Adapters
+  adapters: {
+    list: () => fetchWithAuth<any>("/api/public/adapters"),
+    install: (data: any) => fetchWithAuth<any>("/api/public/adapters", { method: "POST", body: JSON.stringify(data) }),
+    ingestEvent: (data: any) => fetchWithAuth<any>("/api/public/adapters/events", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Natural Language Query
+  nlQuery: {
+    query: (data: { query: string; limit?: number }) => fetchWithAuth<any>("/api/public/nl-query", { method: "POST", body: JSON.stringify(data) }),
+    getExamples: () => fetchWithAuth<any>("/api/public/nl-query/examples"),
+    autocomplete: (partial: string) => fetchWithAuth<any>("/api/public/nl-query/autocomplete", { method: "POST", body: JSON.stringify({ partial }) }),
+    getSchema: () => fetchWithAuth<any>("/api/public/nl-query/schema"),
+  },
+
+  // Federated Mesh
+  federatedMesh: {
+    submitAnonymizedBenchmark: (data: any) => fetchWithAuth<any>("/api/public/federated-aggregation/anonymized-benchmark", { method: "POST", body: JSON.stringify(data) }),
+    getIndustryBaselines: () => fetchWithAuth<any>("/api/public/federated-aggregation/baselines"),
+    getMeshStatus: () => fetchWithAuth<any>("/api/public/federated-aggregation/mesh-status"),
+  },
+
+  // Cloud Sandbox
+  cloudSandbox: {
+    create: (data?: any) => fetchWithAuth<any>("/api/public/cloud-sandbox", { method: "POST", body: JSON.stringify(data || { preloadData: true }) }),
+    get: (sessionId: string) => fetchWithAuth<any>(`/api/public/cloud-sandbox/${sessionId}`),
+    extend: (sessionId: string) => fetchWithAuth<any>(`/api/public/cloud-sandbox/${sessionId}/extend`, { method: "POST" }),
   },
 };
 export interface User {
