@@ -134,6 +134,11 @@ type Handlers struct {
 	StreamingWS         *handler.StreamingWSHandler
 	RegressionDetection *handler.RegressionDetectionHandler
 	CodeQuality         *handler.CodeQualityHandler
+
+	// Next-Gen Features (v9)
+	SkillProfile *handler.SkillProfileHandler
+	NLQuery      *handler.NLQueryHandler
+	Sandbox      *handler.SandboxHandler
 }
 
 // initHandlers initializes all handlers
@@ -312,4 +317,7 @@ func initV8Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
 	h.StreamingWS = handler.NewStreamingWSHandler(logger, svcs.Streaming)
 	h.RegressionDetection = handler.NewRegressionDetectionHandler(svcs.RegressionDetection, logger)
 	h.CodeQuality = handler.NewCodeQualityHandler(logger, svcs.CodeQuality)
+	h.SkillProfile = handler.NewSkillProfileHandler(svcs.SkillProfile, logger)
+	h.NLQuery = handler.NewNLQueryHandler(svcs.NLQuery, logger)
+	h.Sandbox = handler.NewSandboxHandler(svcs.Sandbox, logger)
 }

@@ -109,4 +109,12 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 
 	// Billing webhook (no auth — Stripe sends directly with signature)
 	app.Post("/api/billing/webhook", h.Billing.HandleWebhook)
+
+	// Embed widget script (no auth — token-based access)
+	app.Get("/api/public/embed/widget.js", h.Embed.GetWidget)
+
+	// Cloud Sandbox (no auth — demo environment)
+	app.Post("/api/public/cloud-sandbox", h.Sandbox.CreateCloudSandbox)
+	app.Get("/api/public/cloud-sandbox/:sessionId", h.Sandbox.GetCloudSandbox)
+	app.Post("/api/public/cloud-sandbox/:sessionId/extend", h.Sandbox.ExtendCloudSandbox)
 }

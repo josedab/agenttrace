@@ -133,6 +133,11 @@ type Services struct {
 	AgentComparison     *service.AgentComparisonService
 	RegressionDetection *service.RegressionDetectionService
 	CodeQuality         *service.CodeQualityService
+
+	// Next-Gen Features (v9)
+	SkillProfile *service.SkillProfileService
+	NLQuery      *service.NLQueryService
+	Sandbox      *service.SandboxService
 }
 
 // initServices initializes all services
@@ -299,4 +304,7 @@ func initV8Services(svcs *Services, logger *zap.Logger) {
 	svcs.AgentComparison = service.NewAgentComparisonService(logger)
 	svcs.RegressionDetection = service.NewRegressionDetectionService(logger)
 	svcs.CodeQuality = service.NewCodeQualityService(logger)
+	svcs.SkillProfile = service.NewSkillProfileService(logger, svcs.Query)
+	svcs.NLQuery = service.NewNLQueryService(nil, svcs.Query, logger)
+	svcs.Sandbox = service.NewSandboxService(logger)
 }

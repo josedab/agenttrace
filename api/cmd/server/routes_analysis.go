@@ -35,6 +35,10 @@ func registerAnalysisRoutes(public fiber.Router, h *Handlers) {
 	public.Get("/replay-sessions/:sessionId/playback", h.ReplaySession.GetPlaybackState)
 	public.Post("/replay-sessions/:sessionId/branch", h.ReplaySession.BranchSession)
 	public.Post("/replay-sessions/:sessionId/share", h.ReplaySession.ShareSession)
+	public.Post("/replay-sessions/:sessionId/events", h.ReplaySession.RecordEvents)
+	public.Post("/replay-sessions/:sessionId/control", h.ReplaySession.ControlPlayback)
+	public.Get("/replay-sessions/:sessionId/files", h.ReplaySession.GetFileState)
+	public.Post("/replay-sessions/:sessionId/complete", h.ReplaySession.CompleteSession)
 
 	// Debug Sessions
 	public.Post("/debug/sessions", h.Debug.CreateSession)

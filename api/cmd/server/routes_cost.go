@@ -14,6 +14,7 @@ func registerCostRoutes(public fiber.Router, h *Handlers) {
 	public.Get("/cost-optimizer/forecast", h.CostOptimizer.GetForecast)
 	public.Post("/cost-optimizer/report", h.CostOptimizer.GenerateReport)
 	public.Post("/cost-optimizer/autopilot", h.CostOptimizer.ConfigureAutopilot)
+	public.Get("/cost-optimizer/autopilot/report", h.CostOptimizer.GetAutopilotReport)
 
 	// Cost Budgets & Forecasting
 	public.Get("/budgets", h.CostBudget.ListBudgets)

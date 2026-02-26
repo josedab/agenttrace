@@ -45,6 +45,9 @@ func registerInfraRoutes(public fiber.Router, h *Handlers) {
 	public.Post("/federated-aggregation/metrics", h.FederatedAggregation.SubmitMetrics)
 	public.Get("/federated-aggregation/benchmarks", h.FederatedAggregation.GetBenchmarks)
 	public.Get("/federated-aggregation/insights", h.FederatedAggregation.GetInsights)
+	public.Post("/federated-aggregation/anonymized-benchmark", h.FederatedAggregation.SubmitAnonymizedBenchmark)
+	public.Get("/federated-aggregation/baselines", h.FederatedAggregation.GetIndustryBaselines)
+	public.Get("/federated-aggregation/mesh-status", h.FederatedAggregation.GetMeshStatus)
 
 	// OpenTelemetry Native Compatibility
 	public.Post("/otel/destinations", h.OTelCompat.CreateExportDestination)
@@ -62,6 +65,11 @@ func registerInfraRoutes(public fiber.Router, h *Handlers) {
 	public.Post("/plugins/:pluginId/disable", h.Plugin.Disable)
 	public.Post("/plugins/:pluginId/execute", h.Plugin.Execute)
 	public.Delete("/plugins/:pluginId", h.Plugin.Uninstall)
+
+	// Universal Agent Protocol Adapters
+	public.Get("/adapters", h.Plugin.ListAdapters)
+	public.Post("/adapters", h.Plugin.InstallAdapter)
+	public.Post("/adapters/events", h.Plugin.IngestAdapterEvent)
 
 	// Migration
 	public.Get("/migrations", h.Migration.ListMigrations)

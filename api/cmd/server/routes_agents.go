@@ -36,6 +36,7 @@ func registerAgentsRoutes(public fiber.Router, h *Handlers) {
 	public.Get("/multi-agent/sessions", h.MultiAgentGraph.ListSessions)
 	public.Post("/multi-agent/analyze", h.MultiAgentGraph.AnalyzeSession)
 	public.Get("/multi-agent/sessions/:sessionId", h.MultiAgentGraph.GetSession)
+	public.Get("/multi-agent/sessions/:sessionId/topology", h.MultiAgentGraph.GetTopologyGraph)
 
 	// Agent Comparison Dashboard
 	public.Post("/agent-comparison/profiles", h.AgentComparison.CreateProfile)
@@ -97,4 +98,17 @@ func registerAgentsRoutes(public fiber.Router, h *Handlers) {
 	public.Post("/intents/:intentId/verify", h.Intent.Verify)
 	public.Get("/intents/:intentId", h.Intent.Get)
 	public.Get("/intents/stats", h.Intent.GetStats)
+
+	// Agent Skill Profiles & Fingerprinting
+	public.Get("/skill-profiles", h.SkillProfile.ListProfiles)
+	public.Get("/skill-profiles/compare", h.SkillProfile.CompareAgents)
+	public.Get("/skill-profiles/routing", h.SkillProfile.GetTaskRouting)
+	public.Get("/skill-profiles/matrix", h.SkillProfile.GetCapabilityMatrix)
+	public.Get("/skill-profiles/:agentName", h.SkillProfile.GetProfile)
+
+	// Natural Language Trace Query
+	public.Post("/nl-query", h.NLQuery.Query)
+	public.Get("/nl-query/examples", h.NLQuery.GetExamples)
+	public.Post("/nl-query/autocomplete", h.NLQuery.Autocomplete)
+	public.Get("/nl-query/schema", h.NLQuery.GetQuerySchema)
 }

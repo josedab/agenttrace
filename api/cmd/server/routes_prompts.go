@@ -48,6 +48,9 @@ func registerPromptsRoutes(public fiber.Router, h *Handlers) {
 	public.Get("/prompt-ci/baselines/:baselineId", h.PromptCI.GetBaseline)
 	public.Post("/prompt-ci/compare", h.PromptCI.RunComparison)
 	public.Get("/prompt-ci/runs", h.PromptCI.ListRuns)
+	public.Post("/prompt-ci/gates", h.PromptCI.CreateGateConfig)
+	public.Get("/prompt-ci/gates", h.PromptCI.ListGateConfigs)
+	public.Post("/prompt-ci/gates/evaluate", h.PromptCI.EvaluateGate)
 
 	// Continuous Prompt Optimization
 	public.Post("/prompt-optimization", h.PromptOptimization.StartOptimization)
