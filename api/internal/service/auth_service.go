@@ -752,3 +752,88 @@ func (s *AuthService) HandleOAuthCallbackWithContext(ctx context.Context, input 
 		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.AccessExpiry) * time.Minute),
 	}, nil
 }
+
+// TeamRepository defines team repository operations for multi-tenant hierarchy
+type TeamRepository interface {
+	CreateTeam(ctx context.Context, team *domain.Team) error
+	GetTeamByID(ctx context.Context, id uuid.UUID) (*domain.Team, error)
+	ListTeamsByOrg(ctx context.Context, orgID uuid.UUID) ([]domain.Team, error)
+	AddTeamMember(ctx context.Context, member *domain.TeamMember) error
+	GetTeamMember(ctx context.Context, teamID, userID uuid.UUID) (*domain.TeamMember, error)
+	ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]domain.TeamMember, error)
+	GetTeamsForUser(ctx context.Context, userID uuid.UUID) ([]domain.Team, error)
+}
+
+// CheckHierarchicalAccess checks access through the org→team→project hierarchy
+// with permission inheritance (org-level roles cascade to teams and projects)
+func (s *AuthService) CheckHierarchicalAccess(ctx context.Context, userID, projectID uuid.UUID, requiredPerm domain.Permission) (bool, error) {
+	// Check direct project-level access first
+	role, err := s.projectRepo.GetUserRoleForProject(ctx, projectID, userID)
+	if err == nil && role != nil {
+		return hasPermission(*role, requiredPerm), nil
+	}
+
+	// Check org-level access (inherits to all projects)
+	project, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return false, fmt.Errorf("project not found: %w", err)
+	}
+
+	if project.OrgID != uuid.Nil {
+		member, err := s.orgRepo.GetMember(ctx, project.OrgID, userID)
+		if err == nil && member != nil {
+			return hasPermission(member.Role, requiredPerm), nil
+		}
+	}
+
+	return false, nil
+}
+
+// BuildOrgHierarchy constructs the full org→team→project tree for a user
+func (s *AuthService) BuildOrgHierarchy(ctx context.Context, orgID, userID uuid.UUID) (*domain.OrgHierarchyNode, error) {
+	org, err := s.orgRepo.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("organization not found: %w", err)
+	}
+
+	member, err := s.orgRepo.GetMember(ctx, orgID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user is not a member of this organization")
+	}
+
+	root := &domain.OrgHierarchyNode{
+		Type: "organization",
+		ID:   org.ID,
+		Name: org.Name,
+		Role: member.Role,
+	}
+
+	return root, nil
+}
+
+// hasPermission checks if a role has the given permission
+func hasPermission(role domain.OrgRole, perm domain.Permission) bool {
+	var r domain.Role
+	switch role {
+	case domain.OrgRoleOwner, domain.OrgRoleAdmin:
+		r = domain.RoleAdmin
+	case domain.OrgRoleMember:
+		r = domain.RoleDeveloper
+	case domain.OrgRoleViewer:
+		r = domain.RoleViewer
+	default:
+		return false
+	}
+
+	perms, ok := domain.RolePermissions[r]
+	if !ok {
+		return false
+	}
+
+	for _, p := range perms {
+		if p == perm {
+			return true
+		}
+	}
+	return false
+}

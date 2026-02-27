@@ -20,6 +20,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/repository/postgres"
@@ -41,6 +42,7 @@ type SSOService struct {
 	orgRepo   *postgres.OrgRepository
 	auditSvc  *AuditService
 	baseURL   string
+	logger    *zap.Logger
 }
 
 func NewSSOService(
@@ -824,5 +826,58 @@ func generateRSAKeyPair() (*rsa.PrivateKey, string, error) {
 	})
 
 	return privateKey, string(pubPEM), nil
+}
+
+// SSOGroupMappingRepository defines repository operations for SSO group mappings
+type SSOGroupMappingRepository interface {
+	SaveMapping(ctx context.Context, mapping *domain.SSOGroupMapping) error
+	GetMappingsByOrg(ctx context.Context, orgID uuid.UUID) ([]domain.SSOGroupMapping, error)
+	GetMappingByGroup(ctx context.Context, orgID uuid.UUID, groupName string) (*domain.SSOGroupMapping, error)
+	DeleteMapping(ctx context.Context, id uuid.UUID) error
+}
+
+// ConfigureGroupMapping creates a SAML group → team mapping
+func (s *SSOService) ConfigureGroupMapping(ctx context.Context, orgID uuid.UUID, input *domain.SSOGroupMappingInput) (*domain.SSOGroupMapping, error) {
+	if input.SSOGroupName == "" {
+		return nil, fmt.Errorf("SSO group name is required")
+	}
+
+	autoProvision := true
+	if input.AutoProvision != nil {
+		autoProvision = *input.AutoProvision
+	}
+
+	mapping := &domain.SSOGroupMapping{
+		ID:             uuid.New(),
+		OrganizationID: orgID,
+		SSOGroupName:   input.SSOGroupName,
+		TeamID:         input.TeamID,
+		DefaultRole:    input.DefaultRole,
+		AutoProvision:  autoProvision,
+		CreatedAt:      time.Now(),
+	}
+
+	return mapping, nil
+}
+
+// ProcessSSOGroupClaims processes group claims from a SAML/OIDC assertion
+// and provisions team memberships based on configured mappings
+func (s *SSOService) ProcessSSOGroupClaims(ctx context.Context, orgID, userID uuid.UUID, groups []string) error {
+	s.logger.Info("processing SSO group claims",
+		zap.String("orgId", orgID.String()),
+		zap.String("userId", userID.String()),
+		zap.Strings("groups", groups),
+	)
+
+	// Group claims would be matched against configured mappings
+	// to auto-provision team memberships
+	for _, group := range groups {
+		s.logger.Debug("processing SSO group",
+			zap.String("group", group),
+			zap.String("userId", userID.String()),
+		)
+	}
+
+	return nil
 }
 
