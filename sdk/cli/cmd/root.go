@@ -41,6 +41,9 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(wrapCmd)
 	rootCmd.AddCommand(mcpCmd)
+	rootCmd.AddCommand(autoInstrumentCmd)
+	rootCmd.AddCommand(doctorCmd)
+	rootCmd.AddCommand(promptsCmd)
 }
 
 // Execute runs the CLI
