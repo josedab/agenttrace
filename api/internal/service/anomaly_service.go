@@ -701,3 +701,125 @@ func (s *AnomalyService) GetDashboard(ctx context.Context, projectID uuid.UUID) 
 
 	return dashboard, nil
 }
+
+// StreamingDetectionPipeline processes incoming trace data as a continuous stream
+// and evaluates anomaly rules against each data point in real time.
+type StreamingDetectionPipeline struct {
+	logger         *zap.Logger
+	anomalyService *AnomalyService
+	alertEngine    *AlertEngineService
+	inputCh        chan StreamingDataPoint
+	stopCh         chan struct{}
+}
+
+// StreamingDataPoint represents a single data point in the streaming pipeline
+type StreamingDataPoint struct {
+	ProjectID  uuid.UUID
+	TraceID    string
+	SpanID     string
+	SpanName   string
+	MetricType domain.AnomalyType
+	Value      float64
+	Metadata   map[string]string
+	Timestamp  time.Time
+}
+
+// NewStreamingDetectionPipeline creates a new streaming detection pipeline
+func NewStreamingDetectionPipeline(
+	logger *zap.Logger,
+	anomalyService *AnomalyService,
+	alertEngine *AlertEngineService,
+) *StreamingDetectionPipeline {
+	return &StreamingDetectionPipeline{
+		logger:         logger,
+		anomalyService: anomalyService,
+		alertEngine:    alertEngine,
+		inputCh:        make(chan StreamingDataPoint, 1000),
+		stopCh:         make(chan struct{}),
+	}
+}
+
+// Ingest adds a data point to the streaming pipeline for processing
+func (p *StreamingDetectionPipeline) Ingest(dp StreamingDataPoint) {
+	select {
+	case p.inputCh <- dp:
+	default:
+		p.logger.Warn("streaming pipeline buffer full, dropping data point",
+			zap.String("traceId", dp.TraceID),
+		)
+	}
+}
+
+// Start begins processing the streaming pipeline
+func (p *StreamingDetectionPipeline) Start(ctx context.Context) {
+	p.logger.Info("starting streaming detection pipeline")
+	go p.processLoop(ctx)
+}
+
+// Stop signals the pipeline to stop processing
+func (p *StreamingDetectionPipeline) Stop() {
+	close(p.stopCh)
+}
+
+func (p *StreamingDetectionPipeline) processLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.stopCh:
+			return
+		case dp := <-p.inputCh:
+			if err := p.processDataPoint(ctx, dp); err != nil {
+				p.logger.Error("failed to process streaming data point",
+					zap.Error(err),
+					zap.String("traceId", dp.TraceID),
+				)
+			}
+		}
+	}
+}
+
+func (p *StreamingDetectionPipeline) processDataPoint(ctx context.Context, dp StreamingDataPoint) error {
+	// Evaluate against alert engine rules
+	evalCtx := &TraceEvalContext{
+		TraceID:  &dp.TraceID,
+		SpanID:   &dp.SpanID,
+		SpanName: dp.SpanName,
+		Metadata: dp.Metadata,
+	}
+
+	switch dp.MetricType {
+	case domain.AnomalyTypeLatency:
+		evalCtx.Latency = dp.Value
+	case domain.AnomalyTypeCost:
+		evalCtx.Cost = dp.Value
+	case domain.AnomalyTypeTokens:
+		evalCtx.TokenCount = int(dp.Value)
+	case domain.AnomalyTypeErrorRate:
+		evalCtx.ErrorRate = dp.Value
+	}
+
+	// Fetch and evaluate applicable rules
+	rules, err := p.alertEngine.ListRules(ctx, domain.AlertRuleFilter{
+		ProjectID: dp.ProjectID,
+		Enabled:   boolPtr(true),
+	}, 100, 0)
+	if err != nil {
+		return fmt.Errorf("failed to list rules: %w", err)
+	}
+
+	for _, rule := range rules.Rules {
+		if _, err := p.alertEngine.EvaluateRule(ctx, &rule, evalCtx); err != nil {
+			p.logger.Warn("rule evaluation failed",
+				zap.String("ruleId", rule.ID.String()),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return nil
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
