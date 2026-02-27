@@ -66,6 +66,17 @@ from agenttrace.terminal import (
     terminal_scope,
 )
 
+# Auto-discovery and zero-config setup
+from agenttrace.auto_discovery import (
+    auto_instrument,
+    detect_frameworks,
+    print_discovery_report,
+    DiscoveryResult,
+    DiscoveredFramework,
+    FrameworkType,
+    DiscoveryStatus,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -113,4 +124,12 @@ __all__ = [
     "TerminalCommandInfo",
     "terminal_run",
     "terminal_scope",
+    # Auto-discovery
+    "auto_instrument",
+    "detect_frameworks",
+    "print_discovery_report",
+    "DiscoveryResult",
+    "DiscoveredFramework",
+    "FrameworkType",
+    "DiscoveryStatus",
 ]
