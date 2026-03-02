@@ -1,0 +1,78 @@
+{
+  "name": "@agenttrace/react",
+  "version": "0.1.0",
+  "description": "Embeddable React components for AgentTrace - TraceViewer, CostChart, PromptPlayground, AgentGraph",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./TraceViewer": {
+      "import": "./dist/TraceViewer.esm.js",
+      "require": "./dist/TraceViewer.cjs.js",
+      "types": "./dist/TraceViewer.d.ts"
+    },
+    "./CostChart": {
+      "import": "./dist/CostChart.esm.js",
+      "require": "./dist/CostChart.cjs.js",
+      "types": "./dist/CostChart.d.ts"
+    },
+    "./PromptPlayground": {
+      "import": "./dist/PromptPlayground.esm.js",
+      "require": "./dist/PromptPlayground.cjs.js",
+      "types": "./dist/PromptPlayground.d.ts"
+    },
+    "./AgentGraph": {
+      "import": "./dist/AgentGraph.esm.js",
+      "require": "./dist/AgentGraph.cjs.js",
+      "types": "./dist/AgentGraph.d.ts"
+    },
+    "./theme": {
+      "import": "./dist/theme.esm.js",
+      "require": "./dist/theme.cjs.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "agenttrace",
+    "react",
+    "components",
+    "trace-viewer",
+    "ai-observability",
+    "agent-monitoring"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenttrace/agenttrace",
+    "directory": "extensions/react"
+  }
+}
