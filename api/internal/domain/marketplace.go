@@ -64,3 +64,49 @@ type PackageRating struct {
 	Review    string    `json:"review,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 }
+
+// PackageVersion represents a specific version of a marketplace package
+type PackageVersion struct {
+	Version     string    `json:"version"`
+	Content     string    `json:"content"`
+	Changelog   string    `json:"changelog,omitempty"`
+	Downloads   int       `json:"downloads"`
+	PublishedAt time.Time `json:"publishedAt"`
+}
+
+// PackageInstall represents an installation record
+type PackageInstall struct {
+	PackageID   uuid.UUID `json:"packageId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	Version     string    `json:"version"`
+	InstalledAt time.Time `json:"installedAt"`
+}
+
+// MarketplaceCategory represents a marketplace category
+type MarketplaceCategory struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Count       int    `json:"count"`
+	Icon        string `json:"icon,omitempty"`
+}
+
+// StarterKit represents a curated starter kit for common AI patterns
+type StarterKit struct {
+	ID          uuid.UUID   `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Pattern     string      `json:"pattern"` // "rag", "coding_agent", "chatbot", "data_pipeline"
+	Packages    []uuid.UUID `json:"packages"`
+	Installs    int         `json:"installs"`
+	CreatedAt   time.Time   `json:"createdAt"`
+}
+
+// RevenueShare represents revenue sharing configuration for a publisher
+type RevenueShare struct {
+	PublisherID uuid.UUID `json:"publisherId"`
+	PackageID   uuid.UUID `json:"packageId"`
+	SharePercent float64  `json:"sharePercent"` // publisher's share (e.g., 70%)
+	TotalRevenue float64  `json:"totalRevenue"`
+	PaidOut      float64  `json:"paidOut"`
+}
+

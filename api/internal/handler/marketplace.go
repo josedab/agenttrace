@@ -148,6 +148,33 @@ func (h *MarketplaceHandler) Featured(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"packages": packages, "count": len(packages)})
 }
 
+// Categories handles GET /api/public/marketplace/categories
+func (h *MarketplaceHandler) Categories(c *fiber.Ctx) error {
+	categories := h.service.GetCategories(c.Context())
+	return c.JSON(fiber.Map{"categories": categories})
+}
+
+// StarterKits handles GET /api/public/marketplace/starter-kits
+func (h *MarketplaceHandler) StarterKits(c *fiber.Ctx) error {
+	kits := h.service.GetStarterKits(c.Context())
+	return c.JSON(fiber.Map{"starterKits": kits, "count": len(kits)})
+}
+
+// Reviews handles GET /api/public/marketplace/:packageId/reviews
+func (h *MarketplaceHandler) Reviews(c *fiber.Ctx) error {
+	packageID, err := uuid.Parse(c.Params("packageId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid package ID"})
+	}
+
+	reviews := h.service.GetReviews(c.Context(), packageID)
+	if reviews == nil {
+		reviews = []domain.PackageRating{}
+	}
+
+	return c.JSON(fiber.Map{"reviews": reviews, "count": len(reviews)})
+}
+
 // splitTags splits a comma-separated tags string
 func splitTags(tags string) []string {
 	var result []string

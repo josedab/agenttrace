@@ -84,7 +84,10 @@ func registerInfraRoutes(public fiber.Router, h *Handlers) {
 	// Agent Marketplace
 	public.Get("/marketplace", h.Marketplace.Search)
 	public.Get("/marketplace/featured", h.Marketplace.Featured)
+	public.Get("/marketplace/categories", h.Marketplace.Categories)
+	public.Get("/marketplace/starter-kits", h.Marketplace.StarterKits)
 	public.Get("/marketplace/:packageId", h.Marketplace.Get)
+	public.Get("/marketplace/:packageId/reviews", h.Marketplace.Reviews)
 	public.Post("/marketplace", h.Marketplace.Publish)
 	public.Post("/marketplace/:packageId/install", h.Marketplace.Install)
 	public.Post("/marketplace/:packageId/rate", h.Marketplace.Rate)

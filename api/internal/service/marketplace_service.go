@@ -329,3 +329,76 @@ func (s *MarketplaceService) GetFeatured(ctx context.Context) []domain.Marketpla
 
 	return all
 }
+
+// GetCategories returns marketplace categories with package counts
+func (s *MarketplaceService) GetCategories(ctx context.Context) []domain.MarketplaceCategory {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	counts := make(map[domain.PackageType]int)
+	for _, pkg := range s.packages {
+		if pkg.IsPublic {
+			counts[pkg.Type]++
+		}
+	}
+
+	return []domain.MarketplaceCategory{
+		{Name: "Prompts", Description: "Prompt templates and chains", Count: counts[domain.PackagePrompt], Icon: "message-square"},
+		{Name: "Guardrails", Description: "Safety and compliance guardrails", Count: counts[domain.PackageGuardrail], Icon: "shield"},
+		{Name: "Evaluators", Description: "Quality evaluation templates", Count: counts[domain.PackageEvaluator], Icon: "check-circle"},
+		{Name: "Benchmarks", Description: "Agent benchmark suites", Count: counts[domain.PackageBenchmark], Icon: "bar-chart"},
+		{Name: "Bundles", Description: "All-in-one packages", Count: counts[domain.PackageBundle], Icon: "package"},
+	}
+}
+
+// GetStarterKits returns curated starter kits
+func (s *MarketplaceService) GetStarterKits(ctx context.Context) []domain.StarterKit {
+	return []domain.StarterKit{
+		{
+			ID:          uuid.New(),
+			Name:        "RAG Agent Starter",
+			Description: "Everything you need to monitor and evaluate a retrieval-augmented generation agent",
+			Pattern:     "rag",
+			Installs:    342,
+			CreatedAt:   time.Now().Add(-60 * 24 * time.Hour),
+		},
+		{
+			ID:          uuid.New(),
+			Name:        "Coding Agent Kit",
+			Description: "Guardrails, evaluators, and benchmarks for coding assistants",
+			Pattern:     "coding_agent",
+			Installs:    567,
+			CreatedAt:   time.Now().Add(-45 * 24 * time.Hour),
+		},
+		{
+			ID:          uuid.New(),
+			Name:        "Chatbot Production Kit",
+			Description: "Production-ready monitoring, safety, and quality for customer-facing chatbots",
+			Pattern:     "chatbot",
+			Installs:    891,
+			CreatedAt:   time.Now().Add(-30 * 24 * time.Hour),
+		},
+		{
+			ID:          uuid.New(),
+			Name:        "Data Pipeline Agent Kit",
+			Description: "Observability and cost optimization for data processing AI agents",
+			Pattern:     "data_pipeline",
+			Installs:    234,
+			CreatedAt:   time.Now().Add(-20 * 24 * time.Hour),
+		},
+	}
+}
+
+// GetReviews returns ratings and reviews for a package
+func (s *MarketplaceService) GetReviews(ctx context.Context, packageID uuid.UUID) []domain.PackageRating {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var reviews []domain.PackageRating
+	for _, r := range s.ratings {
+		if r.PackageID == packageID {
+			reviews = append(reviews, r)
+		}
+	}
+	return reviews
+}
