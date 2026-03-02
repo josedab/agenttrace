@@ -45,6 +45,13 @@ inputs:
   scores:
     description: "JSON object of metric scores to evaluate against the gate (e.g., '{\"accuracy\": 0.92}')"
     required: false
+  prompt-path:
+    description: "Path to prompt files for GitOps sync (e.g., 'prompts/')"
+    required: false
+  sync-direction:
+    description: "GitOps sync direction: 'pull' (git→AgentTrace) or 'push' (AgentTrace→git)"
+    required: false
+    default: "pull"
 
 outputs:
   run-id:
