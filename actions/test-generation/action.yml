@@ -1,0 +1,98 @@
+name: "AgentTrace Test Generation"
+description: "Generate and run regression tests from production traces"
+branding:
+  icon: "check-circle"
+  color: "green"
+
+inputs:
+  agenttrace-url:
+    description: "AgentTrace API URL"
+    required: true
+  api-key:
+    description: "AgentTrace API key"
+    required: true
+  suite-id:
+    description: "Test suite ID to run (omit to generate new suite)"
+    required: false
+  trace-ids:
+    description: "Comma-separated trace IDs to generate tests from"
+    required: false
+  framework:
+    description: "Test framework (pytest, jest, custom)"
+    required: false
+    default: "pytest"
+  fail-on-regression:
+    description: "Fail the action if regression detected"
+    required: false
+    default: "true"
+
+outputs:
+  suite-id:
+    description: "The test suite ID"
+  total-tests:
+    description: "Total number of tests"
+  passed:
+    description: "Number of passed tests"
+  failed:
+    description: "Number of failed tests"
+  status:
+    description: "Overall status (passed/failed)"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate or load test suite
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.suite-id }}" ]; then
+          echo "SUITE_ID=${{ inputs.suite-id }}" >> $GITHUB_ENV
+          echo "Using existing suite: ${{ inputs.suite-id }}"
+        elif [ -n "${{ inputs.trace-ids }}" ]; then
+          echo "Generating tests from traces..."
+          IFS=',' read -ra TRACE_ARRAY <<< "${{ inputs.trace-ids }}"
+          TRACE_JSON=$(printf '"%s",' "${TRACE_ARRAY[@]}" | sed 's/,$//')
+          
+          RESPONSE=$(curl -s -X POST "${{ inputs.agenttrace-url }}/api/public/test-suites/generate" \
+            -H "Authorization: Bearer ${{ inputs.api-key }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"traceIds\": [${TRACE_JSON}], \"framework\": \"${{ inputs.framework }}\"}")
+          
+          SUITE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          echo "SUITE_ID=$SUITE_ID" >> $GITHUB_ENV
+          echo "Generated suite: $SUITE_ID"
+        else
+          echo "::error::Either suite-id or trace-ids must be provided"
+          exit 1
+        fi
+
+    - name: Run test suite
+      shell: bash
+      run: |
+        echo "Running test suite: $SUITE_ID"
+        RESULT=$(curl -s -X POST "${{ inputs.agenttrace-url }}/api/public/test-suites/${SUITE_ID}/run" \
+          -H "Authorization: Bearer ${{ inputs.api-key }}" \
+          -H "Content-Type: application/json")
+        
+        STATUS=$(echo "$RESULT" | jq -r '.status')
+        TOTAL=$(echo "$RESULT" | jq -r '.totalTests')
+        PASSED=$(echo "$RESULT" | jq -r '.passed')
+        FAILED=$(echo "$RESULT" | jq -r '.failed')
+        
+        echo "suite-id=$SUITE_ID" >> $GITHUB_OUTPUT
+        echo "total-tests=$TOTAL" >> $GITHUB_OUTPUT
+        echo "passed=$PASSED" >> $GITHUB_OUTPUT
+        echo "failed=$FAILED" >> $GITHUB_OUTPUT
+        echo "status=$STATUS" >> $GITHUB_OUTPUT
+        
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Total | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+        echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+        echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+        echo "| Status | $STATUS |" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.fail-on-regression }}" = "true" ] && [ "$FAILED" -gt "0" ]; then
+          echo "::error::$FAILED test(s) failed — regression detected"
+          exit 1
+        fi
