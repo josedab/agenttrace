@@ -138,6 +138,17 @@ type Services struct {
 	SkillProfile *service.SkillProfileService
 	NLQuery      *service.NLQueryService
 	Sandbox      *service.SandboxService
+
+	// Next-Gen Features (v10)
+	Gateway          *service.GatewayService
+	TestGenerator    *service.TestGeneratorService
+	CanaryDeployment *service.CanaryDeploymentService
+	CertExport       *service.CertificationExportService
+	WarehouseSync    *service.WarehouseSyncService
+	TraceReview      *service.TraceReviewService
+	RunbookEngine    *service.RunbookEngineService
+	EdgeIngest       *service.EdgeIngestService
+	PromptImpact     *service.PromptImpactService
 }
 
 // initServices initializes all services
@@ -153,6 +164,7 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 	initV6Services(svcs, cfg, logger)
 	initV7Services(svcs, logger)
 	initV8Services(svcs, logger)
+	initV10Services(svcs, logger)
 
 	return svcs
 }
@@ -307,4 +319,17 @@ func initV8Services(svcs *Services, logger *zap.Logger) {
 	svcs.SkillProfile = service.NewSkillProfileService(logger, svcs.Query)
 	svcs.NLQuery = service.NewNLQueryService(nil, svcs.Query, logger)
 	svcs.Sandbox = service.NewSandboxService(logger)
+}
+
+// initV10Services initializes Next-Gen v10 feature services
+func initV10Services(svcs *Services, logger *zap.Logger) {
+	svcs.Gateway = service.NewGatewayService(logger)
+	svcs.TestGenerator = service.NewTestGeneratorService(logger)
+	svcs.CanaryDeployment = service.NewCanaryDeploymentService(logger)
+	svcs.CertExport = service.NewCertificationExportService(logger)
+	svcs.WarehouseSync = service.NewWarehouseSyncService(logger)
+	svcs.TraceReview = service.NewTraceReviewService(logger)
+	svcs.RunbookEngine = service.NewRunbookEngineService(logger)
+	svcs.EdgeIngest = service.NewEdgeIngestService(logger)
+	svcs.PromptImpact = service.NewPromptImpactService(logger)
 }

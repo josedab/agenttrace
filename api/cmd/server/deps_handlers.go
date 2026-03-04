@@ -139,6 +139,17 @@ type Handlers struct {
 	SkillProfile *handler.SkillProfileHandler
 	NLQuery      *handler.NLQueryHandler
 	Sandbox      *handler.SandboxHandler
+
+	// Next-Gen Features (v10)
+	Gateway          *handler.GatewayHandler
+	TestGenerator    *handler.TestGeneratorHandler
+	CanaryDeployment *handler.CanaryDeploymentHandler
+	CertExport       *handler.CertificationExportHandler
+	WarehouseSync    *handler.WarehouseSyncHandler
+	TraceReview      *handler.TraceReviewHandler
+	RunbookEngine    *handler.RunbookEngineHandler
+	EdgeIngest       *handler.EdgeIngestHandler
+	PromptImpact     *handler.PromptImpactHandler
 }
 
 // initHandlers initializes all handlers
@@ -163,6 +174,7 @@ func initHandlers(
 	initV6Handlers(h, logger, svcs)
 	initV7Handlers(h, logger, svcs)
 	initV8Handlers(h, logger, svcs)
+	initV10Handlers(h, logger, svcs)
 
 	return h
 }
@@ -320,4 +332,17 @@ func initV8Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
 	h.SkillProfile = handler.NewSkillProfileHandler(svcs.SkillProfile, logger)
 	h.NLQuery = handler.NewNLQueryHandler(svcs.NLQuery, logger)
 	h.Sandbox = handler.NewSandboxHandler(svcs.Sandbox, logger)
+}
+
+// initV10Handlers initializes Next-Gen v10 feature handlers
+func initV10Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.Gateway = handler.NewGatewayHandler(svcs.Gateway, logger)
+	h.TestGenerator = handler.NewTestGeneratorHandler(svcs.TestGenerator, logger)
+	h.CanaryDeployment = handler.NewCanaryDeploymentHandler(svcs.CanaryDeployment, logger)
+	h.CertExport = handler.NewCertificationExportHandler(svcs.CertExport, logger)
+	h.WarehouseSync = handler.NewWarehouseSyncHandler(svcs.WarehouseSync, logger)
+	h.TraceReview = handler.NewTraceReviewHandler(svcs.TraceReview, logger)
+	h.RunbookEngine = handler.NewRunbookEngineHandler(svcs.RunbookEngine, logger)
+	h.EdgeIngest = handler.NewEdgeIngestHandler(svcs.EdgeIngest, logger)
+	h.PromptImpact = handler.NewPromptImpactHandler(svcs.PromptImpact, logger)
 }
