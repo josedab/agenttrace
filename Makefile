@@ -1,4 +1,4 @@
-.PHONY: all build test lint dev dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor test-e2e-api test-e2e-web
+.PHONY: all build test lint dev dev-hot dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor test-e2e-api test-e2e-web generate
 
 # Default target
 all: lint test build
@@ -9,12 +9,14 @@ help:
 	@echo ""
 	@echo "  make setup        - One-command dev environment setup"
 	@echo "  make dev          - Start dev environment (API + web, Ctrl+C stops both)"
+	@echo "  make dev-hot      - Start dev with Go hot-reload (requires air)"
 	@echo "  make dev-api      - Start only the API server (with databases)"
 	@echo "  make dev-web      - Start only the web frontend"
 	@echo "  make build        - Build all components"
 	@echo "  make test         - Run all tests"
 	@echo "  make lint         - Run all linters"
 	@echo "  make format       - Format all code"
+	@echo "  make generate     - Run GraphQL code generation"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make docker-up    - Start databases via Docker Compose"
 	@echo "  make docker-down  - Stop databases"
@@ -47,11 +49,37 @@ dev: docker-up
 	@echo "Starting API server..."
 	@cd api && go run cmd/server/main.go &
 	@API_PID=$$!; \
-	trap "kill $$API_PID 2>/dev/null; exit" INT TERM; \
+	sleep 1; \
+	if ! kill -0 $$API_PID 2>/dev/null; then \
+		echo "ERROR: API server failed to start. Check the output above."; \
+		exit 1; \
+	fi; \
 	echo "API server PID: $$API_PID"; \
+	trap "kill $$API_PID 2>/dev/null; exit" INT TERM; \
 	echo "Starting web dev server..."; \
 	cd web && npm run dev; \
-	kill $$API_PID 2>/dev/null
+	EXIT_CODE=$$?; \
+	kill $$API_PID 2>/dev/null; \
+	if ! kill -0 $$API_PID 2>/dev/null; then \
+		echo ""; \
+		echo "WARNING: API server has stopped. It may have crashed."; \
+	fi; \
+	exit $$EXIT_CODE
+
+## dev-hot: Start dev environment with Go hot-reload (requires air)
+dev-hot: docker-up
+	@if ! command -v air > /dev/null 2>&1; then \
+		echo "Error: 'air' is not installed. Install with: go install github.com/air-verse/air@latest"; \
+		exit 1; \
+	fi
+	@echo "Starting API server with hot-reload..."
+	@cd api && air &
+	@AIR_PID=$$!; \
+	trap "kill $$AIR_PID 2>/dev/null; exit" INT TERM; \
+	echo "Air PID: $$AIR_PID"; \
+	echo "Starting web dev server..."; \
+	cd web && npm run dev; \
+	kill $$AIR_PID 2>/dev/null
 
 ## dev-api: Start only the API server
 dev-api: docker-up
@@ -71,12 +99,38 @@ docker-up:
 docker-down:
 	docker compose -f deploy/docker-compose.dev.yml down
 
+# Prerequisite check (used by setup)
+_check-prerequisites:
+	@echo "Checking prerequisites..."
+	@MISSING=""; \
+	if ! command -v go > /dev/null 2>&1; then \
+		MISSING="$$MISSING\n  ✗ Go not found (install from https://go.dev/dl/)"; \
+	fi; \
+	if ! command -v node > /dev/null 2>&1; then \
+		MISSING="$$MISSING\n  ✗ Node.js not found (install from https://nodejs.org/)"; \
+	fi; \
+	if ! command -v docker > /dev/null 2>&1; then \
+		MISSING="$$MISSING\n  ✗ Docker not found (install from https://docs.docker.com/get-docker/)"; \
+	fi; \
+	if ! command -v migrate > /dev/null 2>&1; then \
+		MISSING="$$MISSING\n  ✗ migrate CLI not found (brew install golang-migrate or go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest)"; \
+	fi; \
+	if [ -n "$$MISSING" ]; then \
+		echo "Missing required tools:"; \
+		printf "$$MISSING\n"; \
+		echo ""; \
+		echo "Install the missing prerequisites and try again."; \
+		echo "Run 'make doctor' for a full prerequisites check."; \
+		exit 1; \
+	fi; \
+	echo "  ✓ All prerequisites found"
+
 ## setup: One-command development environment setup
-setup: docker-up
+setup: _check-prerequisites docker-up
 	@echo "Copying environment files (if missing)..."
-	@test -f api/.env || cp api/.env.example api/.env && echo "  Created api/.env"
-	@test -f web/.env.local || cp web/.env.example web/.env.local && echo "  Created web/.env.local"
-	@test -f deploy/.env || cp deploy/.env.example deploy/.env && echo "  Created deploy/.env"
+	@if [ ! -f api/.env ]; then cp api/.env.example api/.env && echo "  Created api/.env"; else echo "  api/.env already exists, skipping"; fi
+	@if [ ! -f web/.env.local ]; then cp web/.env.example web/.env.local && echo "  Created web/.env.local"; else echo "  web/.env.local already exists, skipping"; fi
+	@if [ ! -f deploy/.env ]; then cp deploy/.env.example deploy/.env && echo "  Created deploy/.env"; else echo "  deploy/.env already exists, skipping"; fi
 	@echo "Waiting for services to be healthy..."
 	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
 		if docker compose -f deploy/docker-compose.dev.yml ps --format json 2>/dev/null | grep -q '"Health":"healthy"' || \
@@ -266,6 +320,15 @@ format:
 	cd sdk/cli && gofmt -w .
 
 # ============================================
+# Code Generation
+# ============================================
+
+## generate: Run GraphQL code generation
+generate:
+	@echo "Running GraphQL code generation..."
+	cd api && go run github.com/99designs/gqlgen generate
+
+# ============================================
 # Documentation
 # ============================================
 
@@ -314,5 +377,10 @@ doctor:
 		echo "  ✓ pre-commit: $$(pre-commit --version)"; \
 	else \
 		echo "  ✗ pre-commit: not found (pip install pre-commit)"; \
+	fi
+	@if command -v air > /dev/null 2>&1; then \
+		echo "  ✓ air: installed (hot-reload)"; \
+	else \
+		echo "  ✗ air: not found (go install github.com/air-verse/air@latest) [optional, for hot-reload]"; \
 	fi
 	@echo ""
