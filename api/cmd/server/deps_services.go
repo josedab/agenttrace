@@ -149,6 +149,18 @@ type Services struct {
 	RunbookEngine    *service.RunbookEngineService
 	EdgeIngest       *service.EdgeIngestService
 	PromptImpact     *service.PromptImpactService
+
+	// Next-Gen Features (v11)
+	TraceDiff          *service.TraceDiffService
+	EvalPlayground     *service.EvalPlaygroundService
+	CodeImpact         *service.CodeImpactService
+	StreamingDashboard *service.StreamingDashboardService
+	EvalMarketplace    *service.EvalMarketplaceService
+	SessionJourney     *service.SessionJourneyService
+	TraceEnrichment    *service.TraceEnrichmentService
+	CostForecast       *service.CostForecastService
+	TraceKB            *service.TraceKBService
+	OTelBridge         *service.OTelBridgeService
 }
 
 // initServices initializes all services
@@ -165,6 +177,7 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 	initV7Services(svcs, logger)
 	initV8Services(svcs, logger)
 	initV10Services(svcs, logger)
+	initV11Services(svcs, logger)
 
 	return svcs
 }
@@ -332,4 +345,18 @@ func initV10Services(svcs *Services, logger *zap.Logger) {
 	svcs.RunbookEngine = service.NewRunbookEngineService(logger)
 	svcs.EdgeIngest = service.NewEdgeIngestService(logger)
 	svcs.PromptImpact = service.NewPromptImpactService(logger)
+}
+
+// initV11Services initializes Next-Gen v11 feature services
+func initV11Services(svcs *Services, logger *zap.Logger) {
+	svcs.TraceDiff = service.NewTraceDiffService(logger, svcs.Query)
+	svcs.EvalPlayground = service.NewEvalPlaygroundService(logger)
+	svcs.CodeImpact = service.NewCodeImpactService(logger, svcs.Query, svcs.FileOperation)
+	svcs.StreamingDashboard = service.NewStreamingDashboardService(logger, svcs.Streaming)
+	svcs.EvalMarketplace = service.NewEvalMarketplaceService(logger, svcs.Dataset)
+	svcs.SessionJourney = service.NewSessionJourneyService(logger, svcs.Query)
+	svcs.TraceEnrichment = service.NewTraceEnrichmentService(logger)
+	svcs.CostForecast = service.NewCostForecastService(logger, svcs.Cost, svcs.Query)
+	svcs.TraceKB = service.NewTraceKBService(logger)
+	svcs.OTelBridge = service.NewOTelBridgeService(logger, svcs.Ingestion)
 }

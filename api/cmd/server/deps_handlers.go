@@ -150,6 +150,18 @@ type Handlers struct {
 	RunbookEngine    *handler.RunbookEngineHandler
 	EdgeIngest       *handler.EdgeIngestHandler
 	PromptImpact     *handler.PromptImpactHandler
+
+	// Next-Gen Features (v11)
+	TraceDiff          *handler.TraceDiffHandler
+	EvalPlayground     *handler.EvalPlaygroundHandler
+	CodeImpact         *handler.CodeImpactHandler
+	StreamingDashboard *handler.StreamingDashboardHandler
+	EvalMarketplace    *handler.EvalMarketplaceHandler
+	SessionJourney     *handler.SessionJourneyHandler
+	TraceEnrichment    *handler.TraceEnrichmentHandler
+	CostForecast       *handler.CostForecastHandler
+	TraceKB            *handler.TraceKBHandler
+	OTelBridge         *handler.OTelBridgeHandler
 }
 
 // initHandlers initializes all handlers
@@ -175,6 +187,7 @@ func initHandlers(
 	initV7Handlers(h, logger, svcs)
 	initV8Handlers(h, logger, svcs)
 	initV10Handlers(h, logger, svcs)
+	initV11Handlers(h, logger, svcs)
 
 	return h
 }
@@ -345,4 +358,18 @@ func initV10Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
 	h.RunbookEngine = handler.NewRunbookEngineHandler(svcs.RunbookEngine, logger)
 	h.EdgeIngest = handler.NewEdgeIngestHandler(svcs.EdgeIngest, logger)
 	h.PromptImpact = handler.NewPromptImpactHandler(svcs.PromptImpact, logger)
+}
+
+// initV11Handlers initializes Next-Gen v11 feature handlers
+func initV11Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.TraceDiff = handler.NewTraceDiffHandler(svcs.TraceDiff, logger)
+	h.EvalPlayground = handler.NewEvalPlaygroundHandler(svcs.EvalPlayground, logger)
+	h.CodeImpact = handler.NewCodeImpactHandler(svcs.CodeImpact, logger)
+	h.StreamingDashboard = handler.NewStreamingDashboardHandler(svcs.StreamingDashboard, logger)
+	h.EvalMarketplace = handler.NewEvalMarketplaceHandler(svcs.EvalMarketplace, logger)
+	h.SessionJourney = handler.NewSessionJourneyHandler(svcs.SessionJourney, logger)
+	h.TraceEnrichment = handler.NewTraceEnrichmentHandler(svcs.TraceEnrichment, logger)
+	h.CostForecast = handler.NewCostForecastHandler(svcs.CostForecast, logger)
+	h.TraceKB = handler.NewTraceKBHandler(svcs.TraceKB, logger)
+	h.OTelBridge = handler.NewOTelBridgeHandler(svcs.OTelBridge, logger)
 }

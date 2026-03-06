@@ -37,6 +37,7 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 	registerCollaborationRoutes(public, h)
 	registerInfraRoutes(public, h)
 	registerV10Routes(public, h)
+	registerV11Routes(public, h)
 
 	// Internal API routes (JWT auth)
 	internal := app.Group("/api/v1")
