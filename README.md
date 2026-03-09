@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/agenttrace/agenttrace/actions/workflows/ci.yml/badge.svg)](https://github.com/agenttrace/agenttrace/actions/workflows/ci.yml)
 [![Security](https://github.com/agenttrace/agenttrace/actions/workflows/security.yml/badge.svg)](https://github.com/agenttrace/agenttrace/actions/workflows/security.yml)
+[![codecov](https://codecov.io/gh/agenttrace/agenttrace/branch/main/graph/badge.svg)](https://codecov.io/gh/agenttrace/agenttrace)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/agenttrace/agenttrace?filename=api%2Fgo.mod)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
