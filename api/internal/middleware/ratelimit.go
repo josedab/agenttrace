@@ -381,6 +381,47 @@ func (m *RateLimitMiddleware) checkAndUpdateLimit(c *fiber.Ctx, key string, maxP
 	return false, nil // Not limited
 }
 
+// IPRateLimit creates a public IP-based rate limiter with a custom window
+func (m *RateLimitMiddleware) IPRateLimit(max int, window time.Duration) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		key := fmt.Sprintf("ratelimit:ip:%s:%d", c.IP(), int(window.Seconds()))
+		now := time.Now().Unix()
+		windowStart := now - int64(window.Seconds())
+
+		ctx := context.Background()
+
+		m.redis.ZRemRangeByScore(ctx, key, "-inf", strconv.FormatInt(windowStart, 10))
+
+		count, err := m.redis.ZCard(ctx, key).Result()
+		if err != nil {
+			return c.Next()
+		}
+
+		if count >= int64(max) {
+			c.Set("X-RateLimit-Limit", strconv.Itoa(max))
+			c.Set("X-RateLimit-Remaining", "0")
+			c.Set("Retry-After", strconv.FormatInt(int64(window.Seconds()), 10))
+
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":   "Too Many Requests",
+				"message": "Rate limit exceeded. Please try again later.",
+			})
+		}
+
+		m.redis.ZAdd(ctx, key, redis.Z{
+			Score:  float64(now),
+			Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+		})
+		m.redis.Expire(ctx, key, window*2)
+
+		remaining := max - int(count) - 1
+		c.Set("X-RateLimit-Limit", strconv.Itoa(max))
+		c.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+
+		return c.Next()
+	}
+}
+
 // BurstRateLimit allows bursting with a token bucket algorithm
 func (m *RateLimitMiddleware) BurstRateLimit(maxTokens int, refillRate float64) fiber.Handler {
 	return func(c *fiber.Ctx) error {
