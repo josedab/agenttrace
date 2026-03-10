@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -74,7 +76,7 @@ func (m *LoggerMiddleware) Handler() fiber.Handler {
 			zap.String("request_id", requestID),
 			zap.String("method", c.Method()),
 			zap.String("path", c.Path()),
-			zap.String("query", string(c.Request().URI().QueryString())),
+			zap.String("query", sanitizeQueryString(string(c.Request().URI().QueryString()))),
 			zap.Int("status", c.Response().StatusCode()),
 			zap.Duration("latency", latency),
 			zap.String("ip", c.IP()),
@@ -172,4 +174,36 @@ func AccessLog(logger *zap.Logger) fiber.Handler {
 
 		return err
 	}
+}
+
+// sensitiveQueryParams lists query parameter names that should be redacted from logs
+var sensitiveQueryParams = map[string]bool{
+	"api_key":    true,
+	"apikey":     true,
+	"token":      true,
+	"secret":     true,
+	"password":   true,
+	"access_key": true,
+}
+
+// sanitizeQueryString redacts sensitive query parameters from the query string
+func sanitizeQueryString(qs string) string {
+	if qs == "" {
+		return qs
+	}
+	values, err := url.ParseQuery(qs)
+	if err != nil {
+		return qs
+	}
+	redacted := false
+	for key := range values {
+		if sensitiveQueryParams[strings.ToLower(key)] {
+			values.Set(key, "[REDACTED]")
+			redacted = true
+		}
+	}
+	if !redacted {
+		return qs
+	}
+	return values.Encode()
 }
