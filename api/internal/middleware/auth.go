@@ -241,11 +241,6 @@ func extractAPIKey(c *fiber.Ctx) string {
 		return apiKey
 	}
 
-	// Check query parameter
-	if apiKey := c.Query("api_key"); apiKey != "" {
-		return apiKey
-	}
-
 	return ""
 }
 
