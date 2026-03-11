@@ -60,7 +60,7 @@ func (h *HealthHandler) Health(c *fiber.Ctx) error {
 	// Check PostgreSQL
 	if err := h.postgres.Ping(ctx); err != nil {
 		status.Status = "unhealthy"
-		status.Checks["postgres"] = "unhealthy: " + err.Error()
+		status.Checks["postgres"] = "unhealthy"
 	} else {
 		status.Checks["postgres"] = "healthy"
 	}
@@ -68,7 +68,7 @@ func (h *HealthHandler) Health(c *fiber.Ctx) error {
 	// Check ClickHouse
 	if err := h.clickhouse.Ping(ctx); err != nil {
 		status.Status = "unhealthy"
-		status.Checks["clickhouse"] = "unhealthy: " + err.Error()
+		status.Checks["clickhouse"] = "unhealthy"
 	} else {
 		status.Checks["clickhouse"] = "healthy"
 	}
@@ -76,7 +76,7 @@ func (h *HealthHandler) Health(c *fiber.Ctx) error {
 	// Check Redis
 	if _, err := h.redis.Ping(ctx).Result(); err != nil {
 		status.Status = "unhealthy"
-		status.Checks["redis"] = "unhealthy: " + err.Error()
+		status.Checks["redis"] = "unhealthy"
 	} else {
 		status.Checks["redis"] = "healthy"
 	}
