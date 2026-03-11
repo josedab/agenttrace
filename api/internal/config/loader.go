@@ -241,11 +241,14 @@ func validate(cfg *Config) error {
 
 	// Production-specific checks
 	if cfg.IsProduction() {
-		if cfg.Postgres.Password == "" {
-			errs = append(errs, "postgres_password is required in production")
+		if cfg.Postgres.Password == "" || cfg.Postgres.Password == "agenttrace" {
+			errs = append(errs, "postgres_password must be changed from default in production")
 		}
 		if cfg.Postgres.SSLMode == "disable" {
-			errs = append(errs, "postgres_ssl_mode should not be 'disable' in production")
+			cfg.Postgres.SSLMode = "require"
+		}
+		if cfg.MinIO.SecretKey == "" || cfg.MinIO.SecretKey == "agenttrace123" {
+			errs = append(errs, "minio_secret_key must be changed from default in production")
 		}
 	}
 
