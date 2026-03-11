@@ -347,12 +347,20 @@ func (s *AuthService) LogoutWithContext(ctx context.Context, refreshToken string
 
 // ValidateJWT validates a JWT access token
 func (s *AuthService) ValidateJWT(ctx context.Context, tokenString string) (*domain.JWTClaims, error) {
+	parserOpts := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
+		jwt.WithAudience("agenttrace-api"),
+	}
+	if s.cfg.JWT.Issuer != "" {
+		parserOpts = append(parserOpts, jwt.WithIssuer(s.cfg.JWT.Issuer))
+	}
+
 	token, err := jwt.ParseWithClaims(tokenString, &domain.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(s.cfg.JWT.Secret), nil
-	})
+	}, parserOpts...)
 
 	if err != nil {
 		return nil, apperrors.Unauthorized("invalid token")
@@ -562,6 +570,7 @@ func (s *AuthService) generateAccessToken(user *domain.User) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.cfg.JWT.AccessExpiry) * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    s.cfg.JWT.Issuer,
+			Audience:  jwt.ClaimStrings{"agenttrace-api"},
 		},
 	}
 
