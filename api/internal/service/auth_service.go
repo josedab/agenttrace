@@ -298,6 +298,13 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
+	// Check if refresh token session has expired
+	if session.ExpiresAt.Before(time.Now()) {
+		// Clean up the expired session
+		_ = s.userRepo.DeleteSession(ctx, refreshToken)
+		return nil, apperrors.Unauthorized("refresh token expired")
+	}
+
 	user, err := s.userRepo.GetByID(ctx, session.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
