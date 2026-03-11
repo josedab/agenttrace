@@ -204,6 +204,11 @@ func (s *GitOpsPromptService) SyncToGit(ctx context.Context, configID uuid.UUID)
 
 	var files []GitPromptFile
 	for _, prompt := range prompts.Prompts {
+		// Sanitize prompt name to prevent path traversal
+		if validateSafeName(prompt.Name) != nil {
+			s.logger.Warn("skipping prompt with unsafe name", zap.String("name", prompt.Name))
+			continue
+		}
 		spec := s.promptToFileSpec(&prompt)
 		content := fmt.Sprintf("apiVersion: agenttrace.io/v1\nkind: Prompt\nmetadata:\n  name: %s\n", prompt.Name)
 		if prompt.Description != "" {
@@ -301,11 +306,23 @@ func (s *GitOpsPromptService) validateConfigInput(input *domain.GitOpsPromptConf
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+	if err := validateSafeName(input.Name); err != nil {
+		return err
+	}
 	if input.RepoURL == "" {
 		return fmt.Errorf("repo URL is required")
 	}
 	if len(input.BranchMapping) == 0 {
 		return fmt.Errorf("at least one branch mapping is required")
+	}
+	return nil
+}
+
+// validateSafeName rejects names containing path separators or traversal sequences
+func validateSafeName(name string) error {
+	cleaned := filepath.Clean(name)
+	if cleaned != name || strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
+		return fmt.Errorf("name contains invalid path characters")
 	}
 	return nil
 }
