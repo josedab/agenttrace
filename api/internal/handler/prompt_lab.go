@@ -33,7 +33,8 @@ func (h *PromptLabHandler) CreateExperiment(c *fiber.Ctx) error {
 	}
 	exp, err := h.promptLabService.CreateExperiment(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(exp)
 }
@@ -57,7 +58,8 @@ func (h *PromptLabHandler) ListExperiments(c *fiber.Ctx) error {
 	}
 	exps, err := h.promptLabService.ListExperiments(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.JSON(fiber.Map{"experiments": exps, "count": len(exps)})
 }
@@ -94,7 +96,8 @@ func (h *PromptLabHandler) GetSuggestions(c *fiber.Ctx) error {
 	promptName := c.Query("promptName", "")
 	suggestions, err := h.promptLabService.GetOptimizationSuggestions(c.Context(), projectID, promptName)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.JSON(fiber.Map{"suggestions": suggestions})
 }

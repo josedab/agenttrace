@@ -43,7 +43,7 @@ func (h *CertificationExportHandler) ExportCertification(c *fiber.Ctx) error {
 	cert, err := h.service.ExportCertification(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to export certification", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(cert)
@@ -73,7 +73,8 @@ func (h *CertificationExportHandler) ListCertifications(c *fiber.Ctx) error {
 
 	certs, err := h.service.ListCertifications(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if certs == nil {

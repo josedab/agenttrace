@@ -45,7 +45,7 @@ func (h *CanaryDeploymentHandler) CreateDeployment(c *fiber.Ctx) error {
 	deployment, err := h.service.CreateDeployment(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create canary deployment", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(deployment)
@@ -75,7 +75,8 @@ func (h *CanaryDeploymentHandler) ListDeployments(c *fiber.Ctx) error {
 
 	list, err := h.service.ListDeployments(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(list)
@@ -135,7 +136,8 @@ func (h *CanaryDeploymentHandler) GetActiveVersion(c *fiber.Ctx) error {
 
 	version, err := h.service.GetActiveVersion(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(version)

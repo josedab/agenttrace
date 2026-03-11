@@ -181,7 +181,8 @@ func (h *GatewayHandler) ListRoutingRules(c *fiber.Ctx) error {
 
 	rules, err := h.service.ListRoutingRules(c.Context(), configID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(fiber.Map{"rules": rules, "count": len(rules)})

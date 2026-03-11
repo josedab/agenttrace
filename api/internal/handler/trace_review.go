@@ -46,7 +46,7 @@ func (h *TraceReviewHandler) CreateReview(c *fiber.Ctx) error {
 	review, err := h.service.CreateReview(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to create review", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(review)
@@ -82,7 +82,8 @@ func (h *TraceReviewHandler) ListReviews(c *fiber.Ctx) error {
 
 	reviews, err := h.service.ListReviews(c.Context(), projectID, status)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if reviews == nil {
@@ -183,7 +184,8 @@ func (h *TraceReviewHandler) GetQueue(c *fiber.Ctx) error {
 
 	queue, err := h.service.GetQueue(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(queue)

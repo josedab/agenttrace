@@ -147,7 +147,7 @@ func (h *PluginHandler) Execute(c *fiber.Ctx) error {
 	exec, err := h.service.ExecutePlugin(c.Context(), id, body.Input)
 	if err != nil {
 		h.logger.Error("failed to execute plugin", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(exec)

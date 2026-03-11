@@ -47,7 +47,7 @@ func (h *EdgeIngestHandler) RegisterDevice(c *fiber.Ctx) error {
 	device, err := h.service.RegisterDevice(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to register edge device", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(device)
@@ -87,7 +87,8 @@ func (h *EdgeIngestHandler) ListDevices(c *fiber.Ctx) error {
 
 	devices, err := h.service.ListDevices(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if devices == nil {

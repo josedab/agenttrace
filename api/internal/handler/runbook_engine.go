@@ -46,7 +46,7 @@ func (h *RunbookEngineHandler) CreateRunbook(c *fiber.Ctx) error {
 	runbook, err := h.service.CreateRunbook(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to create runbook", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(runbook)
@@ -76,7 +76,8 @@ func (h *RunbookEngineHandler) ListRunbooks(c *fiber.Ctx) error {
 
 	runbooks, err := h.service.ListRunbooks(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if runbooks == nil {
@@ -159,7 +160,8 @@ func (h *RunbookEngineHandler) ListExecutions(c *fiber.Ctx) error {
 
 	execs, err := h.service.ListExecutions(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if execs == nil {

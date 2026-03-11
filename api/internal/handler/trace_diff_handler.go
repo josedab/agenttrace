@@ -39,7 +39,7 @@ func (h *TraceDiffHandler) DiffTraces(c *fiber.Ctx) error {
 	result, err := h.service.DiffTraces(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to diff traces", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(result)
@@ -136,7 +136,8 @@ func (h *TraceDiffHandler) ListBisectSessions(c *fiber.Ctx) error {
 
 	sessions, err := h.service.ListBisectSessions(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(fiber.Map{"sessions": sessions})

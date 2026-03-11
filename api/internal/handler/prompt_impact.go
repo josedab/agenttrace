@@ -46,7 +46,7 @@ func (h *PromptImpactHandler) CreateAnalysis(c *fiber.Ctx) error {
 	analysis, err := h.service.CreateAnalysis(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to create impact analysis", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(analysis)
@@ -76,7 +76,8 @@ func (h *PromptImpactHandler) ListAnalyses(c *fiber.Ctx) error {
 
 	analyses, err := h.service.ListAnalyses(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if analyses == nil {
@@ -119,7 +120,8 @@ func (h *PromptImpactHandler) CompareVersions(c *fiber.Ctx) error {
 
 	analysis, err := h.service.CompareVersions(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(analysis)

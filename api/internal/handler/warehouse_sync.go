@@ -75,7 +75,8 @@ func (h *WarehouseSyncHandler) ListConnections(c *fiber.Ctx) error {
 
 	conns, err := h.service.ListConnections(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if conns == nil {
@@ -123,7 +124,8 @@ func (h *WarehouseSyncHandler) GetSyncStatus(c *fiber.Ctx) error {
 
 	ops, err := h.service.GetSyncStatus(c.Context(), connID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if ops == nil {

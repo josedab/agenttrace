@@ -35,7 +35,8 @@ func (h *EvalPlaygroundHandler) CreateSession(c *fiber.Ctx) error {
 
 	session, err := h.service.CreateSession(c.Context(), projectID, userID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(session)
@@ -74,7 +75,8 @@ func (h *EvalPlaygroundHandler) Execute(c *fiber.Ctx) error {
 
 	results, err := h.service.Execute(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.JSON(fiber.Map{"results": results})

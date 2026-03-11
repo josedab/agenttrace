@@ -43,7 +43,7 @@ func (h *TestGeneratorHandler) CreateSuite(c *fiber.Ctx) error {
 	suite, err := h.service.CreateSuite(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to create test suite", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(suite)
@@ -58,7 +58,8 @@ func (h *TestGeneratorHandler) ListSuites(c *fiber.Ctx) error {
 
 	suites, err := h.service.ListSuites(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if suites == nil {
@@ -116,7 +117,7 @@ func (h *TestGeneratorHandler) GenerateFromTraces(c *fiber.Ctx) error {
 	suite, err := h.service.GenerateFromTraces(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to generate tests", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(suite)
@@ -165,7 +166,8 @@ func (h *TestGeneratorHandler) GetResults(c *fiber.Ctx) error {
 
 	results, err := h.service.GetResults(c.Context(), suiteID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
 	if results == nil {

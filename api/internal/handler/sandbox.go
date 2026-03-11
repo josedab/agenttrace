@@ -30,7 +30,8 @@ func (h *SandboxHandler) SubmitReview(c *fiber.Ctx) error {
 	}
 	review, err := h.sandboxService.SubmitForReview(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(review)
 }
@@ -54,7 +55,8 @@ func (h *SandboxHandler) ListPending(c *fiber.Ctx) error {
 	}
 	reviews, err := h.sandboxService.ListPendingReviews(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.JSON(fiber.Map{"reviews": reviews, "count": len(reviews)})
 }
@@ -86,7 +88,8 @@ func (h *SandboxHandler) CreatePolicy(c *fiber.Ctx) error {
 	}
 	policy, err := h.sandboxService.CreatePolicy(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(policy)
 }
@@ -98,7 +101,8 @@ func (h *SandboxHandler) ListPolicies(c *fiber.Ctx) error {
 	}
 	policies, err := h.sandboxService.ListPolicies(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.JSON(fiber.Map{"policies": policies})
 }
@@ -110,7 +114,8 @@ func (h *SandboxHandler) GetStats(c *fiber.Ctx) error {
 	}
 	stats, err := h.sandboxService.GetStats(c.Context(), projectID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		h.logger.Error("operation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 	}
 	return c.JSON(stats)
 }
