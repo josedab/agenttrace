@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -79,8 +81,9 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		internal.Get("/projects/:id/metrics", h.Traces.GetMetrics)
 	}
 
-	// Auth routes (no auth required)
+	// Auth routes (no auth required, rate limited)
 	auth := app.Group("/api/auth")
+	auth.Use(deps.RateLimitMiddleware.IPRateLimit(10, time.Minute))
 	{
 		auth.Post("/login", h.Auth.Login)
 		auth.Post("/register", h.Auth.Register)
@@ -101,11 +104,12 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 		otlp.Post("/logs", h.OTelReceiver.ReceiveLogs)
 	}
 
-	// WebSocket routes for real-time collaboration
+	// WebSocket routes for real-time collaboration (require authentication)
+	app.Use("/ws", deps.AuthMiddleware.RequireAuth())
 	app.Use("/ws", h.CollaborationWS.UpgradeCheck())
 	app.Get("/ws/collaboration/:traceId", h.CollaborationWS.HandleWebSocket())
 
-	// WebSocket routes for real-time trace streaming
+	// WebSocket routes for real-time trace streaming (require authentication)
 	app.Use("/ws/streaming", h.StreamingWS.UpgradeCheck())
 	app.Get("/ws/streaming/:traceId", h.StreamingWS.HandleWebSocket())
 
@@ -115,8 +119,10 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 	// Embed widget script (no auth — token-based access)
 	app.Get("/api/public/embed/widget.js", h.Embed.GetWidget)
 
-	// Cloud Sandbox (no auth — demo environment)
-	app.Post("/api/public/cloud-sandbox", h.Sandbox.CreateCloudSandbox)
-	app.Get("/api/public/cloud-sandbox/:sessionId", h.Sandbox.GetCloudSandbox)
-	app.Post("/api/public/cloud-sandbox/:sessionId/extend", h.Sandbox.ExtendCloudSandbox)
+	// Cloud Sandbox (no auth — demo environment, rate limited)
+	sandbox := app.Group("/api/public/cloud-sandbox")
+	sandbox.Use(deps.RateLimitMiddleware.IPRateLimit(5, time.Hour))
+	sandbox.Post("/", h.Sandbox.CreateCloudSandbox)
+	sandbox.Get("/:sessionId", h.Sandbox.GetCloudSandbox)
+	sandbox.Post("/:sessionId/extend", h.Sandbox.ExtendCloudSandbox)
 }
