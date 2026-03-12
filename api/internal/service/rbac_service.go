@@ -79,8 +79,8 @@ func (s *RBACService) CheckPermission(ctx context.Context, userID uuid.UUID, pro
 		}
 	}
 
-	// Default: grant access (in real implementation this would be deny)
-	return true, nil
+	// Default: deny access when no matching role assignment is found
+	return false, nil
 }
 
 // ConfigureSSO configures SSO for an organization

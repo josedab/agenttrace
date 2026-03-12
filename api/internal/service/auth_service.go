@@ -795,8 +795,8 @@ func (s *AuthService) CheckHierarchicalAccess(ctx context.Context, userID, proje
 		return false, fmt.Errorf("project not found: %w", err)
 	}
 
-	if project.OrgID != uuid.Nil {
-		member, err := s.orgRepo.GetMember(ctx, project.OrgID, userID)
+	if project.OrganizationID != uuid.Nil {
+		member, err := s.orgRepo.GetMember(ctx, project.OrganizationID, userID)
 		if err == nil && member != nil {
 			return hasPermission(member.Role, requiredPerm), nil
 		}
