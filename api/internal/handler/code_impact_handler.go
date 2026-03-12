@@ -34,7 +34,7 @@ func (h *CodeImpactHandler) GetCodeImpact(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Trace ID is required"})
 	}
 
-	result, err := h.service.GetCodeImpact(c.Context(), projectID.String(), traceID)
+	result, err := h.service.GetCodeImpact(c.Context(), projectID, traceID)
 	if err != nil {
 		h.logger.Error("failed to get code impact", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get code impact"})
@@ -50,7 +50,7 @@ func (h *CodeImpactHandler) GetProjectImpactSummary(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.GetProjectImpactSummary(c.Context(), projectID.String())
+	result, err := h.service.GetProjectImpactSummary(c.Context(), projectID, nil)
 	if err != nil {
 		h.logger.Error("failed to get project impact summary", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get project impact summary"})
@@ -66,7 +66,8 @@ func (h *CodeImpactHandler) GetFileTree(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.GetFileTree(c.Context(), projectID.String())
+	traceID := c.Query("traceId")
+	result, err := h.service.GetFileTree(c.Context(), projectID, traceID)
 	if err != nil {
 		h.logger.Error("failed to get file tree", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get file tree"})

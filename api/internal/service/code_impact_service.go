@@ -171,12 +171,12 @@ func (s *CodeImpactService) buildFileImpacts(fileOps []domain.FileOperation, obs
 		}
 		files = append(files, domain.FileImpact{
 			FilePath:       op.FilePath,
-			OperationType:  op.OperationType,
-			LinesAdded:     op.LinesAdded,
-			LinesRemoved:   op.LinesRemoved,
+			OperationType:  string(op.Operation),
+			LinesAdded:     int(op.LinesAdded),
+			LinesRemoved:   int(op.LinesRemoved),
 			ObservationIDs: obsIDs,
 			Language:       s.detectLanguage(op.FilePath),
-			Complexity:     s.estimateComplexity(op.LinesAdded + op.LinesRemoved),
+			Complexity:     s.estimateComplexity(int(op.LinesAdded + op.LinesRemoved)),
 		})
 	}
 

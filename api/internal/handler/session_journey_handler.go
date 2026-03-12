@@ -34,7 +34,7 @@ func (h *SessionJourneyHandler) GetJourney(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Session ID is required"})
 	}
 
-	result, err := h.service.GetJourney(c.Context(), projectID.String(), sessionID)
+	result, err := h.service.GetJourney(c.Context(), projectID, sessionID)
 	if err != nil {
 		h.logger.Error("failed to get journey", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get journey"})
@@ -55,7 +55,7 @@ func (h *SessionJourneyHandler) GetPhases(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Session ID is required"})
 	}
 
-	result, err := h.service.GetPhases(c.Context(), projectID.String(), sessionID)
+	result, err := h.service.GetPhases(c.Context(), projectID, sessionID)
 	if err != nil {
 		h.logger.Error("failed to get phases", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get phases"})
@@ -71,7 +71,7 @@ func (h *SessionJourneyHandler) ListRecentJourneys(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.ListRecentJourneys(c.Context(), projectID.String())
+	result, err := h.service.ListRecentJourneys(c.Context(), projectID, 20)
 	if err != nil {
 		h.logger.Error("failed to list recent journeys", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list recent journeys"})

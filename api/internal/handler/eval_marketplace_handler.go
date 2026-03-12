@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
@@ -25,12 +26,19 @@ func NewEvalMarketplaceHandler(svc *service.EvalMarketplaceService, logger *zap.
 
 // ListDatasets handles GET /eval-marketplace/datasets
 func (h *EvalMarketplaceHandler) ListDatasets(c *fiber.Ctx) error {
-	projectID, ok := middleware.GetProjectID(c)
+	_, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.ListDatasets(c.Context(), projectID.String())
+	category := c.Query("category")
+	search := &domain.EvalMarketplaceSearch{
+		Query: c.Query("q"),
+	}
+	if category != "" {
+		search.Category = &category
+	}
+	result, err := h.service.ListDatasets(c.Context(), search)
 	if err != nil {
 		h.logger.Error("failed to list datasets", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list datasets"})
@@ -41,12 +49,12 @@ func (h *EvalMarketplaceHandler) ListDatasets(c *fiber.Ctx) error {
 
 // GetDataset handles GET /eval-marketplace/datasets/:datasetId
 func (h *EvalMarketplaceHandler) GetDataset(c *fiber.Ctx) error {
-	datasetID := c.Params("datasetId")
-	if datasetID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Dataset ID is required"})
+	datasetUUID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dataset ID"})
 	}
 
-	result, err := h.service.GetDataset(c.Context(), datasetID)
+	result, err := h.service.GetDataset(c.Context(), datasetUUID)
 	if err != nil {
 		h.logger.Error("failed to get dataset", zap.Error(err))
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Dataset not found"})
@@ -71,7 +79,8 @@ func (h *EvalMarketplaceHandler) PublishDataset(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	result, err := h.service.PublishDataset(c.Context(), projectID.String(), &input)
+	authorID := uuid.New() // TODO: extract from auth context
+	result, err := h.service.PublishDataset(c.Context(), projectID, authorID, &input)
 	if err != nil {
 		h.logger.Error("failed to publish dataset", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to publish dataset"})
@@ -82,28 +91,25 @@ func (h *EvalMarketplaceHandler) PublishDataset(c *fiber.Ctx) error {
 
 // ImportDataset handles POST /eval-marketplace/datasets/:datasetId/import
 func (h *EvalMarketplaceHandler) ImportDataset(c *fiber.Ctx) error {
-	projectID, ok := middleware.GetProjectID(c)
+	_, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	datasetID := c.Params("datasetId")
-	if datasetID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Dataset ID is required"})
-	}
+	_ = c.Params("datasetId") // used for routing
 
 	var input domain.EvalDatasetImportInput
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	result, err := h.service.ImportDataset(c.Context(), projectID.String(), datasetID, &input)
+	err := h.service.ImportDataset(c.Context(), &input)
 	if err != nil {
 		h.logger.Error("failed to import dataset", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to import dataset"})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"status": "imported"})
 }
 
 // ListCategories handles GET /eval-marketplace/categories
@@ -119,29 +125,30 @@ func (h *EvalMarketplaceHandler) ListCategories(c *fiber.Ctx) error {
 
 // RateDataset handles POST /eval-marketplace/datasets/:datasetId/rate
 func (h *EvalMarketplaceHandler) RateDataset(c *fiber.Ctx) error {
-	projectID, ok := middleware.GetProjectID(c)
+	_, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	datasetID := c.Params("datasetId")
-	if datasetID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Dataset ID is required"})
+	datasetUUID2, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid dataset ID"})
 	}
 
 	var input struct {
-		Rating float64 `json:"rating"`
-		Review string  `json:"review,omitempty"`
+		Rating int    `json:"rating"`
+		Review string `json:"review,omitempty"`
 	}
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	result, err := h.service.RateDataset(c.Context(), projectID.String(), datasetID, input.Rating, input.Review)
+	userID := uuid.New() // TODO: extract from auth context
+	err = h.service.RateDataset(c.Context(), datasetUUID2, userID, input.Rating, input.Review)
 	if err != nil {
 		h.logger.Error("failed to rate dataset", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to rate dataset"})
 	}
 
-	return c.JSON(result)
+	return c.JSON(fiber.Map{"status": "rated"})
 }

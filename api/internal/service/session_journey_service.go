@@ -53,7 +53,7 @@ func (s *SessionJourneyService) GetJourney(ctx context.Context, projectID uuid.U
 	for _, t := range traces {
 		totalDuration += int64(t.DurationMs)
 		totalCost += t.TotalCost
-		totalTokens += t.TotalTokens
+		totalTokens += int64(t.TotalTokens)
 		if t.Level == domain.LevelError {
 			status = "failed"
 		}
@@ -185,7 +185,7 @@ func (s *SessionJourneyService) detectPhases(traces []domain.Trace) []domain.Wor
 			current.endTime = trace.StartTime.Add(time.Duration(trace.DurationMs) * time.Millisecond)
 		}
 		current.cost += trace.TotalCost
-		current.tokens += trace.TotalTokens
+		current.tokens += int64(trace.TotalTokens)
 		if trace.Level == domain.LevelError {
 			current.errorCount++
 		}

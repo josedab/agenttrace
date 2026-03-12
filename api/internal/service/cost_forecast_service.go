@@ -33,7 +33,7 @@ func NewCostForecastService(logger *zap.Logger, cost *CostService, query *QueryS
 }
 
 // GetForecast generates a cost forecast using simple linear regression on historical data
-func (s *CostForecastService) GetForecast(ctx context.Context, projectID uuid.UUID, period string, days int) (*domain.CostForecastPlan, error) {
+func (s *CostForecastService) GetForecast(ctx context.Context, projectID uuid.UUID, period string, days int) (*domain.CostForecast, error) {
 	if days <= 0 {
 		days = 30
 	}
@@ -59,13 +59,13 @@ func (s *CostForecastService) GetForecast(ctx context.Context, projectID uuid.UU
 		predicted := slope*x + intercept
 		projections[i] = domain.DailyProjection{
 			Date: now.AddDate(0, 0, i+1),
-			Cost: math.Round(predicted*100) / 100,
+			Projected: math.Round(predicted*100) / 100,
 		}
 	}
 
 	projectedDaily := slope*float64(histDays+days/2) + intercept
 
-	forecast := &domain.CostForecastPlan{
+	forecast := &domain.CostForecast{
 		ProjectID:             projectID,
 		CurrentDailyCost:      math.Round(currentDaily*100) / 100,
 		ProjectedDaily:        math.Round(projectedDaily*100) / 100,

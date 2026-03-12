@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
@@ -30,7 +31,7 @@ func (h *TraceEnrichmentHandler) ListRules(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.ListRules(c.Context(), projectID.String())
+	result, err := h.service.ListRules(c.Context(), projectID)
 	if err != nil {
 		h.logger.Error("failed to list enrichment rules", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list enrichment rules"})
@@ -55,7 +56,7 @@ func (h *TraceEnrichmentHandler) CreateRule(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	result, err := h.service.CreateRule(c.Context(), projectID.String(), &input)
+	result, err := h.service.CreateRule(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create enrichment rule", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create enrichment rule"})
@@ -66,14 +67,18 @@ func (h *TraceEnrichmentHandler) CreateRule(c *fiber.Ctx) error {
 
 // UpdateRule handles PUT /enrichment/rules/:ruleId
 func (h *TraceEnrichmentHandler) UpdateRule(c *fiber.Ctx) error {
-	projectID, ok := middleware.GetProjectID(c)
+	_, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	ruleID := c.Params("ruleId")
-	if ruleID == "" {
+	ruleIDStr := c.Params("ruleId")
+	if ruleIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Rule ID is required"})
+	}
+	ruleID, err := uuid.Parse(ruleIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid rule ID"})
 	}
 
 	var input domain.EnrichmentRuleInput
@@ -81,7 +86,7 @@ func (h *TraceEnrichmentHandler) UpdateRule(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	result, err := h.service.UpdateRule(c.Context(), projectID.String(), ruleID, &input)
+	result, err := h.service.UpdateRule(c.Context(), ruleID, &input)
 	if err != nil {
 		h.logger.Error("failed to update enrichment rule", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update enrichment rule"})
@@ -92,17 +97,21 @@ func (h *TraceEnrichmentHandler) UpdateRule(c *fiber.Ctx) error {
 
 // DeleteRule handles DELETE /enrichment/rules/:ruleId
 func (h *TraceEnrichmentHandler) DeleteRule(c *fiber.Ctx) error {
-	projectID, ok := middleware.GetProjectID(c)
+	_, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	ruleID := c.Params("ruleId")
-	if ruleID == "" {
+	ruleIDStr := c.Params("ruleId")
+	if ruleIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Rule ID is required"})
 	}
+	ruleID, err := uuid.Parse(ruleIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid rule ID"})
+	}
 
-	err := h.service.DeleteRule(c.Context(), projectID.String(), ruleID)
+	err = h.service.DeleteRule(c.Context(), ruleID)
 	if err != nil {
 		h.logger.Error("failed to delete enrichment rule", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete enrichment rule"})
@@ -118,7 +127,8 @@ func (h *TraceEnrichmentHandler) ListSources(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.ListSources(c.Context(), projectID.String())
+	_ = projectID
+	result, err := h.service.ListSources(c.Context())
 	if err != nil {
 		h.logger.Error("failed to list enrichment sources", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list enrichment sources"})
@@ -143,7 +153,8 @@ func (h *TraceEnrichmentHandler) TestRule(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Trace ID is required"})
 	}
 
-	result, err := h.service.TestRule(c.Context(), projectID.String(), &input)
+	_ = projectID
+	result, err := h.service.TestRule(c.Context(), &input)
 	if err != nil {
 		h.logger.Error("failed to test enrichment rule", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to test enrichment rule"})

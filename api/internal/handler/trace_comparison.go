@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
@@ -77,7 +78,7 @@ func (h *TraceComparisonHandler) CompareTraces(c *fiber.Ctx) error {
 // @Router /api/v1/traces/compare/{id} [get]
 func (h *TraceComparisonHandler) GetComparison(c *fiber.Ctx) error {
 	idStr := c.Params("id")
-	id, err := parseUUID(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid comparison ID")
 	}
@@ -125,7 +126,7 @@ func (h *TraceComparisonHandler) GetSharedComparison(c *fiber.Ctx) error {
 // @Router /api/v1/traces/compare/{id}/export [get]
 func (h *TraceComparisonHandler) ExportComparison(c *fiber.Ctx) error {
 	idStr := c.Params("id")
-	id, err := parseUUID(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid comparison ID")
 	}

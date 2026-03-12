@@ -34,12 +34,12 @@ func (s *TraceDiffService) DiffTraces(ctx context.Context, projectID uuid.UUID, 
 		return nil, fmt.Errorf("cannot diff a trace with itself")
 	}
 
-	leftObs, err := s.query.GetObservationsByTraceID(ctx, input.LeftTraceID)
+	leftObs, err := s.query.GetObservationsByTraceID(ctx, projectID, input.LeftTraceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get left trace observations: %w", err)
 	}
 
-	rightObs, err := s.query.GetObservationsByTraceID(ctx, input.RightTraceID)
+	rightObs, err := s.query.GetObservationsByTraceID(ctx, projectID, input.RightTraceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get right trace observations: %w", err)
 	}

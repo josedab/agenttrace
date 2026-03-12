@@ -30,7 +30,7 @@ func (h *StreamingDashboardHandler) GetDashboard(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.GetDashboard(c.Context(), projectID.String())
+	result, err := h.service.GetDashboard(c.Context(), projectID)
 	if err != nil {
 		h.logger.Error("failed to get dashboard", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get dashboard"})
@@ -46,13 +46,8 @@ func (h *StreamingDashboardHandler) WebSocketHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	err := h.service.HandleWebSocket(c.Context(), projectID.String(), c)
-	if err != nil {
-		h.logger.Error("websocket handler error", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "WebSocket connection failed"})
-	}
-
-	return nil
+	_ = projectID
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "WebSocket not implemented"})
 }
 
 // GetConfig handles GET /streaming-dashboard/config
@@ -62,7 +57,7 @@ func (h *StreamingDashboardHandler) GetConfig(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	config, err := h.service.GetConfig(c.Context(), projectID.String())
+	config, err := h.service.GetConfig(c.Context(), projectID)
 	if err != nil {
 		h.logger.Error("failed to get dashboard config", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get dashboard config"})
@@ -83,11 +78,11 @@ func (h *StreamingDashboardHandler) UpdateConfig(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	config, err := h.service.UpdateConfig(c.Context(), projectID.String(), &input)
+	err := h.service.UpdateConfig(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to update dashboard config", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update dashboard config"})
 	}
 
-	return c.JSON(config)
+	return c.JSON(input)
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
@@ -30,7 +31,10 @@ func (h *TraceKBHandler) ListEntries(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.ListEntries(c.Context(), projectID.String())
+	limit := c.QueryInt("limit", 50)
+	offset := c.QueryInt("offset", 0)
+
+	result, err := h.service.ListEntries(c.Context(), projectID, limit, offset)
 	if err != nil {
 		h.logger.Error("failed to list knowledge base entries", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list knowledge base entries"})
@@ -55,7 +59,8 @@ func (h *TraceKBHandler) CreateEntry(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title is required"})
 	}
 
-	result, err := h.service.CreateEntry(c.Context(), projectID.String(), &input)
+	userID := uuid.New() // TODO: extract from auth context
+	result, err := h.service.CreateEntry(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to create knowledge base entry", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create knowledge base entry"})
@@ -66,9 +71,14 @@ func (h *TraceKBHandler) CreateEntry(c *fiber.Ctx) error {
 
 // GetEntry handles GET /knowledge-base/entries/:entryId
 func (h *TraceKBHandler) GetEntry(c *fiber.Ctx) error {
-	entryID := c.Params("entryId")
-	if entryID == "" {
+	entryIDStr := c.Params("entryId")
+	if entryIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Entry ID is required"})
+	}
+
+	entryID, err := uuid.Parse(entryIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid entry ID format"})
 	}
 
 	result, err := h.service.GetEntry(c.Context(), entryID)
@@ -92,7 +102,13 @@ func (h *TraceKBHandler) Search(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Query parameter is required"})
 	}
 
-	result, err := h.service.Search(c.Context(), projectID.String(), query)
+	searchInput := &domain.KBSearchInput{
+		Query:  query,
+		Limit:  c.QueryInt("limit", 20),
+		Offset: c.QueryInt("offset", 0),
+	}
+
+	result, err := h.service.Search(c.Context(), projectID, searchInput)
 	if err != nil {
 		h.logger.Error("failed to search knowledge base", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to search knowledge base"})
@@ -110,7 +126,7 @@ func (h *TraceKBHandler) GetSuggestions(c *fiber.Ctx) error {
 
 	traceID := c.Query("traceId")
 
-	result, err := h.service.GetSuggestions(c.Context(), projectID.String(), traceID)
+	result, err := h.service.GetSuggestions(c.Context(), projectID, traceID)
 	if err != nil {
 		h.logger.Error("failed to get suggestions", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get suggestions"})

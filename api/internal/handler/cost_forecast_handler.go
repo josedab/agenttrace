@@ -30,7 +30,9 @@ func (h *CostForecastHandler) GetForecast(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.GetForecast(c.Context(), projectID.String())
+	period := c.Query("period", "monthly")
+	days := c.QueryInt("days", 30)
+	result, err := h.service.GetForecast(c.Context(), projectID, period, days)
 	if err != nil {
 		h.logger.Error("failed to get cost forecast", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get cost forecast"})
@@ -55,7 +57,7 @@ func (h *CostForecastHandler) Simulate(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	result, err := h.service.Simulate(c.Context(), projectID.String(), &input)
+	result, err := h.service.Simulate(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to simulate cost forecast", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to simulate cost forecast"})
@@ -71,7 +73,8 @@ func (h *CostForecastHandler) GetHistory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
 
-	result, err := h.service.GetHistory(c.Context(), projectID.String())
+	period := c.Query("period", "monthly")
+	result, err := h.service.GetHistory(c.Context(), projectID, period)
 	if err != nil {
 		h.logger.Error("failed to get cost history", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get cost history"})
@@ -96,7 +99,7 @@ func (h *CostForecastHandler) CreateBudgetPlan(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	result, err := h.service.CreateBudgetPlan(c.Context(), projectID.String(), &input)
+	result, err := h.service.CreateBudgetPlan(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create budget plan", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create budget plan"})
