@@ -74,19 +74,19 @@ func (s *CustomMetricsService) ListMetrics(ctx context.Context, projectID uuid.U
 }
 
 // GetMetricValues returns mock time series data for a metric
-func (s *CustomMetricsService) GetMetricValues(ctx context.Context, metricID uuid.UUID, from time.Time, to time.Time) ([]domain.MetricValue, error) {
+func (s *CustomMetricsService) GetMetricValues(ctx context.Context, metricID uuid.UUID, from time.Time, to time.Time) ([]domain.CustomMetricValue, error) {
 	s.logger.Debug("getting metric values", zap.String("metricId", metricID.String()))
 
 	duration := to.Sub(from)
 	points := 24
 	interval := duration / time.Duration(points)
 
-	values := make([]domain.MetricValue, points)
+	values := make([]domain.CustomMetricValue, points)
 	rng := rand.New(rand.NewSource(int64(metricID.ID())))
 	baseValue := 50.0 + rng.Float64()*50.0
 
 	for i := 0; i < points; i++ {
-		values[i] = domain.MetricValue{
+		values[i] = domain.CustomMetricValue{
 			MetricID:  metricID,
 			Timestamp: from.Add(interval * time.Duration(i)),
 			Value:     math.Round((baseValue+rng.Float64()*20.0-10.0)*100) / 100,

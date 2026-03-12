@@ -18,13 +18,13 @@ const (
 	MetricAggP99   MetricAggregation = "p99"
 )
 
-// AlertCondition represents the condition for a metric alert
-type AlertCondition string
+// MetricAlertCondition represents the condition for a metric alert
+type MetricAlertCondition string
 
 const (
-	AlertConditionGT AlertCondition = "gt"
-	AlertConditionLT AlertCondition = "lt"
-	AlertConditionEQ AlertCondition = "eq"
+	MetricAlertConditionGT MetricAlertCondition = "gt"
+	MetricAlertConditionLT MetricAlertCondition = "lt"
+	MetricAlertConditionEQ MetricAlertCondition = "eq"
 )
 
 // ChartType represents the type of chart for a dashboard widget
@@ -51,8 +51,8 @@ type CustomMetric struct {
 	CreatedAt       time.Time         `json:"createdAt"`
 }
 
-// MetricValue represents a single data point for a metric
-type MetricValue struct {
+// CustomMetricValue represents a single data point for a custom metric
+type CustomMetricValue struct {
 	MetricID  uuid.UUID `json:"metricId"`
 	Timestamp time.Time `json:"timestamp"`
 	Value     float64   `json:"value"`
