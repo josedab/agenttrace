@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -39,6 +40,10 @@ func NewCollaborationWSHandler(
 func (h *CollaborationWSHandler) UpgradeCheck() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
+			// Pass authenticated userID to WebSocket handler via locals
+			if userID, ok := middleware.GetUserID(c); ok {
+				c.Locals("wsUserID", userID)
+			}
 			return c.Next()
 		}
 		return fiber.ErrUpgradeRequired
@@ -49,19 +54,20 @@ func (h *CollaborationWSHandler) UpgradeCheck() fiber.Handler {
 func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 	return websocket.New(func(c *websocket.Conn) {
 		traceID := c.Params("traceId")
-		userID := c.Query("userId")
 		userName := c.Query("userName", "Anonymous")
 
-		if traceID == "" || userID == "" {
+		if traceID == "" {
 			c.WriteMessage(websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.CloseInvalidFramePayloadData, "traceId and userId required"))
+				websocket.FormatCloseMessage(websocket.CloseInvalidFramePayloadData, "traceId required"))
 			return
 		}
 
-		uid, err := uuid.Parse(userID)
-		if err != nil {
+		// Extract userID from authenticated context (set by auth middleware)
+		uidVal := c.Locals("wsUserID")
+		uid, ok := uidVal.(uuid.UUID)
+		if !ok || uid == uuid.Nil {
 			c.WriteMessage(websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.CloseInvalidFramePayloadData, "invalid userId"))
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "authentication required"))
 			return
 		}
 
