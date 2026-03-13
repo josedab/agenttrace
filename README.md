@@ -292,11 +292,31 @@ agenttrace wrap --name "coding-agent" --git-link -- npm run dev
 
 ### REST API
 
-- `POST /api/public/ingestion` - Batch event ingestion
-- `GET /api/public/traces` - List traces
-- `GET /api/public/traces/:id` - Get trace by ID
-- `GET /api/public/prompts` - Get prompt by name
-- `POST /api/public/scores` - Create score
+The full API covers 64 endpoints across these categories:
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| Health | `GET /health`, `/livez`, `/readyz`, `/version` | Service health checks |
+| Auth | `POST /api/auth/login`, `register`, `refresh`, `logout` | Authentication |
+| Ingestion | `POST /api/public/ingestion` | Batch event ingestion (Langfuse-compatible) |
+| Traces | `GET/POST /api/public/traces`, `GET/DELETE/PATCH …/:traceId` | Trace CRUD + nested observations/scores |
+| Observations | `POST /api/public/spans`, `generations`, `events` | Create spans, generations, events |
+| Sessions | `GET /api/public/sessions`, `…/:sessionId` | Session listing and details |
+| Scores | `GET/POST /api/public/scores`, batch, stats, `…/:scoreId` | Scoring and stats |
+| Prompts | `GET/POST /api/public/prompts`, versions, labels, compile | Prompt management |
+| Datasets | `GET/POST /api/public/datasets`, items, runs | Dataset and experiment management |
+| Evaluators | `GET/POST /api/public/evaluators`, execute, templates | Evaluator configuration and execution |
+| Checkpoints | `GET/POST /v1/checkpoints`, restore | Agent checkpoints |
+| Git Links | `GET/POST /v1/git-links`, timeline | Git commit correlation |
+| CI Runs | `GET/POST /v1/ci-runs`, `…/:ciRunId` | CI pipeline tracking |
+| File Ops | `GET/POST /v1/file-operations` | File operation tracking |
+| Terminal | `GET/POST /v1/terminal-commands` | Terminal command tracking |
+| Orgs/Projects | `GET /api/v1/me`, organizations, projects, API keys | Account management |
+| SSO | `/auth/sso/login`, callback, SAML, config | Enterprise SSO |
+| Audit Logs | `GET /v1/organizations/:orgId/audit-logs`, export | Audit trail |
+| Feedback | `POST /api/public/feedback` | User feedback |
+
+📄 **Full OpenAPI specification**: [`api/docs/openapi.yaml`](api/docs/openapi.yaml)
 
 ### GraphQL API
 
@@ -322,17 +342,38 @@ query GetTrace($id: ID!) {
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| **Database** | | |
 | `POSTGRES_USER` | PostgreSQL username | `agenttrace` |
 | `POSTGRES_PASSWORD` | PostgreSQL password | - |
 | `POSTGRES_DB` | PostgreSQL database | `agenttrace` |
-| `CLICKHOUSE_USER` | ClickHouse username | `default` |
+| `CLICKHOUSE_USER` | ClickHouse username | `agenttrace` |
 | `CLICKHOUSE_PASSWORD` | ClickHouse password | - |
+| `CLICKHOUSE_DB` | ClickHouse database | `agenttrace` |
 | `REDIS_PASSWORD` | Redis password | - |
-| `JWT_SECRET` | JWT signing secret | - |
-| `NEXTAUTH_SECRET` | NextAuth secret | - |
-| `NEXTAUTH_URL` | NextAuth URL | - |
+| `MINIO_ROOT_USER` | MinIO root username | `agenttrace` |
+| `MINIO_ROOT_PASSWORD` | MinIO root password | - |
+| **Security** | | |
+| `JWT_SECRET` | JWT signing secret (generate with `openssl rand -base64 32`) | - |
+| `ENCRYPTION_KEY` | Encryption key for sensitive data at rest | - |
+| `NEXTAUTH_URL` | Public URL for NextAuth (e.g., `https://your-domain.com`) | - |
+| `NEXTAUTH_SECRET` | NextAuth session secret | - |
+| **OAuth Providers** | | |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | - |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | - |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | - |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | - |
+| **API** | | |
+| `API_HOST` | API server bind address | `0.0.0.0` |
+| `API_PORT` | API server port | `8080` |
+| `NEXT_PUBLIC_API_URL` | Public API URL used by the web frontend | `http://api:8080` |
+| **External Services** | | |
+| `OPENAI_API_KEY` | OpenAI API key (required for LLM-as-Judge evaluators) | - |
+| **Deployment** | | |
+| `VERSION` | Docker image version tag | `latest` |
+| `WEB_PORT` | Web frontend port | `3000` |
+| `LOG_LEVEL` | API server log level (`debug`, `info`, `warn`, `error`) | `debug` |
 
-See `deploy/.env.example` for full list.
+See [`deploy/.env.example`](deploy/.env.example) for a copy-ready template.
 
 ## Development
 
