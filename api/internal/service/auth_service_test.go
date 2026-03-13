@@ -932,3 +932,103 @@ func TestAuthService_APIKeyGeneration(t *testing.T) {
 		assert.False(t, svc.verifySecretKey("wrong-key", hash))
 	})
 }
+
+func TestAuthService_RefreshToken_ExpiredSession(t *testing.T) {
+	t.Run("expired session returns Unauthorized", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		apiKeyRepo := new(MockAPIKeyRepository)
+		orgRepo := new(MockOrgRepository)
+		projectRepo := new(MockProjectRepository)
+
+		userID := uuid.New()
+		session := &domain.UserSession{
+			ID:           uuid.New(),
+			SessionToken: "expired-refresh-token",
+			UserID:       userID,
+			ExpiresAt:    time.Now().Add(-1 * time.Hour), // expired 1 hour ago
+		}
+
+		userRepo.On("GetSessionByToken", mock.Anything, "expired-refresh-token").Return(session, nil)
+		userRepo.On("DeleteSession", mock.Anything, "expired-refresh-token").Return(nil)
+
+		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
+
+		result, err := svc.RefreshToken(context.Background(), "expired-refresh-token")
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.True(t, apperrors.IsUnauthorized(err))
+	})
+
+	t.Run("session expiring within seconds - race window", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		apiKeyRepo := new(MockAPIKeyRepository)
+		orgRepo := new(MockOrgRepository)
+		projectRepo := new(MockProjectRepository)
+
+		userID := uuid.New()
+		// Session that expires in 1 millisecond (race window)
+		session := &domain.UserSession{
+			ID:           uuid.New(),
+			SessionToken: "near-expired-token",
+			UserID:       userID,
+			ExpiresAt:    time.Now().Add(-1 * time.Millisecond),
+		}
+
+		userRepo.On("GetSessionByToken", mock.Anything, "near-expired-token").Return(session, nil)
+		userRepo.On("DeleteSession", mock.Anything, "near-expired-token").Return(nil)
+
+		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
+
+		result, err := svc.RefreshToken(context.Background(), "near-expired-token")
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.True(t, apperrors.IsUnauthorized(err))
+	})
+
+	t.Run("refresh after session deleted - concurrent logout", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		apiKeyRepo := new(MockAPIKeyRepository)
+		orgRepo := new(MockOrgRepository)
+		projectRepo := new(MockProjectRepository)
+
+		userRepo.On("GetSessionByToken", mock.Anything, "deleted-token").Return(nil, apperrors.NotFound("session not found"))
+
+		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
+
+		result, err := svc.RefreshToken(context.Background(), "deleted-token")
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.True(t, apperrors.IsUnauthorized(err))
+	})
+
+	t.Run("ignored DeleteSession error does not break flow", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		apiKeyRepo := new(MockAPIKeyRepository)
+		orgRepo := new(MockOrgRepository)
+		projectRepo := new(MockProjectRepository)
+
+		userID := uuid.New()
+		session := &domain.UserSession{
+			ID:           uuid.New(),
+			SessionToken: "expired-token-with-delete-error",
+			UserID:       userID,
+			ExpiresAt:    time.Now().Add(-1 * time.Hour),
+		}
+
+		userRepo.On("GetSessionByToken", mock.Anything, "expired-token-with-delete-error").Return(session, nil)
+		// DeleteSession fails, but the error is ignored (line 304: _ = s.userRepo.DeleteSession())
+		userRepo.On("DeleteSession", mock.Anything, "expired-token-with-delete-error").Return(assert.AnError)
+
+		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
+
+		result, err := svc.RefreshToken(context.Background(), "expired-token-with-delete-error")
+
+		// Should still return Unauthorized regardless of DeleteSession failure
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.True(t, apperrors.IsUnauthorized(err))
+	})
+}
