@@ -243,3 +243,66 @@ func (h *PromptCIHandler) EvaluateGate(c *fiber.Ctx) error {
 	// Return 200 for pass, still 200 for fail but with passed=false so CI can check
 	return c.JSON(result)
 }
+
+// UpdateGateConfig handles PUT /api/public/prompt-ci/gates/:configId
+func (h *PromptCIHandler) UpdateGateConfig(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	configID, err := uuid.Parse(c.Params("configId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid config ID"})
+	}
+
+	var input domain.PromptCIGateConfigUpdate
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	config, err := h.promptCIService.UpdateGateConfig(c.Context(), projectID, configID, &input)
+	if err != nil {
+		h.logger.Error("failed to update gate config", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update gate config"})
+	}
+
+	return c.JSON(config)
+}
+
+// GetRegressionHistory handles GET /api/public/prompt-ci/history
+func (h *PromptCIHandler) GetRegressionHistory(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	filter := &domain.RegressionHistoryFilter{
+		Branch: c.Query("branch"),
+		Limit:  50,
+	}
+
+	history, err := h.promptCIService.GetRegressionHistory(c.Context(), projectID, filter)
+	if err != nil {
+		h.logger.Error("failed to get regression history", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get regression history"})
+	}
+
+	return c.JSON(history)
+}
+
+// GetDashboardStats handles GET /api/public/prompt-ci/stats
+func (h *PromptCIHandler) GetDashboardStats(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	stats, err := h.promptCIService.GetDashboardStats(c.Context(), projectID)
+	if err != nil {
+		h.logger.Error("failed to get dashboard stats", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get stats"})
+	}
+
+	return c.JSON(stats)
+}

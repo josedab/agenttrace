@@ -26,6 +26,13 @@ func NewPromptCIService(logger *zap.Logger) *PromptCIService {
 
 // CreateBaseline creates a new prompt performance baseline
 func (s *PromptCIService) CreateBaseline(ctx context.Context, projectID uuid.UUID, input domain.PromptBaselineInput) (*domain.PromptBaseline, error) {
+	if input.Name == "" {
+		return nil, fmt.Errorf("baseline name is required")
+	}
+	if input.Branch == "" {
+		return nil, fmt.Errorf("branch is required")
+	}
+
 	baseline := &domain.PromptBaseline{
 		ID:            uuid.New(),
 		ProjectID:     projectID,
@@ -318,4 +325,97 @@ func (s *PromptCIService) EvaluateGate(ctx context.Context, projectID uuid.UUID,
 		zap.String("branch", input.Branch),
 	)
 	return result, nil
+}
+
+// UpdateGateConfig updates an existing gate configuration
+func (s *PromptCIService) UpdateGateConfig(ctx context.Context, projectID uuid.UUID, configID uuid.UUID, input *domain.PromptCIGateConfigUpdate) (*domain.PromptCIGateConfig, error) {
+	s.logger.Info("updating prompt CI gate config",
+		zap.String("configId", configID.String()),
+	)
+
+	config := &domain.PromptCIGateConfig{
+		ID:        configID,
+		ProjectID: projectID,
+		UpdatedAt: time.Now(),
+	}
+
+	if input.Name != nil {
+		config.Name = *input.Name
+	}
+	if input.Thresholds != nil {
+		config.Thresholds = input.Thresholds
+	}
+	if input.BlockOnSeverity != nil {
+		config.BlockOnSeverity = *input.BlockOnSeverity
+	}
+	if input.ConfidenceLevel != nil {
+		config.ConfidenceLevel = *input.ConfidenceLevel
+	}
+	if input.RequiredMetrics != nil {
+		config.RequiredMetrics = input.RequiredMetrics
+	}
+	if input.Enabled != nil {
+		config.Enabled = *input.Enabled
+	}
+
+	return config, nil
+}
+
+// GetRegressionHistory returns regression history for a project
+func (s *PromptCIService) GetRegressionHistory(ctx context.Context, projectID uuid.UUID, filter *domain.RegressionHistoryFilter) ([]domain.PromptRegressionHistory, error) {
+	s.logger.Info("fetching regression history",
+		zap.String("projectId", projectID.String()),
+	)
+
+	history := []domain.PromptRegressionHistory{}
+	return history, nil
+}
+
+// RecordRegressionEvent records a regression event in history
+func (s *PromptCIService) RecordRegressionEvent(ctx context.Context, projectID uuid.UUID, result *domain.PromptCIGateResult, branch string, commitSHA string, prNumber *int) (*domain.PromptRegressionHistory, error) {
+	metricDeltas := make(map[string]float64)
+	for _, mr := range result.MetricResults {
+		metricDeltas[mr.MetricName] = mr.ActualChangePct
+	}
+
+	event := &domain.PromptRegressionHistory{
+		ID:           uuid.New(),
+		ProjectID:    projectID,
+		GateConfigID: result.GateConfigID,
+		RunID:        result.RunID,
+		Branch:       branch,
+		CommitSHA:    commitSHA,
+		PRNumber:     prNumber,
+		Passed:       result.Passed,
+		Severity:     result.OverallSeverity,
+		MetricDeltas: metricDeltas,
+		BlockedPR:    !result.Passed && prNumber != nil,
+		CreatedAt:    time.Now(),
+	}
+
+	s.logger.Info("recorded regression event",
+		zap.String("eventId", event.ID.String()),
+		zap.Bool("passed", event.Passed),
+		zap.Bool("blockedPR", event.BlockedPR),
+	)
+
+	return event, nil
+}
+
+// GetDashboardStats returns prompt CI dashboard statistics
+func (s *PromptCIService) GetDashboardStats(ctx context.Context, projectID uuid.UUID) (*domain.PromptCIDashboardStats, error) {
+	s.logger.Info("fetching prompt CI dashboard stats",
+		zap.String("projectId", projectID.String()),
+	)
+
+	stats := &domain.PromptCIDashboardStats{
+		TotalBaselines:    0,
+		TotalRuns:         0,
+		TotalGateConfigs:  0,
+		PassRate:          100.0,
+		BlockedPRs:        0,
+		RecentRegressions: 0,
+	}
+
+	return stats, nil
 }

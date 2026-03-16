@@ -163,3 +163,47 @@ type PromptCIGateEvalInput struct {
 	PRNumber     *int               `json:"prNumber,omitempty"`
 	Scores       map[string]float64 `json:"scores" validate:"required"`
 }
+
+// PromptRegressionHistory tracks regression events over time
+type PromptRegressionHistory struct {
+	ID           uuid.UUID          `json:"id"`
+	ProjectID    uuid.UUID          `json:"projectId"`
+	GateConfigID uuid.UUID          `json:"gateConfigId"`
+	RunID        uuid.UUID          `json:"runId"`
+	Branch       string             `json:"branch"`
+	CommitSHA    string             `json:"commitSha"`
+	PRNumber     *int               `json:"prNumber,omitempty"`
+	Passed       bool               `json:"passed"`
+	Severity     RegressionSeverity `json:"severity"`
+	MetricDeltas map[string]float64 `json:"metricDeltas"`
+	BlockedPR    bool               `json:"blockedPr"`
+	CreatedAt    time.Time          `json:"createdAt"`
+}
+
+// PromptCIGateConfigUpdate represents input for updating a gate config
+type PromptCIGateConfigUpdate struct {
+	Name            *string                    `json:"name,omitempty"`
+	Thresholds      map[string]MetricThreshold `json:"thresholds,omitempty"`
+	BlockOnSeverity *RegressionSeverity        `json:"blockOnSeverity,omitempty"`
+	ConfidenceLevel *float64                   `json:"confidenceLevel,omitempty"`
+	RequiredMetrics []string                   `json:"requiredMetrics,omitempty"`
+	Enabled         *bool                      `json:"enabled,omitempty"`
+}
+
+// RegressionHistoryFilter provides filtering for regression history
+type RegressionHistoryFilter struct {
+	Branch     string     `json:"branch,omitempty"`
+	PassedOnly *bool      `json:"passedOnly,omitempty"`
+	Since      *time.Time `json:"since,omitempty"`
+	Limit      int        `json:"limit,omitempty"`
+}
+
+// PromptCIDashboardStats provides dashboard statistics
+type PromptCIDashboardStats struct {
+	TotalBaselines    int     `json:"totalBaselines"`
+	TotalRuns         int     `json:"totalRuns"`
+	TotalGateConfigs  int     `json:"totalGateConfigs"`
+	PassRate          float64 `json:"passRate"`
+	BlockedPRs        int     `json:"blockedPrs"`
+	RecentRegressions int     `json:"recentRegressions"`
+}
