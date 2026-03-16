@@ -162,3 +162,65 @@ func TestMultiAgentGraphGetSession(t *testing.T) {
 	assert.NotNil(t, session.Messages)
 	assert.NotNil(t, session.Bottlenecks)
 }
+
+func TestMultiAgentGraphTopologyAnalytics(t *testing.T) {
+	svc := NewMultiAgentGraphService(zap.NewNop())
+	ctx := context.Background()
+	sessionID := uuid.New()
+
+	analytics, err := svc.GetTopologyAnalytics(ctx, sessionID)
+	require.NoError(t, err)
+	require.NotNil(t, analytics)
+
+	assert.Equal(t, sessionID, analytics.SessionID)
+	assert.NotEmpty(t, analytics.TopologyType)
+	assert.Greater(t, analytics.TotalAgents, 0)
+	assert.Greater(t, analytics.TotalMessages, 0)
+	assert.Greater(t, analytics.AvgResponseTimeMs, 0.0)
+	assert.NotEmpty(t, analytics.CriticalPath)
+	assert.Greater(t, analytics.HealthScore, 0.0)
+	assert.LessOrEqual(t, analytics.HealthScore, 100.0)
+
+	// Verify bottlenecks have required fields
+	for _, b := range analytics.Bottlenecks {
+		assert.NotEmpty(t, b.AgentID)
+		assert.NotEmpty(t, b.AgentName)
+		assert.NotEmpty(t, b.BottleneckType)
+		assert.NotEmpty(t, b.Severity)
+		assert.NotEmpty(t, b.Suggestion)
+	}
+
+	// Verify message flow edges
+	assert.NotEmpty(t, analytics.MessageFlow)
+	for _, edge := range analytics.MessageFlow {
+		assert.NotEmpty(t, edge.SourceAgent)
+		assert.NotEmpty(t, edge.TargetAgent)
+		assert.Greater(t, edge.MessageCount, 0)
+	}
+}
+
+func TestMultiAgentGraphDelegationChains(t *testing.T) {
+	svc := NewMultiAgentGraphService(zap.NewNop())
+	ctx := context.Background()
+	sessionID := uuid.New()
+
+	chains, err := svc.GetDelegationChains(ctx, sessionID)
+	require.NoError(t, err)
+	require.NotEmpty(t, chains)
+
+	for _, chain := range chains {
+		assert.NotEqual(t, uuid.Nil, chain.ID)
+		assert.Equal(t, sessionID, chain.SessionID)
+		assert.NotEmpty(t, chain.InitiatorID)
+		assert.NotEmpty(t, chain.Steps)
+		assert.NotEmpty(t, chain.Status)
+		assert.Greater(t, chain.TotalTimeMs, int64(0))
+
+		for _, step := range chain.Steps {
+			assert.NotEmpty(t, step.FromAgent)
+			assert.NotEmpty(t, step.ToAgent)
+			assert.NotEmpty(t, step.Task)
+			assert.NotEmpty(t, step.Status)
+		}
+	}
+}

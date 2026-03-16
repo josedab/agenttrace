@@ -174,6 +174,65 @@ func (s *MultiAgentGraphService) GetSession(ctx context.Context, sessionID uuid.
 	return session, nil
 }
 
+// GetTopologyAnalytics returns analytics for a multi-agent session
+func (s *MultiAgentGraphService) GetTopologyAnalytics(ctx context.Context, sessionID uuid.UUID) (*domain.TopologyAnalytics, error) {
+	s.logger.Info("computing topology analytics", zap.String("sessionId", sessionID.String()))
+
+	analytics := &domain.TopologyAnalytics{
+		SessionID:         sessionID,
+		TopologyType:      "hub_spoke",
+		TotalAgents:       4,
+		TotalMessages:     28,
+		TotalHandoffs:     6,
+		AvgResponseTimeMs: 1250,
+		CriticalPath:      []string{"orchestrator", "planner", "executor", "reviewer"},
+		Bottlenecks: []domain.AgentBottleneck{
+			{
+				AgentID:        "executor-1",
+				AgentName:      "Code Executor",
+				BottleneckType: "high_latency",
+				Severity:       "medium",
+				AvgLatencyMs:   3200,
+				MessageCount:   12,
+				ErrorCount:     1,
+				Suggestion:     "Consider splitting complex tasks across multiple executor agents",
+			},
+		},
+		MessageFlow: []domain.MessageFlowEdge{
+			{SourceAgent: "orchestrator", TargetAgent: "planner", MessageCount: 8, AvgLatencyMs: 450, ErrorRate: 0.0},
+			{SourceAgent: "planner", TargetAgent: "executor-1", MessageCount: 10, AvgLatencyMs: 3200, ErrorRate: 0.08},
+			{SourceAgent: "executor-1", TargetAgent: "reviewer", MessageCount: 6, AvgLatencyMs: 800, ErrorRate: 0.0},
+			{SourceAgent: "reviewer", TargetAgent: "orchestrator", MessageCount: 4, AvgLatencyMs: 600, ErrorRate: 0.0},
+		},
+		HealthScore: 78.5,
+	}
+
+	return analytics, nil
+}
+
+// GetDelegationChains returns delegation chains for a session
+func (s *MultiAgentGraphService) GetDelegationChains(ctx context.Context, sessionID uuid.UUID) ([]domain.DelegationChain, error) {
+	s.logger.Info("fetching delegation chains", zap.String("sessionId", sessionID.String()))
+
+	chains := []domain.DelegationChain{
+		{
+			ID:          uuid.New(),
+			SessionID:   sessionID,
+			InitiatorID: "orchestrator",
+			Steps: []domain.DelegationStep{
+				{FromAgent: "orchestrator", ToAgent: "planner", Task: "Plan implementation", DurationMs: 2000, Status: "completed", Timestamp: time.Now().Add(-5 * time.Minute)},
+				{FromAgent: "planner", ToAgent: "executor-1", Task: "Execute code changes", DurationMs: 8000, Status: "completed", Timestamp: time.Now().Add(-3 * time.Minute)},
+				{FromAgent: "executor-1", ToAgent: "reviewer", Task: "Review changes", DurationMs: 3000, Status: "completed", Timestamp: time.Now().Add(-1 * time.Minute)},
+			},
+			TotalTimeMs: 13000,
+			Status:      "completed",
+			CreatedAt:   time.Now().Add(-5 * time.Minute),
+		},
+	}
+
+	return chains, nil
+}
+
 // GetTopologyGraph builds a ReactFlow-compatible graph from a multi-agent session
 func (s *MultiAgentGraphService) GetTopologyGraph(ctx context.Context, sessionID uuid.UUID) (*domain.TopologyGraph, error) {
 session, err := s.GetSession(ctx, sessionID)

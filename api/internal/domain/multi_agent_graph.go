@@ -175,3 +175,70 @@ type TopologyStats struct {
 	DelegationDepth int    `json:"delegationDepth"`
 	ParallelPaths  int     `json:"parallelPaths"`
 }
+
+// TopologyAnalytics provides analytics for a multi-agent topology
+type TopologyAnalytics struct {
+	SessionID         uuid.UUID          `json:"sessionId"`
+	TopologyType      string             `json:"topologyType"`
+	TotalAgents       int                `json:"totalAgents"`
+	TotalMessages     int                `json:"totalMessages"`
+	TotalHandoffs     int                `json:"totalHandoffs"`
+	AvgResponseTimeMs float64            `json:"avgResponseTimeMs"`
+	CriticalPath      []string           `json:"criticalPath"`
+	Bottlenecks       []AgentBottleneck  `json:"bottlenecks"`
+	MessageFlow       []MessageFlowEdge  `json:"messageFlow"`
+	HealthScore       float64            `json:"healthScore"` // 0-100
+}
+
+// AgentBottleneck identifies a performance bottleneck
+type AgentBottleneck struct {
+	AgentID        string  `json:"agentId"`
+	AgentName      string  `json:"agentName"`
+	BottleneckType string  `json:"bottleneckType"` // high_latency, overloaded, error_prone, underutilized
+	Severity       string  `json:"severity"`       // low, medium, high, critical
+	AvgLatencyMs   float64 `json:"avgLatencyMs"`
+	MessageCount   int     `json:"messageCount"`
+	ErrorCount     int     `json:"errorCount"`
+	Suggestion     string  `json:"suggestion"`
+}
+
+// MessageFlowEdge represents a message flow between agents
+type MessageFlowEdge struct {
+	SourceAgent   string    `json:"sourceAgent"`
+	TargetAgent   string    `json:"targetAgent"`
+	MessageCount  int       `json:"messageCount"`
+	AvgLatencyMs  float64   `json:"avgLatencyMs"`
+	ErrorRate     float64   `json:"errorRate"`
+	LastMessageAt time.Time `json:"lastMessageAt"`
+}
+
+// TopologyLiveUpdate represents a real-time topology update
+type TopologyLiveUpdate struct {
+	SessionID   uuid.UUID              `json:"sessionId"`
+	UpdateType  string                 `json:"updateType"` // agent_added, agent_removed, message_sent, handoff, status_change
+	AgentID     string                 `json:"agentId,omitempty"`
+	TargetAgent string                 `json:"targetAgent,omitempty"`
+	Data        map[string]interface{} `json:"data,omitempty"`
+	Timestamp   time.Time              `json:"timestamp"`
+}
+
+// DelegationChain tracks delegation between agents
+type DelegationChain struct {
+	ID          uuid.UUID        `json:"id"`
+	SessionID   uuid.UUID        `json:"sessionId"`
+	InitiatorID string           `json:"initiatorId"`
+	Steps       []DelegationStep `json:"steps"`
+	TotalTimeMs int64            `json:"totalTimeMs"`
+	Status      string           `json:"status"` // active, completed, failed
+	CreatedAt   time.Time        `json:"createdAt"`
+}
+
+// DelegationStep represents a single step in a delegation chain
+type DelegationStep struct {
+	FromAgent  string    `json:"fromAgent"`
+	ToAgent    string    `json:"toAgent"`
+	Task       string    `json:"task"`
+	DurationMs int64     `json:"durationMs"`
+	Status     string    `json:"status"`
+	Timestamp  time.Time `json:"timestamp"`
+}

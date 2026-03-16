@@ -146,3 +146,35 @@ func (h *MultiAgentGraphHandler) GetTopologyGraph(c *fiber.Ctx) error {
 
 	return c.JSON(graph)
 }
+
+// GetTopologyAnalytics handles GET /api/public/multi-agent-graph/sessions/:sessionId/analytics
+func (h *MultiAgentGraphHandler) GetTopologyAnalytics(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	analytics, err := h.multiAgentGraphService.GetTopologyAnalytics(c.Context(), sessionID)
+	if err != nil {
+		h.logger.Error("failed to get topology analytics", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get analytics"})
+	}
+
+	return c.JSON(analytics)
+}
+
+// GetDelegationChains handles GET /api/public/multi-agent-graph/sessions/:sessionId/delegations
+func (h *MultiAgentGraphHandler) GetDelegationChains(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	chains, err := h.multiAgentGraphService.GetDelegationChains(c.Context(), sessionID)
+	if err != nil {
+		h.logger.Error("failed to get delegation chains", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get delegation chains"})
+	}
+
+	return c.JSON(fiber.Map{"chains": chains})
+}
