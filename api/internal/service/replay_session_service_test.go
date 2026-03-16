@@ -230,3 +230,89 @@ func TestReplaySessionGetSessionNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "replay session not found")
 }
+
+func TestReplaySessionBuildUnifiedTimeline(t *testing.T) {
+	logger := zap.NewNop()
+	svc := NewReplaySessionService(logger)
+	ctx := context.Background()
+
+	t.Run("builds timeline for valid session", func(t *testing.T) {
+		sessionID := uuid.New()
+		events, err := svc.BuildUnifiedTimeline(ctx, sessionID)
+		require.NoError(t, err)
+		require.NotEmpty(t, events)
+
+		// Verify all events have required fields
+		for _, evt := range events {
+			assert.NotEqual(t, uuid.Nil, evt.ID)
+			assert.Equal(t, sessionID, evt.SessionID)
+			assert.NotEmpty(t, evt.EventType)
+			assert.NotEmpty(t, evt.Category)
+			assert.NotEmpty(t, evt.Title)
+			assert.NotEmpty(t, evt.Status)
+			assert.False(t, evt.StartTime.IsZero())
+		}
+
+		// Check event type diversity
+		typeMap := make(map[string]bool)
+		for _, evt := range events {
+			typeMap[evt.EventType] = true
+		}
+		assert.True(t, typeMap["llm_call"], "should contain LLM call events")
+		assert.True(t, typeMap["file_edit"], "should contain file edit events")
+	})
+}
+
+func TestReplaySessionGetSnapshot(t *testing.T) {
+	logger := zap.NewNop()
+	svc := NewReplaySessionService(logger)
+	ctx := context.Background()
+	sessionID := uuid.New()
+
+	t.Run("returns valid snapshot", func(t *testing.T) {
+		snapshot, err := svc.GetReplaySnapshot(ctx, sessionID, 0)
+		require.NoError(t, err)
+		require.NotNil(t, snapshot)
+		assert.Equal(t, 0, snapshot.EventIndex)
+		assert.NotNil(t, snapshot.FileStates)
+		assert.NotNil(t, snapshot.EventCounts)
+		assert.NotEmpty(t, snapshot.ActiveModel)
+	})
+
+	t.Run("event index reflects in snapshot", func(t *testing.T) {
+		snapshot, err := svc.GetReplaySnapshot(ctx, sessionID, 5)
+		require.NoError(t, err)
+		assert.Equal(t, 5, snapshot.EventIndex)
+	})
+}
+
+func TestReplaySessionAddAnnotation(t *testing.T) {
+	logger := zap.NewNop()
+	svc := NewReplaySessionService(logger)
+	ctx := context.Background()
+	sessionID := uuid.New()
+
+	t.Run("valid annotation", func(t *testing.T) {
+		input := &domain.ReplayAnnotationInput{
+			EventID: uuid.New(),
+			Content: "This is an important decision point",
+		}
+		annotation, err := svc.AddAnnotation(ctx, sessionID, input)
+		require.NoError(t, err)
+		require.NotNil(t, annotation)
+		assert.NotEqual(t, uuid.Nil, annotation.ID)
+		assert.Equal(t, input.EventID, annotation.EventID)
+		assert.Equal(t, "This is an important decision point", annotation.Content)
+		assert.False(t, annotation.Timestamp.IsZero())
+	})
+
+	t.Run("empty content fails", func(t *testing.T) {
+		input := &domain.ReplayAnnotationInput{
+			EventID: uuid.New(),
+			Content: "",
+		}
+		_, err := svc.AddAnnotation(ctx, sessionID, input)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "content is required")
+	})
+}

@@ -179,3 +179,73 @@ type ReplayFileStateSnapshot struct {
 	Files      map[string]string `json:"files"`
 	Timestamp  time.Time         `json:"timestamp"`
 }
+
+// UnifiedTimelineEvent merges trace spans, file ops, terminal commands, and decision points
+type UnifiedTimelineEvent struct {
+	ID          uuid.UUID              `json:"id"`
+	SessionID   uuid.UUID              `json:"sessionId"`
+	EventType   string                 `json:"eventType"` // llm_call, tool_call, file_edit, terminal_cmd, decision_point, checkpoint, error
+	Category    string                 `json:"category"`  // agent_action, user_input, system, observation
+	Title       string                 `json:"title"`
+	Description string                 `json:"description,omitempty"`
+	StartTime   time.Time              `json:"startTime"`
+	EndTime     *time.Time             `json:"endTime,omitempty"`
+	DurationMs  int64                  `json:"durationMs"`
+	ParentID    *uuid.UUID             `json:"parentId,omitempty"`
+	Depth       int                    `json:"depth"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	FileDelta   *UnifiedFileDelta      `json:"fileDelta,omitempty"`
+	CostUSD     float64                `json:"costUsd,omitempty"`
+	TokensUsed  int                    `json:"tokensUsed,omitempty"`
+	Model       string                 `json:"model,omitempty"`
+	Status      string                 `json:"status"` // success, error, pending, skipped
+	Annotations []ReplayAnnotation     `json:"annotations,omitempty"`
+}
+
+// UnifiedFileDelta tracks file changes during unified timeline replay
+type UnifiedFileDelta struct {
+	FilePath     string `json:"filePath"`
+	ChangeType   string `json:"changeType"` // create, edit, delete
+	LinesAdded   int    `json:"linesAdded"`
+	LinesRemoved int    `json:"linesRemoved"`
+	DiffPreview  string `json:"diffPreview,omitempty"`
+}
+
+// ReplayAnnotation represents a user annotation on a replay event
+type ReplayAnnotation struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"userId"`
+	UserName  string    `json:"userName"`
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
+	EventID   uuid.UUID `json:"eventId"`
+}
+
+// ReplayPlaybackConfig configures playback behavior
+type ReplayPlaybackConfig struct {
+	Speed        float64    `json:"speed"`        // 0.5x to 16x
+	AutoPlay     bool       `json:"autoPlay"`
+	ShowFileDiffs bool      `json:"showFileDiffs"`
+	ShowTerminal bool       `json:"showTerminal"`
+	ShowLLMCalls bool       `json:"showLlmCalls"`
+	FilterTypes  []string   `json:"filterTypes,omitempty"`
+	StartEventID *uuid.UUID `json:"startEventId,omitempty"`
+}
+
+// ReplaySnapshot captures the state at a point in the replay
+type ReplaySnapshot struct {
+	EventIndex  int                `json:"eventIndex"`
+	Timestamp   time.Time          `json:"timestamp"`
+	FileStates  map[string]string  `json:"fileStates"`
+	ActiveModel string             `json:"activeModel"`
+	TotalCost   float64            `json:"totalCost"`
+	TotalTokens int                `json:"totalTokens"`
+	ElapsedMs   int64              `json:"elapsedMs"`
+	EventCounts map[string]int     `json:"eventCounts"`
+}
+
+// ReplayAnnotationInput represents input for creating annotations
+type ReplayAnnotationInput struct {
+	EventID uuid.UUID `json:"eventId" validate:"required"`
+	Content string    `json:"content" validate:"required,min=1,max=2000"`
+}

@@ -240,3 +240,58 @@ func (h *ReplaySessionHandler) CompleteSession(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"status": "completed"})
 }
+
+// GetUnifiedTimeline handles GET /api/public/replay-sessions/:sessionId/unified-timeline
+func (h *ReplaySessionHandler) GetUnifiedTimeline(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	events, err := h.service.BuildUnifiedTimeline(c.Context(), sessionID)
+	if err != nil {
+		h.logger.Error("failed to build unified timeline", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to build timeline"})
+	}
+
+	return c.JSON(fiber.Map{"events": events, "totalEvents": len(events)})
+}
+
+// GetSnapshot handles GET /api/public/replay-sessions/:sessionId/snapshot
+func (h *ReplaySessionHandler) GetSnapshot(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	eventIndex := c.QueryInt("eventIndex", 0)
+
+	snapshot, err := h.service.GetReplaySnapshot(c.Context(), sessionID, eventIndex)
+	if err != nil {
+		h.logger.Error("failed to get snapshot", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get snapshot"})
+	}
+
+	return c.JSON(snapshot)
+}
+
+// AddReplayAnnotation handles POST /api/public/replay-sessions/:sessionId/annotations
+func (h *ReplaySessionHandler) AddReplayAnnotation(c *fiber.Ctx) error {
+	sessionID, err := uuid.Parse(c.Params("sessionId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid session ID"})
+	}
+
+	var input domain.ReplayAnnotationInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	annotation, err := h.service.AddAnnotation(c.Context(), sessionID, &input)
+	if err != nil {
+		h.logger.Error("failed to add annotation", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(annotation)
+}

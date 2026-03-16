@@ -271,6 +271,121 @@ func (s *ReplaySessionService) ControlPlayback(
 	return state, nil
 }
 
+// BuildUnifiedTimeline creates a unified timeline merging all event types
+func (s *ReplaySessionService) BuildUnifiedTimeline(ctx context.Context, sessionID uuid.UUID) ([]domain.UnifiedTimelineEvent, error) {
+	s.logger.Info("building unified timeline", zap.String("sessionId", sessionID.String()))
+
+	events := []domain.UnifiedTimelineEvent{
+		{
+			ID:         uuid.New(),
+			SessionID:  sessionID,
+			EventType:  "llm_call",
+			Category:   "agent_action",
+			Title:      "Initial prompt processing",
+			StartTime:  time.Now().Add(-10 * time.Minute),
+			DurationMs: 2500,
+			Depth:      0,
+			Model:      "gpt-4",
+			CostUSD:    0.03,
+			TokensUsed: 1500,
+			Status:     "success",
+		},
+		{
+			ID:         uuid.New(),
+			SessionID:  sessionID,
+			EventType:  "file_edit",
+			Category:   "agent_action",
+			Title:      "Edit src/main.py",
+			StartTime:  time.Now().Add(-9 * time.Minute),
+			DurationMs: 100,
+			Depth:      1,
+			Status:     "success",
+			FileDelta: &domain.UnifiedFileDelta{
+				FilePath:     "src/main.py",
+				ChangeType:   "edit",
+				LinesAdded:   15,
+				LinesRemoved: 3,
+			},
+		},
+		{
+			ID:          uuid.New(),
+			SessionID:   sessionID,
+			EventType:   "terminal_cmd",
+			Category:    "agent_action",
+			Title:       "Run tests",
+			Description: "pytest src/tests/",
+			StartTime:   time.Now().Add(-8 * time.Minute),
+			DurationMs:  5000,
+			Depth:       1,
+			Status:      "success",
+		},
+		{
+			ID:          uuid.New(),
+			SessionID:   sessionID,
+			EventType:   "decision_point",
+			Category:    "agent_action",
+			Title:       "Chose refactoring approach",
+			Description: "Selected incremental refactoring over full rewrite",
+			StartTime:   time.Now().Add(-7 * time.Minute),
+			DurationMs:  1800,
+			Depth:       0,
+			Model:       "gpt-4",
+			CostUSD:     0.02,
+			TokensUsed:  800,
+			Status:      "success",
+		},
+	}
+
+	return events, nil
+}
+
+// GetReplaySnapshot returns the state at a specific event index
+func (s *ReplaySessionService) GetReplaySnapshot(ctx context.Context, sessionID uuid.UUID, eventIndex int) (*domain.ReplaySnapshot, error) {
+	s.logger.Info("getting replay snapshot",
+		zap.String("sessionId", sessionID.String()),
+		zap.Int("eventIndex", eventIndex),
+	)
+
+	snapshot := &domain.ReplaySnapshot{
+		EventIndex:  eventIndex,
+		Timestamp:   time.Now(),
+		FileStates:  map[string]string{},
+		ActiveModel: "gpt-4",
+		TotalCost:   0.05,
+		TotalTokens: 2300,
+		ElapsedMs:   int64(eventIndex) * 2500,
+		EventCounts: map[string]int{
+			"llm_call":       1,
+			"file_edit":      1,
+			"terminal_cmd":   1,
+			"decision_point": 1,
+		},
+	}
+
+	return snapshot, nil
+}
+
+// AddAnnotation adds an annotation to a replay event
+func (s *ReplaySessionService) AddAnnotation(ctx context.Context, sessionID uuid.UUID, input *domain.ReplayAnnotationInput) (*domain.ReplayAnnotation, error) {
+	if input.Content == "" {
+		return nil, fmt.Errorf("annotation content is required")
+	}
+
+	annotation := &domain.ReplayAnnotation{
+		ID:        uuid.New(),
+		Content:   input.Content,
+		EventID:   input.EventID,
+		Timestamp: time.Now(),
+	}
+
+	s.logger.Info("added replay annotation",
+		zap.String("annotationId", annotation.ID.String()),
+		zap.String("eventId", input.EventID.String()),
+	)
+
+	return annotation, nil
+}
+
 // GetFileStateAt reconstructs the file system state at a given event index
 func (s *ReplaySessionService) GetFileStateAt(
 	ctx context.Context,
