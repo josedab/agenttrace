@@ -213,3 +213,209 @@ func (s *CollaborationService) CreateEvalQueue(ctx context.Context, projectID uu
 
 	return queue, nil
 }
+
+// CreateReview creates a new trace review request
+func (s *CollaborationService) CreateReview(ctx context.Context, projectID, requestedBy uuid.UUID, input *domain.CollabTraceReviewInput) (*domain.TraceReviewRequest, error) {
+	if input.TraceID == "" {
+		return nil, fmt.Errorf("traceID is required")
+	}
+	if input.Title == "" {
+		return nil, fmt.Errorf("title is required")
+	}
+
+	now := time.Now()
+	priority := input.Priority
+	if priority == "" {
+		priority = "medium"
+	}
+	requiredApprovals := input.RequiredApprovals
+	if requiredApprovals == 0 {
+		requiredApprovals = 1
+	}
+
+	review := &domain.TraceReviewRequest{
+		ID:                uuid.New(),
+		ProjectID:         projectID,
+		TraceID:           input.TraceID,
+		Title:             input.Title,
+		Description:       input.Description,
+		RequestedBy:       requestedBy,
+		AssignedTo:        input.AssignedTo,
+		Status:            domain.ReviewStatusPending,
+		Priority:          priority,
+		Labels:            input.Labels,
+		ApprovalCount:     0,
+		RequiredApprovals: requiredApprovals,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	s.realtimeSvc.Publish(ctx, projectID, "review_created", review)
+
+	s.logger.Info("created trace review",
+		zap.String("reviewId", review.ID.String()),
+		zap.String("traceId", input.TraceID),
+	)
+
+	return review, nil
+}
+
+// GetReview retrieves a trace review by ID
+func (s *CollaborationService) GetReview(ctx context.Context, reviewID uuid.UUID) (*domain.TraceReviewRequest, error) {
+	// In production this would query the database
+	s.logger.Info("get review", zap.String("reviewId", reviewID.String()))
+	return &domain.TraceReviewRequest{
+		ID:     reviewID,
+		Status: domain.ReviewStatusPending,
+	}, nil
+}
+
+// ListReviews lists trace reviews for a project
+func (s *CollaborationService) ListReviews(ctx context.Context, projectID uuid.UUID, status string) ([]domain.TraceReviewRequest, error) {
+	s.logger.Info("listing reviews",
+		zap.String("projectId", projectID.String()),
+		zap.String("status", status),
+	)
+	return []domain.TraceReviewRequest{}, nil
+}
+
+// ApproveReview approves a trace review
+func (s *CollaborationService) ApproveReview(ctx context.Context, reviewID, approverID uuid.UUID) (*domain.TraceReviewRequest, error) {
+	review, err := s.GetReview(ctx, reviewID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get review: %w", err)
+	}
+
+	review.ApprovalCount++
+	review.UpdatedAt = time.Now()
+	if review.ApprovalCount >= review.RequiredApprovals {
+		review.Status = domain.ReviewStatusApproved
+	} else {
+		review.Status = domain.ReviewStatusInReview
+	}
+
+	s.realtimeSvc.Publish(ctx, review.ProjectID, "review_approved", review)
+
+	s.logger.Info("review approved",
+		zap.String("reviewId", reviewID.String()),
+		zap.String("approver", approverID.String()),
+		zap.Int("approvalCount", review.ApprovalCount),
+	)
+
+	return review, nil
+}
+
+// AddReviewComment adds a threaded comment to a review
+func (s *CollaborationService) AddReviewComment(ctx context.Context, reviewID, authorID uuid.UUID, authorName string, input *domain.CollabReviewCommentInput) (*domain.CollabReviewComment, error) {
+	if input.Content == "" {
+		return nil, fmt.Errorf("content is required")
+	}
+
+	now := time.Now()
+	comment := &domain.CollabReviewComment{
+		ID:         uuid.New(),
+		ReviewID:   reviewID,
+		ParentID:   input.ParentID,
+		AuthorID:   authorID,
+		AuthorName: authorName,
+		Content:    input.Content,
+		Mentions:   input.Mentions,
+		SpanID:     input.SpanID,
+		Resolved:   false,
+		Reactions:  map[string]int{},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	s.logger.Info("added review comment",
+		zap.String("reviewId", reviewID.String()),
+		zap.String("commentId", comment.ID.String()),
+		zap.String("authorId", authorID.String()),
+	)
+
+	return comment, nil
+}
+
+// ListReviewComments lists comments for a review
+func (s *CollaborationService) ListReviewComments(ctx context.Context, reviewID uuid.UUID) ([]domain.CollabReviewComment, error) {
+	s.logger.Info("listing review comments", zap.String("reviewId", reviewID.String()))
+	return []domain.CollabReviewComment{}, nil
+}
+
+// CreateReviewQueue creates a new review queue with assignment rules
+func (s *CollaborationService) CreateReviewQueue(ctx context.Context, projectID uuid.UUID, input *domain.CollabReviewQueueInput) (*domain.CollabReviewQueue, error) {
+	if input.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	assignmentRule := input.AssignmentRule
+	if assignmentRule == "" {
+		assignmentRule = "round_robin"
+	}
+	slaHours := input.SLAHours
+	if slaHours == 0 {
+		slaHours = 24
+	}
+
+	queue := &domain.CollabReviewQueue{
+		ID:              uuid.New(),
+		ProjectID:       projectID,
+		Name:            input.Name,
+		AssignmentRule:  assignmentRule,
+		Reviewers:       input.Reviewers,
+		AutoAssign:      input.AutoAssign,
+		SLAHours:        slaHours,
+		EscalationHours: input.EscalationHours,
+		PendingCount:    0,
+		AvgReviewTimeH:  0,
+		CreatedAt:       time.Now(),
+	}
+
+	s.logger.Info("created review queue",
+		zap.String("queueId", queue.ID.String()),
+		zap.String("name", input.Name),
+	)
+
+	return queue, nil
+}
+
+// ListReviewQueues lists review queues for a project
+func (s *CollaborationService) ListReviewQueues(ctx context.Context, projectID uuid.UUID) ([]domain.CollabReviewQueue, error) {
+	s.logger.Info("listing review queues", zap.String("projectId", projectID.String()))
+	return []domain.CollabReviewQueue{}, nil
+}
+
+// AddNotificationIntegration adds a notification integration (Slack/Teams/GitHub)
+func (s *CollaborationService) AddNotificationIntegration(ctx context.Context, projectID uuid.UUID, input *domain.NotificationIntegrationInput) (*domain.NotificationIntegration, error) {
+	if input.Type == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+	if input.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	integration := &domain.NotificationIntegration{
+		ID:         uuid.New(),
+		ProjectID:  projectID,
+		Type:       input.Type,
+		Name:       input.Name,
+		WebhookURL: input.WebhookURL,
+		ChannelID:  input.ChannelID,
+		Enabled:    true,
+		Events:     input.Events,
+		CreatedAt:  time.Now(),
+	}
+
+	s.logger.Info("added notification integration",
+		zap.String("integrationId", integration.ID.String()),
+		zap.String("type", input.Type),
+	)
+
+	return integration, nil
+}
+
+// ListIntegrations lists notification integrations for a project
+func (s *CollaborationService) ListIntegrations(ctx context.Context, projectID uuid.UUID) ([]domain.NotificationIntegration, error) {
+	s.logger.Info("listing integrations", zap.String("projectId", projectID.String()))
+	return []domain.NotificationIntegration{}, nil
+}

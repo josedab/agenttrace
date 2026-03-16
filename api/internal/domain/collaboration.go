@@ -139,3 +139,105 @@ type EvalQueueInput struct {
 	Assignees   []uuid.UUID `json:"assignees"`
 	TraceIDs    []uuid.UUID `json:"traceIds" validate:"required,min=1"`
 }
+
+// TraceReviewRequest represents a formal review request for a trace with approval workflow
+type TraceReviewRequest struct {
+	ID                uuid.UUID              `json:"id"`
+	ProjectID         uuid.UUID              `json:"projectId"`
+	TraceID           string                 `json:"traceId"`
+	Title             string                 `json:"title"`
+	Description       string                 `json:"description,omitempty"`
+	RequestedBy       uuid.UUID              `json:"requestedBy"`
+	AssignedTo        []uuid.UUID            `json:"assignedTo"`
+	Status            ReviewStatus           `json:"status"`
+	Priority          string                 `json:"priority"` // low, medium, high, urgent
+	Labels            []string               `json:"labels,omitempty"`
+	DueAt             *time.Time             `json:"dueAt,omitempty"`
+	Comments          []CollabReviewComment  `json:"comments,omitempty"`
+	ApprovalCount     int                    `json:"approvalCount"`
+	RequiredApprovals int                    `json:"requiredApprovals"`
+	CreatedAt         time.Time              `json:"createdAt"`
+	UpdatedAt         time.Time              `json:"updatedAt"`
+}
+
+// CollabReviewComment represents a threaded comment on a collaborative review
+type CollabReviewComment struct {
+	ID         uuid.UUID      `json:"id"`
+	ReviewID   uuid.UUID      `json:"reviewId"`
+	ParentID   *uuid.UUID     `json:"parentId,omitempty"` // for threading
+	AuthorID   uuid.UUID      `json:"authorId"`
+	AuthorName string         `json:"authorName"`
+	Content    string         `json:"content"`
+	Mentions   []string       `json:"mentions,omitempty"` // @user references
+	SpanID     string         `json:"spanId,omitempty"`   // link to specific span
+	Resolved   bool           `json:"resolved"`
+	Reactions  map[string]int `json:"reactions,omitempty"` // emoji -> count
+	CreatedAt  time.Time      `json:"createdAt"`
+	UpdatedAt  time.Time      `json:"updatedAt"`
+}
+
+// CollabReviewQueue configures how reviews are assigned and tracked with SLA
+type CollabReviewQueue struct {
+	ID              uuid.UUID   `json:"id"`
+	ProjectID       uuid.UUID   `json:"projectId"`
+	Name            string      `json:"name"`
+	AssignmentRule  string      `json:"assignmentRule"` // round_robin, load_balanced, manual, random
+	Reviewers       []uuid.UUID `json:"reviewers"`
+	AutoAssign      bool        `json:"autoAssign"`
+	SLAHours        int         `json:"slaHours"`
+	EscalationHours int         `json:"escalationHours"`
+	PendingCount    int         `json:"pendingCount"`
+	AvgReviewTimeH  float64     `json:"avgReviewTimeHours"`
+	CreatedAt       time.Time   `json:"createdAt"`
+}
+
+// NotificationIntegration represents a Slack/Teams/GitHub integration
+type NotificationIntegration struct {
+	ID         uuid.UUID `json:"id"`
+	ProjectID  uuid.UUID `json:"projectId"`
+	Type       string    `json:"type"` // slack, teams, github, email
+	Name       string    `json:"name"`
+	WebhookURL string    `json:"webhookUrl,omitempty"`
+	ChannelID  string    `json:"channelId,omitempty"`
+	Enabled    bool      `json:"enabled"`
+	Events     []string  `json:"events"` // review_created, comment_added, approved, mentioned
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+// CollabTraceReviewInput represents input for creating a collaborative review request
+type CollabTraceReviewInput struct {
+	TraceID           string      `json:"traceId" validate:"required"`
+	Title             string      `json:"title" validate:"required,min=1,max=200"`
+	Description       string      `json:"description,omitempty"`
+	AssignedTo        []uuid.UUID `json:"assignedTo,omitempty"`
+	Priority          string      `json:"priority,omitempty"`
+	Labels            []string    `json:"labels,omitempty"`
+	RequiredApprovals int         `json:"requiredApprovals,omitempty"`
+}
+
+// CollabReviewCommentInput represents input for creating a threaded review comment
+type CollabReviewCommentInput struct {
+	Content  string     `json:"content" validate:"required,min=1,max=5000"`
+	ParentID *uuid.UUID `json:"parentId,omitempty"`
+	SpanID   string     `json:"spanId,omitempty"`
+	Mentions []string   `json:"mentions,omitempty"`
+}
+
+// CollabReviewQueueInput represents input for creating a review queue with assignment rules
+type CollabReviewQueueInput struct {
+	Name            string      `json:"name" validate:"required"`
+	AssignmentRule  string      `json:"assignmentRule,omitempty"`
+	Reviewers       []uuid.UUID `json:"reviewers,omitempty"`
+	AutoAssign      bool        `json:"autoAssign,omitempty"`
+	SLAHours        int         `json:"slaHours,omitempty"`
+	EscalationHours int         `json:"escalationHours,omitempty"`
+}
+
+// NotificationIntegrationInput represents input for adding an integration
+type NotificationIntegrationInput struct {
+	Type       string   `json:"type" validate:"required"`
+	Name       string   `json:"name" validate:"required"`
+	WebhookURL string   `json:"webhookUrl,omitempty"`
+	ChannelID  string   `json:"channelId,omitempty"`
+	Events     []string `json:"events,omitempty"`
+}
