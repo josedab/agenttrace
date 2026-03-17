@@ -142,3 +142,56 @@ type MeshStatus struct {
 	MeshHealth       string     `json:"meshHealth"` // healthy, degraded, unhealthy
 	LastSync         *time.Time `json:"lastSync,omitempty"`
 }
+
+// AnalyticsInsight represents an actionable insight from cross-org analytics
+type AnalyticsInsight struct {
+	ID             uuid.UUID `json:"id"`
+	Category       string    `json:"category"` // performance, cost, quality, reliability
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	Impact         string    `json:"impact"` // high, medium, low
+	Recommendation string    `json:"recommendation"`
+	Benchmark      float64   `json:"benchmark"`
+	YourValue      float64   `json:"yourValue"`
+	Percentile     float64   `json:"percentile"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// PrivacyBudget tracks differential privacy budget
+type PrivacyBudget struct {
+	InstanceID       uuid.UUID `json:"instanceId"`
+	TotalEpsilon     float64   `json:"totalEpsilon"`
+	UsedEpsilon      float64   `json:"usedEpsilon"`
+	RemainingEpsilon float64   `json:"remainingEpsilon"`
+	QueriesCount     int       `json:"queriesCount"`
+	ResetAt          time.Time `json:"resetAt"`
+}
+
+// CrossOrgComparison provides anonymous comparison across organizations
+type CrossOrgComparison struct {
+	MetricName       string  `json:"metricName"`
+	YourValue        float64 `json:"yourValue"`
+	IndustryMedian   float64 `json:"industryMedian"`
+	IndustryP25      float64 `json:"industryP25"`
+	IndustryP75      float64 `json:"industryP75"`
+	IndustryP90      float64 `json:"industryP90"`
+	Percentile       float64 `json:"percentile"`
+	Trend            string  `json:"trend"` // improving, stable, declining
+	ParticipantCount int     `json:"participantCount"`
+}
+
+// FederatedAnalyticsDashboard provides the full federated trace analytics dashboard
+type FederatedAnalyticsDashboard struct {
+	MeshStatus    MeshStatus           `json:"meshStatus"`
+	PrivacyBudget PrivacyBudget        `json:"privacyBudget"`
+	Comparisons   []CrossOrgComparison `json:"comparisons"`
+	Insights      []AnalyticsInsight   `json:"insights"`
+	Baselines     []IndustryBaseline   `json:"baselines"`
+}
+
+// FederatedQueryInput represents a privacy-preserving query
+type FederatedQueryInput struct {
+	Metrics        []string `json:"metrics" validate:"required"`
+	Industry       string   `json:"industry,omitempty"`
+	TimeRangeHours int      `json:"timeRangeHours,omitempty"`
+}

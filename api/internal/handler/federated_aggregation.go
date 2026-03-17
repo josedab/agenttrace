@@ -255,3 +255,47 @@ return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed
 }
 return c.JSON(status)
 }
+
+// GetFederatedAnalyticsDashboard handles GET /api/public/federated/dashboard
+func (h *FederatedAggregationHandler) GetFederatedAnalyticsDashboard(c *fiber.Ctx) error {
+	instanceIDStr := c.Query("instanceId")
+	var instanceID uuid.UUID
+	if instanceIDStr != "" {
+		var err error
+		instanceID, err = uuid.Parse(instanceIDStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid instance ID"})
+		}
+	} else {
+		instanceID = uuid.New()
+	}
+
+	dashboard, err := h.federatedAggregationService.GetFederatedAnalyticsDashboard(c.Context(), instanceID)
+	if err != nil {
+		h.logger.Error("failed to get federated analytics dashboard", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get dashboard"})
+	}
+
+	return c.JSON(dashboard)
+}
+
+// RunFederatedQuery handles POST /api/public/federated/query
+func (h *FederatedAggregationHandler) RunFederatedQuery(c *fiber.Ctx) error {
+	var input domain.FederatedQueryInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if len(input.Metrics) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "At least one metric is required"})
+	}
+
+	instanceID := uuid.New()
+	results, err := h.federatedAggregationService.RunPrivacyPreservingQuery(c.Context(), instanceID, &input)
+	if err != nil {
+		h.logger.Error("failed to run federated query", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to run query"})
+	}
+
+	return c.JSON(fiber.Map{"comparisons": results})
+}
