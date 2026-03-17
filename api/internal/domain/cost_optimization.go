@@ -153,15 +153,29 @@ type AutopilotConfigInput struct {
 	AutoApply         *bool    `json:"autoApply,omitempty"`
 }
 
-// CostHotspot represents a cost-intensive area identified by analysis
+// CostHotspot identifies a high-cost area in trace data
 type CostHotspot struct {
-	Type           string  `json:"type"`           // model, prompt, agent, endpoint
-	Identifier     string  `json:"identifier"`
-	TotalCost      float64 `json:"totalCost"`
-	PercentOfTotal float64 `json:"percentOfTotal"`
-	TraceCount     int     `json:"traceCount"`
-	Trend          string  `json:"trend"`          // increasing, stable, decreasing
-	Severity       string  `json:"severity"`       // low, medium, high, critical
+	ID              uuid.UUID            `json:"id"`
+	ProjectID       uuid.UUID            `json:"projectId"`
+	Category        string               `json:"category"`        // model, prompt, tool, agent
+	Name            string               `json:"name"`
+	TotalCostUSD    float64              `json:"totalCostUsd"`
+	TraceCount      int                  `json:"traceCount"`
+	AvgCostPerTrace float64              `json:"avgCostPerTrace"`
+	Trend           string               `json:"trend"`           // increasing, stable, decreasing
+	TrendPct        float64              `json:"trendPercent"`
+	TopModels       []ModelCostBreakdown `json:"topModels,omitempty"`
+	PercentOfTotal  float64              `json:"percentOfTotal"`
+	Severity        string               `json:"severity,omitempty"` // low, medium, high, critical
+}
+
+// ModelCostBreakdown shows cost per model
+type ModelCostBreakdown struct {
+	Model      string  `json:"model"`
+	CostUSD    float64 `json:"costUsd"`
+	TraceCount int     `json:"traceCount"`
+	AvgTokens  int     `json:"avgTokens"`
+	Percentage float64 `json:"percentage"`
 }
 
 // CachingStrategy represents a recommended caching optimization
@@ -206,4 +220,65 @@ type BudgetAlert struct {
 	BudgetLimit float64   `json:"budgetLimit"`
 	Percentage  float64   `json:"percentage"`
 	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// CostAutopilotRule represents an automation rule for cost optimization
+type CostAutopilotRule struct {
+	ID             uuid.UUID         `json:"id"`
+	ProjectID      uuid.UUID         `json:"projectId"`
+	Name           string            `json:"name"`
+	RuleType       string            `json:"ruleType"` // model_downgrade, cache_enable, rate_limit, budget_alert
+	Condition      CostRuleCondition `json:"condition"`
+	Action         CostRuleAction    `json:"action"`
+	Enabled        bool              `json:"enabled"`
+	ExecutionCount int               `json:"executionCount"`
+	LastExecuted   *time.Time        `json:"lastExecuted,omitempty"`
+	CreatedAt      time.Time         `json:"createdAt"`
+}
+
+// CostRuleCondition defines when a rule triggers
+type CostRuleCondition struct {
+	Metric        string  `json:"metric"`   // daily_cost, per_trace_cost, token_usage, error_rate
+	Operator      string  `json:"operator"` // gt, lt, gte, lte, eq
+	Threshold     float64 `json:"threshold"`
+	WindowMinutes int     `json:"windowMinutes"`
+}
+
+// CostRuleAction defines what happens when a rule triggers
+type CostRuleAction struct {
+	ActionType    string            `json:"actionType"` // switch_model, enable_cache, send_alert, throttle
+	Parameters    map[string]string `json:"parameters"`
+	FallbackModel string           `json:"fallbackModel,omitempty"`
+}
+
+// CostAutopilotRuleInput represents input for creating an autopilot rule
+type CostAutopilotRuleInput struct {
+	Name      string            `json:"name" validate:"required"`
+	RuleType  string            `json:"ruleType" validate:"required"`
+	Condition CostRuleCondition `json:"condition" validate:"required"`
+	Action    CostRuleAction    `json:"action" validate:"required"`
+}
+
+// AutopilotCostPrediction represents a future cost prediction with confidence
+type AutopilotCostPrediction struct {
+	Date            time.Time `json:"date"`
+	PredictedCost   float64   `json:"predictedCost"`
+	LowerBound      float64   `json:"lowerBound"`
+	UpperBound      float64   `json:"upperBound"`
+	Confidence      float64   `json:"confidence"`
+	BudgetRemaining float64   `json:"budgetRemaining,omitempty"`
+	OverrunRisk     float64   `json:"overrunRisk"` // 0.0-1.0
+}
+
+// CostAutopilotDashboard provides comprehensive cost autopilot overview
+type CostAutopilotDashboard struct {
+	CurrentMonthCost  float64                    `json:"currentMonthCost"`
+	MonthlyBudget     float64                    `json:"monthlyBudget"`
+	BudgetUtilization float64                    `json:"budgetUtilization"`
+	ProjectedOverrun  float64                    `json:"projectedOverrun"`
+	Hotspots          []CostHotspot              `json:"hotspots"`
+	Predictions       []AutopilotCostPrediction  `json:"predictions"`
+	ActiveRules       int                        `json:"activeRules"`
+	SavingsThisMonth  float64                    `json:"savingsThisMonth"`
+	Recommendations   []CostRecommendation       `json:"recommendations"`
 }

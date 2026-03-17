@@ -242,3 +242,91 @@ func parseDateRange(s string) domain.DateRange {
 		End:   now,
 	}
 }
+
+// GetHotspots handles GET /api/public/cost/hotspots
+func (h *CostOptimizerHandler) GetHotspots(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	days := c.QueryInt("days", 30)
+
+	hotspots, err := h.costOptimizerService.GetCostHotspots(c.Context(), projectID, days)
+	if err != nil {
+		h.logger.Error("failed to get cost hotspots", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get hotspots"})
+	}
+
+	return c.JSON(fiber.Map{"hotspots": hotspots})
+}
+
+// CreateAutopilotRule handles POST /api/public/cost/autopilot/rules
+func (h *CostOptimizerHandler) CreateAutopilotRule(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.CostAutopilotRuleInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	rule, err := h.costOptimizerService.CreateAutopilotRule(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to create autopilot rule", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(rule)
+}
+
+// ListAutopilotRules handles GET /api/public/cost/autopilot/rules
+func (h *CostOptimizerHandler) ListAutopilotRules(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	rules, err := h.costOptimizerService.ListAutopilotRules(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list rules"})
+	}
+
+	return c.JSON(fiber.Map{"rules": rules})
+}
+
+// GetPredictions handles GET /api/public/cost/predictions
+func (h *CostOptimizerHandler) GetPredictions(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	days := c.QueryInt("days", 30)
+	budget := c.QueryFloat("budget", 500.0)
+
+	predictions, err := h.costOptimizerService.GetCostPredictions(c.Context(), projectID, days, budget)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get predictions"})
+	}
+
+	return c.JSON(fiber.Map{"predictions": predictions})
+}
+
+// GetAutopilotDashboard handles GET /api/public/cost/autopilot/dashboard
+func (h *CostOptimizerHandler) GetAutopilotDashboard(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	dashboard, err := h.costOptimizerService.GetAutopilotDashboard(c.Context(), projectID)
+	if err != nil {
+		h.logger.Error("failed to get autopilot dashboard", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get dashboard"})
+	}
+
+	return c.JSON(dashboard)
+}

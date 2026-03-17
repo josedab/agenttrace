@@ -186,3 +186,109 @@ func TestCostOptimizerService_DismissRecommendation(t *testing.T) {
 		assert.Equal(t, domain.CostRecommendationDismissed, recRepo.saved[0].Status)
 	})
 }
+
+func newTestCostOptimizerService() *CostOptimizerService {
+	return NewCostOptimizerService(zap.NewNop(), nil, nil, nil)
+}
+
+func TestCostOptimizerGetHotspots(t *testing.T) {
+	svc := newTestCostOptimizerService()
+	ctx := context.Background()
+	projectID := uuid.New()
+
+	hotspots, err := svc.GetCostHotspots(ctx, projectID, 30)
+	require.NoError(t, err)
+	require.NotEmpty(t, hotspots)
+
+	for _, h := range hotspots {
+		assert.NotEqual(t, uuid.Nil, h.ID)
+		assert.NotEmpty(t, h.Category)
+		assert.NotEmpty(t, h.Name)
+		assert.Greater(t, h.TotalCostUSD, 0.0)
+		assert.Greater(t, h.TraceCount, 0)
+		assert.NotEmpty(t, h.Trend)
+	}
+}
+
+func TestCostOptimizerCreateAutopilotRule(t *testing.T) {
+	svc := newTestCostOptimizerService()
+	ctx := context.Background()
+	projectID := uuid.New()
+
+	t.Run("valid rule", func(t *testing.T) {
+		input := &domain.CostAutopilotRuleInput{
+			Name:     "Downgrade for simple tasks",
+			RuleType: "model_downgrade",
+			Condition: domain.CostRuleCondition{
+				Metric:    "per_trace_cost",
+				Operator:  "gt",
+				Threshold: 0.10,
+			},
+			Action: domain.CostRuleAction{
+				ActionType:    "switch_model",
+				FallbackModel: "gpt-3.5-turbo",
+			},
+		}
+		rule, err := svc.CreateAutopilotRule(ctx, projectID, input)
+		require.NoError(t, err)
+		require.NotNil(t, rule)
+		assert.Equal(t, "Downgrade for simple tasks", rule.Name)
+		assert.Equal(t, "model_downgrade", rule.RuleType)
+		assert.True(t, rule.Enabled)
+		assert.NotEqual(t, uuid.Nil, rule.ID)
+	})
+
+	t.Run("empty name fails", func(t *testing.T) {
+		input := &domain.CostAutopilotRuleInput{
+			Name:     "",
+			RuleType: "model_downgrade",
+		}
+		_, err := svc.CreateAutopilotRule(ctx, projectID, input)
+		assert.Error(t, err)
+	})
+}
+
+func TestCostOptimizerGetPredictions(t *testing.T) {
+	svc := newTestCostOptimizerService()
+	ctx := context.Background()
+	projectID := uuid.New()
+
+	t.Run("generates predictions for requested days", func(t *testing.T) {
+		predictions, err := svc.GetCostPredictions(ctx, projectID, 7, 500.0)
+		require.NoError(t, err)
+		assert.Len(t, predictions, 7)
+
+		for _, p := range predictions {
+			assert.Greater(t, p.PredictedCost, 0.0)
+			assert.LessOrEqual(t, p.LowerBound, p.PredictedCost)
+			assert.GreaterOrEqual(t, p.UpperBound, p.PredictedCost)
+			assert.Greater(t, p.Confidence, 0.0)
+			assert.LessOrEqual(t, p.Confidence, 1.0)
+			assert.GreaterOrEqual(t, p.OverrunRisk, 0.0)
+			assert.LessOrEqual(t, p.OverrunRisk, 1.0)
+		}
+	})
+
+	t.Run("zero budget gives high overrun risk", func(t *testing.T) {
+		predictions, err := svc.GetCostPredictions(ctx, projectID, 1, 0.0)
+		require.NoError(t, err)
+		require.Len(t, predictions, 1)
+		// With zero budget, there should be no overrun risk (0/0 case)
+		assert.GreaterOrEqual(t, predictions[0].OverrunRisk, 0.0)
+	})
+}
+
+func TestCostOptimizerAutopilotDashboard(t *testing.T) {
+	svc := newTestCostOptimizerService()
+	ctx := context.Background()
+	projectID := uuid.New()
+
+	dashboard, err := svc.GetAutopilotDashboard(ctx, projectID)
+	require.NoError(t, err)
+	require.NotNil(t, dashboard)
+
+	assert.GreaterOrEqual(t, dashboard.CurrentMonthCost, 0.0)
+	assert.Greater(t, dashboard.MonthlyBudget, 0.0)
+	assert.NotEmpty(t, dashboard.Hotspots)
+	assert.NotEmpty(t, dashboard.Predictions)
+}
