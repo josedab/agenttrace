@@ -237,3 +237,195 @@ func TestGuardrailService_Evaluate(t *testing.T) {
 		assert.Empty(t, repo.violations)
 	})
 }
+
+func TestGuardrailCreateSelfHealingPolicy(t *testing.T) {
+	repo := &mockGuardrailRepo{}
+	svc := NewGuardrailService(zap.NewNop(), repo, nil)
+	ctx := context.Background()
+	projectID := uuid.New()
+
+	t.Run("valid policy with retry", func(t *testing.T) {
+		input := &domain.SelfHealingPolicyInput{
+			Name:   "Auto-retry on timeout",
+			RuleID: uuid.New(),
+			RemediationAction: domain.RemediationAction{
+				Type:       "retry",
+				MaxRetries: 3,
+			},
+			RetryPolicy: &domain.RetryPolicy{
+				MaxAttempts:       3,
+				InitialDelayMs:    100,
+				MaxDelayMs:        5000,
+				BackoffMultiplier: 2.0,
+			},
+		}
+		policy, err := svc.CreateSelfHealingPolicy(ctx, projectID, input)
+		require.NoError(t, err)
+		require.NotNil(t, policy)
+		assert.NotEqual(t, uuid.Nil, policy.ID)
+		assert.Equal(t, "Auto-retry on timeout", policy.Name)
+		assert.Equal(t, "retry", policy.RemediationAction.Type)
+		assert.True(t, policy.Enabled)
+		assert.NotNil(t, policy.RetryPolicy)
+		assert.Equal(t, 3, policy.RetryPolicy.MaxAttempts)
+	})
+
+	t.Run("policy with circuit breaker", func(t *testing.T) {
+		input := &domain.SelfHealingPolicyInput{
+			Name:   "Circuit breaker for model errors",
+			RuleID: uuid.New(),
+			RemediationAction: domain.RemediationAction{
+				Type: "circuit_break",
+			},
+			CircuitBreaker: &domain.GuardrailCircuitBreakerConfig{
+				FailureThreshold: 5,
+				SuccessThreshold: 3,
+				TimeoutSeconds:   60,
+			},
+		}
+		policy, err := svc.CreateSelfHealingPolicy(ctx, projectID, input)
+		require.NoError(t, err)
+		assert.NotNil(t, policy.CircuitBreaker)
+		assert.Equal(t, "closed", policy.CircuitBreaker.State) // default state
+		assert.Equal(t, 5, policy.CircuitBreaker.FailureThreshold)
+	})
+
+	t.Run("policy with fallback chain", func(t *testing.T) {
+		input := &domain.SelfHealingPolicyInput{
+			Name:   "Model fallback chain",
+			RuleID: uuid.New(),
+			RemediationAction: domain.RemediationAction{
+				Type: "fallback",
+			},
+			FallbackChain: []domain.FallbackStep{
+				{Order: 1, Type: "model_switch", Description: "Try GPT-3.5", FallbackModel: "gpt-3.5-turbo"},
+				{Order: 2, Type: "cache_response", Description: "Use cached response"},
+				{Order: 3, Type: "default_response", Description: "Return default error"},
+			},
+		}
+		policy, err := svc.CreateSelfHealingPolicy(ctx, projectID, input)
+		require.NoError(t, err)
+		assert.Len(t, policy.FallbackChain, 3)
+		assert.Equal(t, "gpt-3.5-turbo", policy.FallbackChain[0].FallbackModel)
+	})
+
+	t.Run("empty name fails", func(t *testing.T) {
+		input := &domain.SelfHealingPolicyInput{
+			Name:   "",
+			RuleID: uuid.New(),
+		}
+		_, err := svc.CreateSelfHealingPolicy(ctx, projectID, input)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "name is required")
+	})
+}
+
+func TestGuardrailEvaluatePipeline(t *testing.T) {
+	repo := &mockGuardrailRepo{}
+	svc := NewGuardrailService(zap.NewNop(), repo, nil)
+	ctx := context.Background()
+	projectID := uuid.New()
+
+	t.Run("passing all checks", func(t *testing.T) {
+		input := &domain.EvalPipelineInput{
+			TraceID:   "trace-001",
+			Output:    "Valid response output",
+			CostUSD:   0.05,
+			LatencyMs: 1500,
+		}
+		result, err := svc.EvaluatePipeline(ctx, projectID, input)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.True(t, result.Passed)
+		assert.Equal(t, "trace-001", result.TraceID)
+		assert.NotEmpty(t, result.Evaluations)
+		assert.GreaterOrEqual(t, result.TotalLatencyMs, int64(0))
+	})
+
+	t.Run("cost limit violation triggers fallback", func(t *testing.T) {
+		input := &domain.EvalPipelineInput{
+			TraceID: "trace-002",
+			CostUSD: 5.0, // exceeds $1.00 limit
+		}
+		result, err := svc.EvaluatePipeline(ctx, projectID, input)
+		require.NoError(t, err)
+		assert.True(t, result.Remediated)
+
+		// Find the cost evaluation
+		for _, eval := range result.Evaluations {
+			if eval.RuleType == "cost_limit" {
+				assert.False(t, eval.Passed)
+				assert.True(t, eval.Remediated)
+				assert.Contains(t, eval.ViolationMsg, "exceeds limit")
+			}
+		}
+	})
+
+	t.Run("latency budget violation", func(t *testing.T) {
+		input := &domain.EvalPipelineInput{
+			TraceID:   "trace-003",
+			LatencyMs: 60000, // exceeds 30000ms budget
+		}
+		result, err := svc.EvaluatePipeline(ctx, projectID, input)
+		require.NoError(t, err)
+		assert.False(t, result.Passed)
+
+		for _, eval := range result.Evaluations {
+			if eval.RuleType == "latency_budget" {
+				assert.False(t, eval.Passed)
+				assert.Contains(t, eval.ViolationMsg, "exceeds budget")
+			}
+		}
+	})
+
+	t.Run("output validation - oversized output", func(t *testing.T) {
+		hugeOutput := make([]byte, 200000)
+		for i := range hugeOutput {
+			hugeOutput[i] = 'x'
+		}
+		input := &domain.EvalPipelineInput{
+			TraceID: "trace-004",
+			Output:  string(hugeOutput),
+		}
+		result, err := svc.EvaluatePipeline(ctx, projectID, input)
+		require.NoError(t, err)
+
+		for _, eval := range result.Evaluations {
+			if eval.RuleType == "output_validation" {
+				assert.False(t, eval.Passed)
+			}
+		}
+	})
+
+	t.Run("minimal input - only trace ID", func(t *testing.T) {
+		input := &domain.EvalPipelineInput{
+			TraceID: "trace-005",
+		}
+		result, err := svc.EvaluatePipeline(ctx, projectID, input)
+		require.NoError(t, err)
+		assert.True(t, result.Passed)
+		assert.Empty(t, result.Evaluations) // no checks triggered
+	})
+}
+
+func TestGuardrailDashboardStats(t *testing.T) {
+	repo := &mockGuardrailRepo{}
+	svc := NewGuardrailService(zap.NewNop(), repo, nil)
+	ctx := context.Background()
+
+	stats, err := svc.GetGuardrailDashboardStats(ctx, uuid.New())
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	assert.GreaterOrEqual(t, stats.TotalPolicies, 0)
+	assert.GreaterOrEqual(t, stats.RemediationRate, 0.0)
+}
+
+func TestGuardrailAuditTrail(t *testing.T) {
+	repo := &mockGuardrailRepo{}
+	svc := NewGuardrailService(zap.NewNop(), repo, nil)
+	ctx := context.Background()
+
+	trail, err := svc.GetPolicyAuditTrail(ctx, uuid.New())
+	require.NoError(t, err)
+	assert.NotNil(t, trail)
+}

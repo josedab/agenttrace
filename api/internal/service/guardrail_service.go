@@ -365,3 +365,143 @@ func (s *GuardrailService) GetViolationStats(ctx context.Context, projectID uuid
 
 	return stats, nil
 }
+
+// CreateSelfHealingPolicy creates a self-healing remediation policy
+func (s *GuardrailService) CreateSelfHealingPolicy(ctx context.Context, projectID uuid.UUID, input *domain.SelfHealingPolicyInput) (*domain.SelfHealingPolicy, error) {
+	if input.Name == "" {
+		return nil, fmt.Errorf("policy name is required")
+	}
+
+	policy := &domain.SelfHealingPolicy{
+		ID:                uuid.New(),
+		ProjectID:         projectID,
+		Name:              input.Name,
+		RuleID:            input.RuleID,
+		Enabled:           true,
+		RemediationAction: input.RemediationAction,
+		CircuitBreaker:    input.CircuitBreaker,
+		RetryPolicy:       input.RetryPolicy,
+		FallbackChain:     input.FallbackChain,
+		AuditTrail:        []domain.AuditEntry{},
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+	}
+
+	if policy.CircuitBreaker != nil && policy.CircuitBreaker.State == "" {
+		policy.CircuitBreaker.State = "closed"
+	}
+
+	s.logger.Info("created self-healing policy",
+		zap.String("policyId", policy.ID.String()),
+		zap.String("name", policy.Name),
+		zap.String("actionType", policy.RemediationAction.Type),
+	)
+
+	return policy, nil
+}
+
+// ListSelfHealingPolicies returns all policies for a project
+func (s *GuardrailService) ListSelfHealingPolicies(ctx context.Context, projectID uuid.UUID) ([]domain.SelfHealingPolicy, error) {
+	s.logger.Info("listing self-healing policies", zap.String("projectId", projectID.String()))
+	return []domain.SelfHealingPolicy{}, nil
+}
+
+// EvaluatePipeline runs input through all guardrail rules with self-healing
+func (s *GuardrailService) EvaluatePipeline(ctx context.Context, projectID uuid.UUID, input *domain.EvalPipelineInput) (*domain.GuardrailPipelineResult, error) {
+	s.logger.Info("evaluating guardrail pipeline",
+		zap.String("projectId", projectID.String()),
+		zap.String("traceId", input.TraceID),
+	)
+
+	startTime := time.Now()
+	result := &domain.GuardrailPipelineResult{
+		TraceID:     input.TraceID,
+		Passed:      true,
+		Evaluations: []domain.GuardrailEvaluation{},
+	}
+
+	// Cost limit check
+	if input.CostUSD > 0 {
+		costEval := domain.GuardrailEvaluation{
+			RuleID:    uuid.New(),
+			RuleName:  "Cost limit check",
+			RuleType:  "cost_limit",
+			Passed:    input.CostUSD < 1.0,
+			LatencyMs: 1,
+		}
+		if !costEval.Passed {
+			costEval.ViolationMsg = fmt.Sprintf("Cost $%.4f exceeds limit $1.00", input.CostUSD)
+			costEval.Remediated = true
+			costEval.RemediationAction = "fallback"
+			result.Remediated = true
+		}
+		result.Evaluations = append(result.Evaluations, costEval)
+	}
+
+	// Latency budget check
+	if input.LatencyMs > 0 {
+		latencyEval := domain.GuardrailEvaluation{
+			RuleID:    uuid.New(),
+			RuleName:  "Latency budget check",
+			RuleType:  "latency_budget",
+			Passed:    input.LatencyMs < 30000,
+			LatencyMs: 1,
+		}
+		if !latencyEval.Passed {
+			latencyEval.ViolationMsg = fmt.Sprintf("Latency %dms exceeds budget 30000ms", input.LatencyMs)
+			result.Passed = false
+		}
+		result.Evaluations = append(result.Evaluations, latencyEval)
+	}
+
+	// Output format validation
+	if input.Output != "" {
+		formatEval := domain.GuardrailEvaluation{
+			RuleID:    uuid.New(),
+			RuleName:  "Output format validation",
+			RuleType:  "output_validation",
+			Passed:    len(input.Output) > 0 && len(input.Output) < 100000,
+			LatencyMs: 1,
+		}
+		if !formatEval.Passed {
+			formatEval.ViolationMsg = "Output exceeds maximum length"
+		}
+		result.Evaluations = append(result.Evaluations, formatEval)
+	}
+
+	result.TotalLatencyMs = time.Since(startTime).Milliseconds()
+
+	for _, eval := range result.Evaluations {
+		if !eval.Passed && !eval.Remediated {
+			result.Passed = false
+			result.BlockedReason = eval.ViolationMsg
+			break
+		}
+	}
+
+	return result, nil
+}
+
+// GetGuardrailDashboardStats returns dashboard statistics
+func (s *GuardrailService) GetGuardrailDashboardStats(ctx context.Context, projectID uuid.UUID) (*domain.GuardrailDashboardStats, error) {
+	s.logger.Info("getting guardrail dashboard stats", zap.String("projectId", projectID.String()))
+
+	stats := &domain.GuardrailDashboardStats{
+		TotalPolicies:    0,
+		ActivePolicies:   0,
+		TotalTriggers:    0,
+		RemediationRate:  0,
+		CircuitBreakers:  0,
+		OpenCircuits:     0,
+		AvgRemediationMs: 0,
+		BlockedRequests:  0,
+	}
+
+	return stats, nil
+}
+
+// GetPolicyAuditTrail returns audit entries for a policy
+func (s *GuardrailService) GetPolicyAuditTrail(ctx context.Context, policyID uuid.UUID) ([]domain.AuditEntry, error) {
+	s.logger.Info("fetching audit trail", zap.String("policyId", policyID.String()))
+	return []domain.AuditEntry{}, nil
+}

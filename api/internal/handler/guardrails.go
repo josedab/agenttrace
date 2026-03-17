@@ -232,3 +232,90 @@ func (h *GuardrailsHandler) GetViolationStats(c *fiber.Ctx) error {
 
 	return c.JSON(stats)
 }
+
+// CreateSelfHealingPolicy handles POST /api/public/guardrails/policies
+func (h *GuardrailsHandler) CreateSelfHealingPolicy(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.SelfHealingPolicyInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	policy, err := h.guardrailService.CreateSelfHealingPolicy(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to create self-healing policy", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(policy)
+}
+
+// ListSelfHealingPolicies handles GET /api/public/guardrails/policies
+func (h *GuardrailsHandler) ListSelfHealingPolicies(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	policies, err := h.guardrailService.ListSelfHealingPolicies(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list policies"})
+	}
+
+	return c.JSON(fiber.Map{"policies": policies})
+}
+
+// EvaluatePipeline handles POST /api/public/guardrails/evaluate
+func (h *GuardrailsHandler) EvaluatePipeline(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var input domain.EvalPipelineInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	result, err := h.guardrailService.EvaluatePipeline(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to evaluate pipeline", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to evaluate"})
+	}
+
+	return c.JSON(result)
+}
+
+// GetDashboardStats handles GET /api/public/guardrails/dashboard
+func (h *GuardrailsHandler) GetDashboardStats(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	stats, err := h.guardrailService.GetGuardrailDashboardStats(c.Context(), projectID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get stats"})
+	}
+
+	return c.JSON(stats)
+}
+
+// GetAuditTrail handles GET /api/public/guardrails/policies/:policyId/audit
+func (h *GuardrailsHandler) GetAuditTrail(c *fiber.Ctx) error {
+	policyID, err := uuid.Parse(c.Params("policyId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid policy ID"})
+	}
+
+	trail, err := h.guardrailService.GetPolicyAuditTrail(c.Context(), policyID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get audit trail"})
+	}
+
+	return c.JSON(fiber.Map{"auditTrail": trail})
+}

@@ -183,3 +183,129 @@ type GuardViolationStats struct {
 	ByRule         map[string]int                `json:"byRule"`
 	ByAction       map[GuardAction]int           `json:"byAction"`
 }
+
+// SelfHealingPolicy defines automatic remediation behavior
+type SelfHealingPolicy struct {
+	ID                uuid.UUID            `json:"id"`
+	ProjectID         uuid.UUID            `json:"projectId"`
+	Name              string               `json:"name"`
+	RuleID            uuid.UUID            `json:"ruleId"`
+	Enabled           bool                 `json:"enabled"`
+	RemediationAction RemediationAction    `json:"remediationAction"`
+	CircuitBreaker    *GuardrailCircuitBreakerConfig `json:"circuitBreaker,omitempty"`
+	RetryPolicy       *RetryPolicy         `json:"retryPolicy,omitempty"`
+	FallbackChain     []FallbackStep       `json:"fallbackChain,omitempty"`
+	AuditTrail        []AuditEntry         `json:"auditTrail,omitempty"`
+	TriggerCount      int                  `json:"triggerCount"`
+	LastTriggered     *time.Time           `json:"lastTriggered,omitempty"`
+	CreatedAt         time.Time            `json:"createdAt"`
+	UpdatedAt         time.Time            `json:"updatedAt"`
+}
+
+// RemediationAction defines what happens when a guardrail triggers
+type RemediationAction struct {
+	Type       string            `json:"type"`
+	MaxRetries int               `json:"maxRetries,omitempty"`
+	Parameters map[string]string `json:"parameters,omitempty"`
+}
+
+// GuardrailCircuitBreakerConfig configures circuit breaker behavior for guardrails
+type GuardrailCircuitBreakerConfig struct {
+	FailureThreshold  int        `json:"failureThreshold"`
+	SuccessThreshold  int        `json:"successThreshold"`
+	TimeoutSeconds    int        `json:"timeoutSeconds"`
+	HalfOpenRequests  int        `json:"halfOpenRequests"`
+	State             string     `json:"state"`
+	FailureCount      int        `json:"failureCount"`
+	SuccessCount      int        `json:"successCount"`
+	LastStateChange   *time.Time `json:"lastStateChange,omitempty"`
+}
+
+// RetryPolicy configures retry behavior
+type RetryPolicy struct {
+	MaxAttempts       int      `json:"maxAttempts"`
+	InitialDelayMs    int      `json:"initialDelayMs"`
+	MaxDelayMs        int      `json:"maxDelayMs"`
+	BackoffMultiplier float64  `json:"backoffMultiplier"`
+	RetryableErrors   []string `json:"retryableErrors,omitempty"`
+}
+
+// FallbackStep represents a step in the fallback chain
+type FallbackStep struct {
+	Order         int               `json:"order"`
+	Type          string            `json:"type"`
+	Description   string            `json:"description"`
+	Config        map[string]string `json:"config"`
+	FallbackModel string            `json:"fallbackModel,omitempty"`
+}
+
+// AuditEntry records a guardrail action for accountability
+type AuditEntry struct {
+	ID               uuid.UUID              `json:"id"`
+	PolicyID         uuid.UUID              `json:"policyId"`
+	Action           string                 `json:"action"`
+	TraceID          string                 `json:"traceId,omitempty"`
+	SpanID           string                 `json:"spanId,omitempty"`
+	Details          map[string]interface{} `json:"details,omitempty"`
+	OriginalInput    string                 `json:"originalInput,omitempty"`
+	RemediatedOutput string                 `json:"remediatedOutput,omitempty"`
+	DurationMs       int64                  `json:"durationMs"`
+	Success          bool                   `json:"success"`
+	Timestamp        time.Time              `json:"timestamp"`
+}
+
+// GuardrailEvaluation represents a single guardrail evaluation result
+type GuardrailEvaluation struct {
+	RuleID            uuid.UUID `json:"ruleId"`
+	RuleName          string    `json:"ruleName"`
+	RuleType          string    `json:"ruleType"`
+	Passed            bool      `json:"passed"`
+	ViolationMsg      string    `json:"violationMessage,omitempty"`
+	Remediated        bool      `json:"remediated"`
+	RemediationAction string    `json:"remediationAction,omitempty"`
+	LatencyMs         int64     `json:"latencyMs"`
+}
+
+// GuardrailPipelineResult represents the result of running all guardrails
+type GuardrailPipelineResult struct {
+	TraceID        string                `json:"traceId"`
+	Passed         bool                  `json:"passed"`
+	Evaluations    []GuardrailEvaluation `json:"evaluations"`
+	TotalLatencyMs int64                 `json:"totalLatencyMs"`
+	Remediated     bool                  `json:"remediated"`
+	BlockedReason  string                `json:"blockedReason,omitempty"`
+}
+
+// GuardrailDashboardStats provides dashboard overview
+type GuardrailDashboardStats struct {
+	TotalPolicies    int     `json:"totalPolicies"`
+	ActivePolicies   int     `json:"activePolicies"`
+	TotalTriggers    int     `json:"totalTriggers"`
+	RemediationRate  float64 `json:"remediationRate"`
+	CircuitBreakers  int     `json:"circuitBreakers"`
+	OpenCircuits     int     `json:"openCircuits"`
+	AvgRemediationMs float64 `json:"avgRemediationMs"`
+	BlockedRequests  int     `json:"blockedRequests"`
+}
+
+// SelfHealingPolicyInput represents input for creating a self-healing policy
+type SelfHealingPolicyInput struct {
+	Name              string                `json:"name" validate:"required"`
+	RuleID            uuid.UUID             `json:"ruleId" validate:"required"`
+	RemediationAction RemediationAction     `json:"remediationAction" validate:"required"`
+	CircuitBreaker    *GuardrailCircuitBreakerConfig `json:"circuitBreaker,omitempty"`
+	RetryPolicy       *RetryPolicy          `json:"retryPolicy,omitempty"`
+	FallbackChain     []FallbackStep        `json:"fallbackChain,omitempty"`
+}
+
+// EvalPipelineInput represents input for the guardrail evaluation pipeline
+type EvalPipelineInput struct {
+	TraceID   string                 `json:"traceId" validate:"required"`
+	SpanID    string                 `json:"spanId,omitempty"`
+	Input     string                 `json:"input,omitempty"`
+	Output    string                 `json:"output,omitempty"`
+	Model     string                 `json:"model,omitempty"`
+	CostUSD   float64                `json:"costUsd,omitempty"`
+	LatencyMs int64                  `json:"latencyMs,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+}
