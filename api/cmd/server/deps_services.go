@@ -161,6 +161,10 @@ type Services struct {
 	CostForecast       *service.CostForecastService
 	TraceKB            *service.TraceKBService
 	OTelBridge         *service.OTelBridgeService
+
+	// Next-Gen Features (v12)
+	Adapter   *service.AdapterService
+	ABTesting *service.ABTestingService
 }
 
 // initServices initializes all services
@@ -178,6 +182,7 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 	initV8Services(svcs, logger)
 	initV10Services(svcs, logger)
 	initV11Services(svcs, logger)
+	initV12Services(svcs, logger)
 
 	return svcs
 }
@@ -359,4 +364,10 @@ func initV11Services(svcs *Services, logger *zap.Logger) {
 	svcs.CostForecast = service.NewCostForecastService(logger, svcs.Cost, svcs.Query)
 	svcs.TraceKB = service.NewTraceKBService(logger)
 	svcs.OTelBridge = service.NewOTelBridgeService(logger, svcs.Ingestion)
+}
+
+// initV12Services initializes Next-Gen v12 feature services
+func initV12Services(svcs *Services, logger *zap.Logger) {
+	svcs.Adapter = service.NewAdapterService(logger)
+	svcs.ABTesting = service.NewABTestingService(logger)
 }

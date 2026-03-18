@@ -40,6 +40,7 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 	registerInfraRoutes(public, h)
 	registerV10Routes(public, h)
 	registerV11Routes(public, h)
+	registerV12Routes(public, h)
 
 	// Internal API routes (JWT auth)
 	internal := app.Group("/api/v1")
@@ -110,6 +111,7 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 	app.Get("/ws/collaboration/:traceId", h.CollaborationWS.HandleWebSocket())
 
 	// WebSocket routes for real-time trace streaming (require authentication)
+	app.Use("/ws/streaming", deps.AuthMiddleware.RequireAuth())
 	app.Use("/ws/streaming", h.StreamingWS.UpgradeCheck())
 	app.Get("/ws/streaming/:traceId", h.StreamingWS.HandleWebSocket())
 

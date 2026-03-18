@@ -162,6 +162,10 @@ type Handlers struct {
 	CostForecast       *handler.CostForecastHandler
 	TraceKB            *handler.TraceKBHandler
 	OTelBridge         *handler.OTelBridgeHandler
+
+	// Next-Gen Features (v12)
+	Adapter   *handler.AdapterHandler
+	ABTesting *handler.ABTestingHandler
 }
 
 // initHandlers initializes all handlers
@@ -188,6 +192,7 @@ func initHandlers(
 	initV8Handlers(h, logger, svcs)
 	initV10Handlers(h, logger, svcs)
 	initV11Handlers(h, logger, svcs)
+	initV12Handlers(h, logger, svcs)
 
 	return h
 }
@@ -372,4 +377,10 @@ func initV11Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
 	h.CostForecast = handler.NewCostForecastHandler(svcs.CostForecast, logger)
 	h.TraceKB = handler.NewTraceKBHandler(svcs.TraceKB, logger)
 	h.OTelBridge = handler.NewOTelBridgeHandler(svcs.OTelBridge, logger)
+}
+
+// initV12Handlers initializes Next-Gen v12 feature handlers
+func initV12Handlers(h *Handlers, logger *zap.Logger, svcs *Services) {
+	h.Adapter = handler.NewAdapterHandler(svcs.Adapter, logger)
+	h.ABTesting = handler.NewABTestingHandler(svcs.ABTesting, logger)
 }

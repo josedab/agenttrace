@@ -75,4 +75,14 @@ func registerV11Routes(public fiber.Router, h *Handlers) {
 	public.Delete("/otel-bridge/destinations/:destId", h.OTelBridge.RemoveDestination)
 	public.Post("/otel-bridge/import", h.OTelBridge.ImportSpans)
 	public.Get("/otel-bridge/stats", h.OTelBridge.GetStats)
+
+	// Prompt CI Gate - extended endpoints
+	public.Put("/prompt-ci/gates/:configId", h.PromptCI.UpdateGateConfig)
+	public.Get("/prompt-ci/history", h.PromptCI.GetRegressionHistory)
+	public.Get("/prompt-ci/stats", h.PromptCI.GetDashboardStats)
+
+	// Real-time Agent Replay - unified timeline
+	public.Get("/replay-sessions/:sessionId/unified-timeline", h.ReplaySession.GetUnifiedTimeline)
+	public.Get("/replay-sessions/:sessionId/snapshot", h.ReplaySession.GetSnapshot)
+	public.Post("/replay-sessions/:sessionId/annotations", h.ReplaySession.AddReplayAnnotation)
 }

@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -142,6 +143,9 @@ func NewStreamingWSHandler(
 func (h *StreamingWSHandler) UpgradeCheck() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
+			if userID, ok := middleware.GetUserID(c); ok {
+				c.Locals("wsUserID", userID)
+			}
 			return c.Next()
 		}
 		return fiber.ErrUpgradeRequired
