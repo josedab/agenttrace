@@ -23,6 +23,13 @@ inputs:
     description: 'Post results as a PR comment'
     required: false
     default: 'true'
+  severity-threshold:
+    description: 'Minimum severity to block: none, minor, major, critical'
+    required: false
+    default: 'major'
+  gate-config-id:
+    description: 'Prompt CI gate config ID for threshold-based evaluation'
+    required: false
 
 outputs:
   passed:
@@ -89,6 +96,61 @@ runs:
         echo ""
         echo "📊 Detailed Results:"
         echo "$BODY" | jq -r '.results[] | "  \(if .passed then "✅" else "❌" end) \(.testName // .testId): \(.failedMetrics | if . then (. | join(", ")) else "all metrics passed" end)"'
+
+    - name: Run prompt CI gate
+      if: ${{ inputs.gate-config-id != '' }}
+      id: prompt-ci-gate
+      shell: bash
+      env:
+        AGENTTRACE_API_KEY: ${{ inputs.api-key }}
+        AGENTTRACE_API_URL: ${{ inputs.api-url }}
+        GATE_CONFIG_ID: ${{ inputs.gate-config-id }}
+        SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+      run: |
+        set -euo pipefail
+
+        echo "🔒 Running prompt CI gate evaluation..."
+
+        BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-unknown}}"
+        COMMIT_SHA="${GITHUB_SHA:-unknown}"
+        PR_NUMBER=""
+        if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+          PR_NUMBER=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)
+        fi
+
+        PAYLOAD="{\"gateConfigId\": \"${GATE_CONFIG_ID}\", \"branch\": \"${BRANCH}\", \"commitSha\": \"${COMMIT_SHA}\", \"scores\": {}}"
+        if [ -n "$PR_NUMBER" ]; then
+          PAYLOAD=$(echo "$PAYLOAD" | jq --argjson pr "$PR_NUMBER" '. + {prNumber: $pr}')
+        fi
+
+        RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -X POST "${AGENTTRACE_API_URL}/api/public/prompt-ci/gates/evaluate" \
+          -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD")
+
+        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+        BODY=$(echo "$RESPONSE" | sed '$d')
+
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "::error::Prompt CI gate API returned HTTP $HTTP_CODE"
+          echo "$BODY"
+          exit 1
+        fi
+
+        GATE_PASSED=$(echo "$BODY" | jq -r '.passed')
+        GATE_SEVERITY=$(echo "$BODY" | jq -r '.overallSeverity')
+        GATE_SUMMARY=$(echo "$BODY" | jq -r '.summary')
+
+        echo "prompt-ci-passed=$GATE_PASSED" >> "$GITHUB_OUTPUT"
+        echo "prompt-ci-severity=$GATE_SEVERITY" >> "$GITHUB_OUTPUT"
+
+        if [ "$GATE_PASSED" = "true" ]; then
+          echo "✅ Prompt CI gate passed: $GATE_SUMMARY"
+        else
+          echo "❌ Prompt CI gate failed: $GATE_SUMMARY"
+          echo "   Severity: $GATE_SEVERITY (threshold: $SEVERITY_THRESHOLD)"
+        fi
 
     - name: Comment on PR
       if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
