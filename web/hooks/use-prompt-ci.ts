@@ -70,3 +70,69 @@ export function usePromptCIRuns() {
       api.promptCI.listRuns() as Promise<PromptCIRun[]>,
   });
 }
+
+export interface GateConfig {
+  id: string;
+  name: string;
+  metrics: string[];
+  thresholds: Record<string, number>;
+  enforceMode: "block" | "warn" | "log";
+  createdAt: string;
+}
+
+export interface RegressionEntry {
+  id: string;
+  runId: string;
+  metric: string;
+  previousValue: number;
+  currentValue: number;
+  detectedAt: string;
+}
+
+export interface PromptCIDashboardStats {
+  totalBaselines: number;
+  totalRuns: number;
+  passRate: number;
+  recentRegressions: number;
+}
+
+export function usePromptCIGateConfigs() {
+  return useQuery({
+    queryKey: ["prompt-ci-gate-configs"],
+    queryFn: () => api.promptCI.listGateConfigs() as Promise<GateConfig[]>,
+  });
+}
+
+export function useCreateGateConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; metrics: string[]; thresholds: Record<string, number>; enforceMode: string }) =>
+      api.promptCI.createGateConfig(data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["prompt-ci-gate-configs"] }),
+  });
+}
+
+export function useUpdateGateConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<GateConfig> }) =>
+      api.promptCI.updateGateConfig(id, data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["prompt-ci-gate-configs"] }),
+  });
+}
+
+export function useRegressionHistory() {
+  return useQuery({
+    queryKey: ["prompt-ci-regressions"],
+    queryFn: () => api.promptCI.getRegressionHistory() as Promise<RegressionEntry[]>,
+  });
+}
+
+export function usePromptCIDashboardStats() {
+  return useQuery({
+    queryKey: ["prompt-ci-dashboard"],
+    queryFn: () => api.promptCI.getDashboardStats() as Promise<PromptCIDashboardStats>,
+  });
+}

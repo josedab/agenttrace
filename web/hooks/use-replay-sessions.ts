@@ -145,3 +145,54 @@ export function useCompleteReplaySession(sessionId: string) {
     },
   });
 }
+
+export interface UnifiedTimelineEvent {
+  id: string;
+  type: string;
+  timestamp: number;
+  data: Record<string, unknown>;
+  spanId?: string;
+  annotations: { id: string; content: string; createdAt: string }[];
+}
+
+export interface UnifiedTimeline {
+  sessionId: string;
+  events: UnifiedTimelineEvent[];
+  totalDuration: number;
+}
+
+export interface ReplaySnapshot {
+  sessionId: string;
+  eventIndex: number;
+  state: Record<string, unknown>;
+  timestamp: string;
+}
+
+export function useUnifiedTimeline(sessionId: string) {
+  return useQuery({
+    queryKey: ["replay-unified-timeline", sessionId],
+    queryFn: () =>
+      api.replaySessions.getUnifiedTimeline(sessionId) as Promise<UnifiedTimeline>,
+    enabled: !!sessionId,
+  });
+}
+
+export function useReplaySnapshot(sessionId: string, eventIndex: number) {
+  return useQuery({
+    queryKey: ["replay-snapshot", sessionId, eventIndex],
+    queryFn: () =>
+      api.replaySessions.getSnapshot(sessionId, eventIndex) as Promise<ReplaySnapshot>,
+    enabled: !!sessionId && eventIndex >= 0,
+  });
+}
+
+export function useAddReplayAnnotation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, data }: { sessionId: string; data: { eventId: string; content: string } }) =>
+      api.replaySessions.addAnnotation(sessionId, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["replay-unified-timeline", variables.sessionId] });
+    },
+  });
+}
