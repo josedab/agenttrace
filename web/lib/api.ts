@@ -652,10 +652,21 @@ export const api = {
   anomaly: {
     getDashboard: () =>
       fetchWithAuth<any>("/api/public/anomaly/dashboard"),
+    list: () => fetchWithAuth<any>("/api/public/anomaly/anomalies"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/anomaly/anomalies/${id}`),
+    detect: (data: any) => fetchWithAuth<any>("/api/public/anomaly/detect", { method: "POST", body: JSON.stringify(data) }),
+    acknowledge: (id: string) => fetchWithAuth<any>(`/api/public/anomaly/anomalies/${id}/acknowledge`, { method: "POST" }),
     getRootCause: (anomalyId: string) =>
       fetchWithAuth<any>(`/api/public/anomaly/anomalies/${anomalyId}/root-cause`),
+    listChannels: () => fetchWithAuth<any>("/api/public/anomaly/channels"),
     createChannel: (data: { name: string; type: string; config: any }) =>
       fetchWithAuth<any>("/api/public/anomaly/channels", { method: "POST", body: JSON.stringify(data) }),
+    testChannel: (id: string) => fetchWithAuth<any>(`/api/public/anomaly/channels/${id}/test`, { method: "POST" }),
+    listCorrelationRules: () => fetchWithAuth<any>("/api/public/anomaly/correlation-rules"),
+    createCorrelationRule: (data: any) => fetchWithAuth<any>("/api/public/anomaly/correlation-rules", { method: "POST", body: JSON.stringify(data) }),
+    listInvestigations: () => fetchWithAuth<any>("/api/public/anomaly/investigations"),
+    createInvestigation: (data: any) => fetchWithAuth<any>("/api/public/anomaly/investigations", { method: "POST", body: JSON.stringify(data) }),
+    updateInvestigation: (id: string, data: any) => fetchWithAuth<any>(`/api/public/anomaly/investigations/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   },
 
   // Cost Optimizer
@@ -688,6 +699,16 @@ export const api = {
       fetchWithAuth<any>("/api/public/guardrails/playbooks", { method: "POST", body: JSON.stringify(data) }),
     listViolations: () =>
       fetchWithAuth<any>("/api/public/guardrails/violations"),
+    createPolicy: (data: any) =>
+      fetchWithAuth<any>("/api/public/guardrails/policies", { method: "POST", body: JSON.stringify(data) }),
+    listPolicies: () =>
+      fetchWithAuth<{ policies: any[] }>("/api/public/guardrails/policies"),
+    evaluatePipeline: (data: any) =>
+      fetchWithAuth<any>("/api/public/guardrails/evaluate", { method: "POST", body: JSON.stringify(data) }),
+    getDashboardStats: () =>
+      fetchWithAuth<any>("/api/public/guardrails/dashboard"),
+    getAuditTrail: (policyId: string) =>
+      fetchWithAuth<{ auditTrail: any[] }>(`/api/public/guardrails/policies/${policyId}/audit`),
   },
 
   // Benchmarks
@@ -1098,6 +1119,9 @@ export const api = {
     control: (id: string, cmd: any) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/control`, { method: "POST", body: JSON.stringify(cmd) }),
     getFileState: (id: string, eventIndex: number) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/files?eventIndex=${eventIndex}`),
     complete: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/complete`, { method: "POST" }),
+    getUnifiedTimeline: (id: string) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/unified-timeline`),
+    getSnapshot: (id: string, eventIndex: number) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/snapshot?eventIndex=${eventIndex}`),
+    addAnnotation: (id: string, data: { eventId: string; content: string }) => fetchWithAuth<any>(`/api/public/replay-sessions/${id}/annotations`, { method: "POST", body: JSON.stringify(data) }),
   },
 
   // Cost Guardrails
@@ -1116,6 +1140,8 @@ export const api = {
     analyze: (data: any) => fetchWithAuth<any>("/api/public/multi-agent/analyze", { method: "POST", body: JSON.stringify(data) }),
     getSession: (id: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${id}`),
     getTopologyGraph: (id: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${id}/topology`),
+    getTopologyAnalytics: (sessionId: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${sessionId}/topology/analytics`),
+    getDelegationChains: (sessionId: string) => fetchWithAuth<any>(`/api/public/multi-agent/sessions/${sessionId}/delegation-chains`),
   },
 
   // Prompt CI
@@ -1127,7 +1153,10 @@ export const api = {
     listRuns: () => fetchWithAuth<any>("/api/public/prompt-ci/runs"),
     createGateConfig: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/gates", { method: "POST", body: JSON.stringify(data) }),
     listGateConfigs: () => fetchWithAuth<any>("/api/public/prompt-ci/gates"),
+    updateGateConfig: (id: string, data: any) => fetchWithAuth<any>(`/api/public/prompt-ci/gates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     evaluateGate: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/gates/evaluate", { method: "POST", body: JSON.stringify(data) }),
+    getRegressionHistory: () => fetchWithAuth<any>("/api/public/prompt-ci/regressions"),
+    getDashboardStats: () => fetchWithAuth<any>("/api/public/prompt-ci/dashboard"),
   },
 
   // Agent Benchmarks
@@ -1275,6 +1304,12 @@ export const api = {
   // Agent Protocol Adapters
   adapters: {
     list: () => fetchWithAuth<any>("/api/public/adapters"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/adapters/${id}`),
+    register: (data: any) => fetchWithAuth<any>("/api/public/adapters", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: any) => fetchWithAuth<any>(`/api/public/adapters/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) => fetchWithAuth<any>(`/api/public/adapters/${id}`, { method: "DELETE" }),
+    test: (id: string) => fetchWithAuth<any>(`/api/public/adapters/${id}/test`, { method: "POST" }),
+    templates: () => fetchWithAuth<any>("/api/public/adapters/templates"),
     install: (data: any) => fetchWithAuth<any>("/api/public/adapters", { method: "POST", body: JSON.stringify(data) }),
     ingestEvent: (data: any) => fetchWithAuth<any>("/api/public/adapters/events", { method: "POST", body: JSON.stringify(data) }),
   },
@@ -1299,6 +1334,50 @@ export const api = {
     create: (data?: any) => fetchWithAuth<any>("/api/public/cloud-sandbox", { method: "POST", body: JSON.stringify(data || { preloadData: true }) }),
     get: (sessionId: string) => fetchWithAuth<any>(`/api/public/cloud-sandbox/${sessionId}`),
     extend: (sessionId: string) => fetchWithAuth<any>(`/api/public/cloud-sandbox/${sessionId}/extend`, { method: "POST" }),
+  },
+
+  // Cost Autopilot (v12)
+  costAutopilot: {
+    getHotspots: (days: number) => fetchWithAuth<any>(`/api/public/cost/hotspots?days=${days}`),
+    getRules: () => fetchWithAuth<any>("/api/public/cost/autopilot/rules"),
+    createRule: (data: any) => fetchWithAuth<any>("/api/public/cost/autopilot/rules", { method: "POST", body: JSON.stringify(data) }),
+    getPredictions: (days: number, budget: number) => fetchWithAuth<any>(`/api/public/cost/predictions?days=${days}&budget=${budget}`),
+    getDashboard: () => fetchWithAuth<any>("/api/public/cost/autopilot/dashboard"),
+  },
+
+  // Trace Reviews (v12)
+  traceReviews: {
+    list: () => fetchWithAuth<any>("/api/public/trace-reviews"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/trace-reviews/${id}`),
+    create: (data: any) => fetchWithAuth<any>("/api/public/trace-reviews", { method: "POST", body: JSON.stringify(data) }),
+    approve: (id: string) => fetchWithAuth<any>(`/api/public/trace-reviews/${id}/approve`, { method: "POST" }),
+    listComments: (reviewId: string) => fetchWithAuth<any>(`/api/public/trace-reviews/${reviewId}/comments`),
+    addComment: (reviewId: string, data: any) => fetchWithAuth<any>(`/api/public/trace-reviews/${reviewId}/comments`, { method: "POST", body: JSON.stringify(data) }),
+    listQueues: () => fetchWithAuth<any>("/api/public/trace-reviews/queues"),
+    createQueue: (data: any) => fetchWithAuth<any>("/api/public/trace-reviews/queues", { method: "POST", body: JSON.stringify(data) }),
+    listNotificationIntegrations: () => fetchWithAuth<any>("/api/public/trace-reviews/notifications"),
+    addNotificationIntegration: (data: any) => fetchWithAuth<any>("/api/public/trace-reviews/notifications", { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // A/B Testing (v12)
+  abTests: {
+    list: () => fetchWithAuth<any>("/api/public/ab-tests"),
+    get: (id: string) => fetchWithAuth<any>(`/api/public/ab-tests/${id}`),
+    create: (data: any) => fetchWithAuth<any>("/api/public/ab-tests", { method: "POST", body: JSON.stringify(data) }),
+    start: (id: string) => fetchWithAuth<any>(`/api/public/ab-tests/${id}/start`, { method: "POST" }),
+    pause: (id: string) => fetchWithAuth<any>(`/api/public/ab-tests/${id}/pause`, { method: "POST" }),
+    stop: (id: string) => fetchWithAuth<any>(`/api/public/ab-tests/${id}/stop`, { method: "POST" }),
+    assignVariant: (data: any) => fetchWithAuth<any>("/api/public/ab-tests/assign", { method: "POST", body: JSON.stringify(data) }),
+    recordResult: (data: any) => fetchWithAuth<any>("/api/public/ab-tests/results", { method: "POST", body: JSON.stringify(data) }),
+    getStatistics: (testId: string) => fetchWithAuth<any>(`/api/public/ab-tests/${testId}/statistics`),
+    selectWinner: (testId: string, data: any) => fetchWithAuth<any>(`/api/public/ab-tests/${testId}/winner`, { method: "POST", body: JSON.stringify(data) }),
+    startRollout: (testId: string, data: any) => fetchWithAuth<any>(`/api/public/ab-tests/${testId}/rollout`, { method: "POST", body: JSON.stringify(data) }),
+  },
+
+  // Federated Analytics (v12)
+  federatedAnalytics: {
+    getDashboard: () => fetchWithAuth<any>("/api/public/federated-analytics/dashboard"),
+    query: (data: any) => fetchWithAuth<any>("/api/public/federated-analytics/query", { method: "POST", body: JSON.stringify(data) }),
   },
 };
 export interface User {
