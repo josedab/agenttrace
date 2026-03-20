@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -89,10 +91,13 @@ func (m *TenantMiddleware) MeterTraceIngestion() fiber.Handler {
 				return nil
 			}
 
-			// Record asynchronously to avoid slowing down ingestion
+			// Record asynchronously with a dedicated context and timeout
+			// to avoid goroutine leaks if the service is slow or unresponsive
 			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
 				if meterErr := m.tenantService.RecordUsage(
-					c.Context(), tenantID, domain.UsageEventTraceIngested, 1,
+					ctx, tenantID, domain.UsageEventTraceIngested, 1,
 				); meterErr != nil {
 					m.logger.Warn("failed to meter trace ingestion",
 						zap.Error(meterErr),
