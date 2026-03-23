@@ -37,6 +37,8 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Quick Start
 
+> **Fastest Path**: If you have Go, Node.js, Docker, and Make installed, run `make doctor` to verify prerequisites, then `make setup` to set up everything in one command. Once complete, run `make dev` to start the development environment.
+
 1. **Fork the repository** on GitHub
 
 2. **Clone your fork**:
@@ -85,6 +87,20 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ## Development Setup
 
+### Development with Hot Reload
+
+For a faster feedback loop during backend development, use `make dev-hot` which integrates [air](https://github.com/air-verse/air) for automatic Go rebuilds on file changes:
+
+```bash
+# Install air (one-time)
+go install github.com/air-verse/air@latest
+
+# Start with hot-reload (API auto-rebuilds on .go file changes)
+make dev-hot
+```
+
+This starts both the Go API server (with hot-reload) and the Next.js dev server. The frontend already supports hot-reload via Next.js Fast Refresh.
+
 ### Backend (Go)
 
 ```bash
@@ -127,7 +143,7 @@ npm test
 npm run lint
 
 # Type check
-npm run typecheck
+npm run type-check
 
 # Build for production
 npm run build
