@@ -79,7 +79,7 @@ func (h *PredictiveCostHandler) RequestApproval(c *fiber.Ctx) error {
 
 	approval, err := h.service.RequestApproval(c.Context(), projectID, predictionID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(approval)

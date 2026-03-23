@@ -200,7 +200,7 @@ func (h *PluginHandler) InstallAdapter(c *fiber.Ctx) error {
 
 	adapter, err := h.service.InstallAdapter(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 	return c.Status(fiber.StatusCreated).JSON(adapter)
 }
@@ -218,7 +218,7 @@ func (h *PluginHandler) IngestAdapterEvent(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.IngestAdapterEvent(c.Context(), projectID, &input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"status": "accepted"})
 }

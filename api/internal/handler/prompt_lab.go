@@ -71,7 +71,7 @@ func (h *PromptLabHandler) StartExperiment(c *fiber.Ctx) error {
 	}
 	exp, err := h.promptLabService.StartExperiment(c.Context(), id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 	return c.JSON(exp)
 }
@@ -83,7 +83,7 @@ func (h *PromptLabHandler) CompleteExperiment(c *fiber.Ctx) error {
 	}
 	exp, err := h.promptLabService.CompleteExperiment(c.Context(), id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 	return c.JSON(exp)
 }

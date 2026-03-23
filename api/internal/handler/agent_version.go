@@ -100,7 +100,7 @@ func (h *AgentVersionHandler) GetActive(c *fiber.Ctx) error {
 
 	version, err := h.service.GetActiveVersion(c.Context(), projectID, agentName)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(version)
@@ -120,7 +120,7 @@ func (h *AgentVersionHandler) Rollback(c *fiber.Ctx) error {
 
 	version, err := h.service.Rollback(c.Context(), projectID, versionID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(version)
@@ -147,7 +147,7 @@ func (h *AgentVersionHandler) DiffVersions(c *fiber.Ctx) error {
 
 	diff, err := h.service.DiffVersions(c.Context(), input.VersionA, input.VersionB)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(diff)

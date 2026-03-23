@@ -39,7 +39,7 @@ func (h *TrainingPipelineHandler) CreateDataset(c *fiber.Ctx) error {
 	dataset, err := h.service.CreateDataset(c.Context(), projectID, input)
 	if err != nil {
 		h.logger.Error("failed to create training dataset", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(dataset)
@@ -78,7 +78,7 @@ func (h *TrainingPipelineHandler) ExportDataset(c *fiber.Ctx) error {
 	export, err := h.service.ExportDataset(c.Context(), datasetID, format)
 	if err != nil {
 		h.logger.Error("failed to export dataset", zap.Error(err))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(export)

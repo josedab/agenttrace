@@ -91,7 +91,7 @@ func (h *CanaryDeploymentHandler) Promote(c *fiber.Ctx) error {
 
 	dep, err := h.service.Promote(c.Context(), depID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(dep)
@@ -106,7 +106,7 @@ func (h *CanaryDeploymentHandler) Rollback(c *fiber.Ctx) error {
 
 	dep, err := h.service.Rollback(c.Context(), depID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(dep)
@@ -121,7 +121,7 @@ func (h *CanaryDeploymentHandler) GetMetrics(c *fiber.Ctx) error {
 
 	metrics, err := h.service.GetMetrics(c.Context(), depID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(metrics)

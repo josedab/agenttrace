@@ -92,7 +92,7 @@ func (h *TestGeneratorHandler) DeleteSuite(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteSuite(c.Context(), suiteID); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(fiber.Map{"status": "deleted"})
@@ -132,7 +132,7 @@ func (h *TestGeneratorHandler) ListTestCases(c *fiber.Ctx) error {
 
 	cases, err := h.service.ListTestCases(c.Context(), suiteID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	if cases == nil {
@@ -151,7 +151,7 @@ func (h *TestGeneratorHandler) RunSuite(c *fiber.Ctx) error {
 
 	result, err := h.service.RunSuite(c.Context(), suiteID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(result)
@@ -197,7 +197,7 @@ func (h *TestGeneratorHandler) CreateSnapshot(c *fiber.Ctx) error {
 
 	snapshot, err := h.service.CreateSnapshot(c.Context(), suiteID, input.Name)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(snapshot)

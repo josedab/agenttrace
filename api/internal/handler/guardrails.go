@@ -248,7 +248,7 @@ func (h *GuardrailsHandler) CreateSelfHealingPolicy(c *fiber.Ctx) error {
 	policy, err := h.guardrailService.CreateSelfHealingPolicy(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create self-healing policy", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(policy)

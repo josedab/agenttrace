@@ -32,7 +32,7 @@ func (h *AutonomyHandler) SetAutonomy(c *fiber.Ctx) error {
 	config, err := h.service.SetAutonomy(c.Context(), projectID, input)
 	if err != nil {
 		h.logger.Error("failed to set autonomy", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(config)
@@ -47,7 +47,7 @@ func (h *AutonomyHandler) GetConfig(c *fiber.Ctx) error {
 	agentName := c.Params("agentName")
 	config, err := h.service.GetConfig(c.Context(), projectID, agentName)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(config)

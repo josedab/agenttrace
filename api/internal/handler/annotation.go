@@ -90,7 +90,7 @@ func (h *AnnotationHandler) Reply(c *fiber.Ctx) error {
 
 	annotation, err := h.service.AddReply(c.Context(), annotationID, userID, userName, &input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(annotation)
@@ -105,7 +105,7 @@ func (h *AnnotationHandler) Resolve(c *fiber.Ctx) error {
 
 	annotation, err := h.service.ResolveAnnotation(c.Context(), annotationID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(annotation)

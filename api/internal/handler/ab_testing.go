@@ -39,7 +39,7 @@ func (h *ABTestingHandler) CreateTest(c *fiber.Ctx) error {
 	test, err := h.service.CreateTest(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create A/B test", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(test)
@@ -96,7 +96,7 @@ func (h *ABTestingHandler) StartTest(c *fiber.Ctx) error {
 	test, err := h.service.StartTest(c.Context(), testID)
 	if err != nil {
 		h.logger.Error("failed to start A/B test", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(test)
@@ -117,7 +117,7 @@ func (h *ABTestingHandler) PauseTest(c *fiber.Ctx) error {
 	test, err := h.service.PauseTest(c.Context(), testID)
 	if err != nil {
 		h.logger.Error("failed to pause A/B test", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(test)
@@ -138,7 +138,7 @@ func (h *ABTestingHandler) StopTest(c *fiber.Ctx) error {
 	test, err := h.service.StopTest(c.Context(), testID)
 	if err != nil {
 		h.logger.Error("failed to stop A/B test", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(test)
@@ -166,7 +166,7 @@ func (h *ABTestingHandler) AssignVariant(c *fiber.Ctx) error {
 	assignment, err := h.service.AssignVariant(c.Context(), testID, body.AssignmentKey)
 	if err != nil {
 		h.logger.Error("failed to assign variant", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(assignment)
@@ -191,7 +191,7 @@ func (h *ABTestingHandler) RecordResult(c *fiber.Ctx) error {
 
 	if err := h.service.RecordResult(c.Context(), testID, &input); err != nil {
 		h.logger.Error("failed to record result", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"status": "recorded"})
@@ -212,7 +212,7 @@ func (h *ABTestingHandler) GetStatistics(c *fiber.Ctx) error {
 	stats, err := h.service.GetStatistics(c.Context(), testID)
 	if err != nil {
 		h.logger.Error("failed to get statistics", zap.Error(err))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(stats)
@@ -240,7 +240,7 @@ func (h *ABTestingHandler) SelectWinner(c *fiber.Ctx) error {
 	test, err := h.service.SelectWinner(c.Context(), testID, body.VariantID)
 	if err != nil {
 		h.logger.Error("failed to select winner", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(test)
@@ -261,7 +261,7 @@ func (h *ABTestingHandler) StartGradualRollout(c *fiber.Ctx) error {
 	test, err := h.service.StartGradualRollout(c.Context(), testID)
 	if err != nil {
 		h.logger.Error("failed to start gradual rollout", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(test)

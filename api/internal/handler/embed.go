@@ -73,7 +73,7 @@ func (h *EmbedHandler) UpdateConfig(c *fiber.Ctx) error {
 
 	config, err := h.service.UpdateConfig(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(config)

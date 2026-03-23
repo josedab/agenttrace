@@ -45,7 +45,7 @@ func (h *WarehouseSyncHandler) CreateConnection(c *fiber.Ctx) error {
 	conn, err := h.service.CreateConnection(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create warehouse connection", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(conn)
@@ -94,7 +94,7 @@ func (h *WarehouseSyncHandler) DeleteConnection(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteConnection(c.Context(), connID); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(fiber.Map{"status": "deleted"})
@@ -109,7 +109,7 @@ func (h *WarehouseSyncHandler) TriggerSync(c *fiber.Ctx) error {
 
 	op, err := h.service.TriggerSync(c.Context(), connID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(op)
@@ -144,7 +144,7 @@ func (h *WarehouseSyncHandler) GetSchemaMapping(c *fiber.Ctx) error {
 
 	mapping, err := h.service.GetSchemaMapping(c.Context(), connID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(fiber.Map{"mapping": mapping})

@@ -204,7 +204,7 @@ func (h *ReplaySessionHandler) ControlPlayback(c *fiber.Ctx) error {
 
 	state, err := h.service.ControlPlayback(c.Context(), sessionID, &cmd)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 	return c.JSON(state)
 }
@@ -290,7 +290,7 @@ func (h *ReplaySessionHandler) AddReplayAnnotation(c *fiber.Ctx) error {
 	annotation, err := h.service.AddAnnotation(c.Context(), sessionID, &input)
 	if err != nil {
 		h.logger.Error("failed to add annotation", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(annotation)

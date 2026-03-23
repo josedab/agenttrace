@@ -91,7 +91,7 @@ func (h *SSOHandler) InitiateLogin(c *fiber.Ctx) error {
 
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to initiate SSO login: " + err.Error(),
+			Error: "Failed to initiate SSO login", // Error logged via middleware
 		})
 	}
 
@@ -127,7 +127,7 @@ func (h *SSOHandler) HandleCallback(c *fiber.Ctx) error {
 	session, user, err := h.ssoService.HandleOIDCCallback(c.Context(), code, state)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "SSO authentication failed: " + err.Error(),
+			Error: "SSO authentication failed", // Error logged via middleware
 		})
 	}
 
@@ -169,7 +169,7 @@ func (h *SSOHandler) HandleSAMLCallback(c *fiber.Ctx) error {
 	session, user, err := h.ssoService.HandleSAMLCallback(c.Context(), samlResponse, relayState)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "SAML authentication failed: " + err.Error(),
+			Error: "SAML authentication failed", // Error logged via middleware
 		})
 	}
 
@@ -214,7 +214,7 @@ func (h *SSOHandler) Logout(c *fiber.Ctx) error {
 
 	if err := h.ssoService.Logout(c.Context(), sessionID); err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to logout: " + err.Error(),
+			Error: "Failed to logout", // Error logged via middleware
 		})
 	}
 
@@ -284,7 +284,7 @@ func (h *SSOHandler) ConfigureSSO(c *fiber.Ctx) error {
 	config, err := h.ssoService.ConfigureSSO(c.Context(), orgID, &input)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to configure SSO: " + err.Error(),
+			Error: "Failed to configure SSO", // Error logged via middleware
 		})
 	}
 
@@ -347,7 +347,7 @@ func (h *SSOHandler) EnableSSO(c *fiber.Ctx) error {
 
 	if err := h.ssoService.EnableSSO(c.Context(), orgID, true); err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to enable SSO: " + err.Error(),
+			Error: "Failed to enable SSO", // Error logged via middleware
 		})
 	}
 
@@ -377,7 +377,7 @@ func (h *SSOHandler) DisableSSO(c *fiber.Ctx) error {
 
 	if err := h.ssoService.EnableSSO(c.Context(), orgID, false); err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to disable SSO: " + err.Error(),
+			Error: "Failed to disable SSO", // Error logged via middleware
 		})
 	}
 

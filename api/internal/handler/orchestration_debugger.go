@@ -92,7 +92,7 @@ func (h *OrchestrationDebuggerHandler) ExecuteCommand(c *fiber.Ctx) error {
 
 	session, err := h.service.ExecuteCommand(c.Context(), sessionID, &cmd)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(session)
@@ -117,7 +117,7 @@ func (h *OrchestrationDebuggerHandler) AddBreakpoint(c *fiber.Ctx) error {
 
 	session, err := h.service.AddBreakpoint(c.Context(), sessionID, &bp)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(session)

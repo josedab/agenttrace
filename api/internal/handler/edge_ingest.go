@@ -72,7 +72,7 @@ func (h *EdgeIngestHandler) IngestBatch(c *fiber.Ctx) error {
 	result, err := h.service.IngestBatch(c.Context(), projectID, &batch)
 	if err != nil {
 		h.logger.Error("failed to ingest edge batch", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(result)
@@ -107,7 +107,7 @@ func (h *EdgeIngestHandler) GetDeviceStatus(c *fiber.Ctx) error {
 
 	device, err := h.service.GetDeviceStatus(c.Context(), deviceID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(device)
@@ -127,7 +127,7 @@ func (h *EdgeIngestHandler) SyncOfflineData(c *fiber.Ctx) error {
 
 	results, err := h.service.SyncOfflineData(c.Context(), projectID, &syncReq)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(fiber.Map{"results": results, "batchesSynced": len(results)})

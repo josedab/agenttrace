@@ -103,7 +103,7 @@ func (h *GatewayHandler) UpdateConfig(c *fiber.Ctx) error {
 
 	config, err := h.service.UpdateConfig(c.Context(), configID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(config)
@@ -117,7 +117,7 @@ func (h *GatewayHandler) DeleteConfig(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteConfig(c.Context(), configID); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(fiber.Map{"status": "deleted"})
@@ -142,7 +142,7 @@ func (h *GatewayHandler) ProxyRequest(c *fiber.Ctx) error {
 	response, err := h.service.ProxyRequest(c.Context(), configID, &req)
 	if err != nil {
 		h.logger.Error("gateway proxy failed", zap.Error(err))
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "Bad gateway"})
 	}
 
 	return c.JSON(response)
@@ -201,7 +201,7 @@ func (h *GatewayHandler) DeleteRoutingRule(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.DeleteRoutingRule(c.Context(), configID, ruleID); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(fiber.Map{"status": "deleted"})

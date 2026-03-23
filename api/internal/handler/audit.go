@@ -127,7 +127,7 @@ func (h *AuditHandler) ListAuditLogs(c *fiber.Ctx) error {
 	result, err := h.auditService.ListAuditLogs(c.Context(), filter)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to list audit logs: " + err.Error(),
+			Error: "Failed to list audit logs", // Error logged via middleware
 		})
 	}
 
@@ -161,7 +161,7 @@ func (h *AuditHandler) GetAuditLog(c *fiber.Ctx) error {
 	log, err := h.auditService.GetAuditLog(c.Context(), orgID, logID)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to get audit log: " + err.Error(),
+			Error: "Failed to get audit log", // Error logged via middleware
 		})
 	}
 
@@ -199,7 +199,7 @@ func (h *AuditHandler) GetAuditSummary(c *fiber.Ctx) error {
 	summary, err := h.auditService.GetAuditSummary(c.Context(), orgID, period)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to get audit summary: " + err.Error(),
+			Error: "Failed to get audit summary", // Error logged via middleware
 		})
 	}
 
@@ -241,7 +241,7 @@ func (h *AuditHandler) GetSecurityEvents(c *fiber.Ctx) error {
 	events, err := h.auditService.GetSecurityEvents(c.Context(), orgID, since, limit)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to get security events: " + err.Error(),
+			Error: "Failed to get security events", // Error logged via middleware
 		})
 	}
 
@@ -270,7 +270,7 @@ func (h *AuditHandler) GetRetentionPolicy(c *fiber.Ctx) error {
 	policy, err := h.auditService.GetRetentionPolicy(c.Context(), orgID)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to get retention policy: " + err.Error(),
+			Error: "Failed to get retention policy", // Error logged via middleware
 		})
 	}
 
@@ -310,7 +310,7 @@ func (h *AuditHandler) SetRetentionPolicy(c *fiber.Ctx) error {
 	policy, err := h.auditService.SetRetentionPolicy(c.Context(), orgID, req.RetentionDays, req.Enabled)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to set retention policy: " + err.Error(),
+			Error: "Failed to set retention policy", // Error logged via middleware
 		})
 	}
 
@@ -378,7 +378,7 @@ func (h *AuditHandler) CreateExportJob(c *fiber.Ctx) error {
 	job, err := h.auditService.CreateExportJob(c.Context(), orgID, &userID, filter, req.Format, req.Compress)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to create export job: " + err.Error(),
+			Error: "Failed to create export job", // Error logged via middleware
 		})
 	}
 
@@ -410,7 +410,7 @@ func (h *AuditHandler) GetExportJob(c *fiber.Ctx) error {
 	job, err := h.auditService.GetExportJob(c.Context(), jobID)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to get export job: " + err.Error(),
+			Error: "Failed to get export job", // Error logged via middleware
 		})
 	}
 
@@ -475,7 +475,7 @@ func (h *AuditHandler) ListExportJobs(c *fiber.Ctx) error {
 	jobs, err := h.auditService.ListExportJobs(c.Context(), orgID, limit, offset)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
-			Error: "Failed to list export jobs: " + err.Error(),
+			Error: "Failed to list export jobs", // Error logged via middleware
 		})
 	}
 

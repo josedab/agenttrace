@@ -101,7 +101,7 @@ func (h *RunbookEngineHandler) UpdateRunbook(c *fiber.Ctx) error {
 
 	runbook, err := h.service.UpdateRunbook(c.Context(), runbookID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(runbook)
@@ -116,7 +116,7 @@ func (h *RunbookEngineHandler) Activate(c *fiber.Ctx) error {
 
 	runbook, err := h.service.Activate(c.Context(), runbookID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(runbook)
@@ -145,7 +145,7 @@ func (h *RunbookEngineHandler) TestRunbook(c *fiber.Ctx) error {
 
 	result, err := h.service.TestRunbook(c.Context(), testInput)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(result)

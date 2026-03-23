@@ -56,7 +56,7 @@ func (h *IntentHandler) Verify(c *fiber.Ctx) error {
 	decl, err := h.service.VerifyIntent(c.Context(), intentID, body.ActualActions)
 	if err != nil {
 		h.logger.Error("failed to verify intent", zap.Error(err))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(decl)
@@ -71,7 +71,7 @@ func (h *IntentHandler) Get(c *fiber.Ctx) error {
 
 	decl, err := h.service.GetVerification(c.Context(), intentID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(decl)

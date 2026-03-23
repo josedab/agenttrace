@@ -66,7 +66,7 @@ func (h *TraceDiffHandler) StartBisect(c *fiber.Ctx) error {
 	session, err := h.service.StartBisect(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to start bisect", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(session)
@@ -81,7 +81,7 @@ func (h *TraceDiffHandler) GetBisectSession(c *fiber.Ctx) error {
 
 	session, err := h.service.GetBisectSession(c.Context(), sessionID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(session)
@@ -106,7 +106,7 @@ func (h *TraceDiffHandler) SubmitBisectVerdict(c *fiber.Ctx) error {
 	session, err := h.service.SubmitBisectVerdict(c.Context(), sessionID, &input)
 	if err != nil {
 		h.logger.Error("failed to submit verdict", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(session)
@@ -121,7 +121,7 @@ func (h *TraceDiffHandler) GetBisectResult(c *fiber.Ctx) error {
 
 	result, err := h.service.GetBisectResult(c.Context(), sessionID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.JSON(result)

@@ -202,7 +202,7 @@ func (h *PromptCIHandler) CreateGateConfig(c *fiber.Ctx) error {
 	config, err := h.promptCIService.CreateGateConfig(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create gate config", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(config)
@@ -237,7 +237,7 @@ func (h *PromptCIHandler) EvaluateGate(c *fiber.Ctx) error {
 	result, err := h.promptCIService.EvaluateGate(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to evaluate gate", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	// Return 200 for pass, still 200 for fail but with passed=false so CI can check

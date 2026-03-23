@@ -75,7 +75,7 @@ func (h *SLOHandler) GetStatus(c *fiber.Ctx) error {
 
 	status, err := h.service.GetSLOStatus(c.Context(), sloID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(status)
@@ -120,7 +120,7 @@ func (h *SLOHandler) GetHistory(c *fiber.Ctx) error {
 
 	history, err := h.service.GetHistory(c.Context(), sloID, from, to)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(history)

@@ -93,7 +93,7 @@ func (h *CertificationExportHandler) Download(c *fiber.Ctx) error {
 
 	content, contentType, err := h.service.Download(c.Context(), certID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	c.Set("Content-Type", contentType)

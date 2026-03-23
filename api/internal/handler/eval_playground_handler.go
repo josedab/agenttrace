@@ -51,7 +51,7 @@ func (h *EvalPlaygroundHandler) GetSession(c *fiber.Ctx) error {
 
 	session, err := h.service.GetSession(c.Context(), sessionID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(session)
@@ -97,7 +97,7 @@ func (h *EvalPlaygroundHandler) ShareSession(c *fiber.Ctx) error {
 
 	session, err := h.service.ShareSession(c.Context(), input.SessionID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(fiber.Map{"shareUrl": "/eval-playground/shared/" + session.ShareToken, "shareToken": session.ShareToken})
@@ -112,7 +112,7 @@ func (h *EvalPlaygroundHandler) GetSharedSession(c *fiber.Ctx) error {
 
 	session, err := h.service.GetSharedSession(c.Context(), token)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(session)

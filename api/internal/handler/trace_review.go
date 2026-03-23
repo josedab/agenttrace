@@ -107,7 +107,7 @@ func (h *TraceReviewHandler) UpdateReview(c *fiber.Ctx) error {
 
 	review, err := h.service.UpdateReview(c.Context(), reviewID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(review)
@@ -132,7 +132,7 @@ func (h *TraceReviewHandler) AddComment(c *fiber.Ctx) error {
 	userID := uuid.New()
 	comment, err := h.service.AddComment(c.Context(), reviewID, userID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(comment)
@@ -148,7 +148,7 @@ func (h *TraceReviewHandler) Approve(c *fiber.Ctx) error {
 	userID := uuid.New()
 	review, err := h.service.Approve(c.Context(), reviewID, userID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(review)
@@ -169,7 +169,7 @@ func (h *TraceReviewHandler) Reject(c *fiber.Ctx) error {
 	userID := uuid.New()
 	review, err := h.service.Reject(c.Context(), reviewID, userID, input.Reason)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
 	return c.JSON(review)

@@ -311,7 +311,7 @@ func (h *RCAHandler) CreateInvestigation(c *fiber.Ctx) error {
 	investigation, err := h.service.CreateInvestigation(c.Context(), projectID, input.AnomalyID, input.Title, input.InvestigatorID)
 	if err != nil {
 		h.logger.Error("failed to create investigation", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"}) // Error logged via middleware
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(investigation)

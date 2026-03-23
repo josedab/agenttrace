@@ -276,7 +276,7 @@ func (h *CostOptimizerHandler) CreateAutopilotRule(c *fiber.Ctx) error {
 	rule, err := h.costOptimizerService.CreateAutopilotRule(c.Context(), projectID, &input)
 	if err != nil {
 		h.logger.Error("failed to create autopilot rule", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(rule)
