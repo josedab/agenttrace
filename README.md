@@ -383,6 +383,8 @@ See [`deploy/.env.example`](deploy/.env.example) for a copy-ready template.
 - Node.js 18+
 - Docker & Docker Compose
 
+> **Tip**: Run `make doctor` to verify all prerequisites are installed, then `make setup` for automated environment setup including database migrations and dependency installation.
+
 ### Local Development
 
 ```bash
