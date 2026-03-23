@@ -1,4 +1,4 @@
-.PHONY: all build test lint dev dev-hot dev-api dev-web clean help format docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor test-e2e-api test-e2e-web generate
+.PHONY: all build test lint dev dev-hot dev-api dev-web clean help format format-check docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor test-e2e-api test-e2e-web generate test-coverage test-coverage-api test-coverage-web
 
 # Default target
 all: lint test build
@@ -16,6 +16,7 @@ help:
 	@echo "  make test         - Run all tests"
 	@echo "  make lint         - Run all linters"
 	@echo "  make format       - Format all code"
+	@echo "  make format-check - Check formatting without modifying files"
 	@echo "  make generate     - Run GraphQL code generation"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make docker-up    - Start databases via Docker Compose"
@@ -39,6 +40,8 @@ help:
 	@echo "  make test-sdk-go  - Run Go SDK tests"
 	@echo "  make test-e2e-api - Run API end-to-end tests"
 	@echo "  make test-e2e-web - Run web end-to-end tests"
+	@echo "  make test-coverage     - Generate HTML coverage reports"
+	@echo "  make test-coverage-open - Generate and open coverage reports in browser"
 
 # ============================================
 # Development
@@ -258,6 +261,26 @@ test-cli:
 	@echo "Testing CLI..."
 	cd sdk/cli && go test -race ./...
 
+## test-coverage: Generate and open HTML coverage reports
+test-coverage: test-coverage-api test-coverage-web
+
+test-coverage-api:
+	@echo "Generating Go backend coverage report..."
+	cd api && go test -coverprofile=coverage.out ./...
+	cd api && go tool cover -html=coverage.out -o coverage.html
+	@echo "  API coverage report: api/coverage.html"
+
+test-coverage-web:
+	@echo "Generating web frontend coverage report..."
+	cd web && npx vitest run --coverage
+	@echo "  Web coverage report: web/coverage/"
+
+## test-coverage-open: Open coverage reports in browser
+test-coverage-open: test-coverage
+	@echo "Opening coverage reports..."
+	@if [ -f api/coverage.html ]; then open api/coverage.html 2>/dev/null || xdg-open api/coverage.html 2>/dev/null || echo "Open api/coverage.html manually"; fi
+	@if [ -d web/coverage ]; then open web/coverage/index.html 2>/dev/null || xdg-open web/coverage/index.html 2>/dev/null || echo "Open web/coverage/index.html manually"; fi
+
 ## test-e2e-api: Run API end-to-end tests
 test-e2e-api:
 	@echo "Running API E2E tests..."
@@ -318,6 +341,52 @@ format:
 	cd sdk/go && gofmt -w .
 	@echo "Formatting CLI..."
 	cd sdk/cli && gofmt -w .
+
+## format-check: Verify formatting without modifying files
+format-check:
+	@echo "Checking Go backend formatting..."
+	@UNFORMATTED=$$(cd api && gofmt -l .); \
+	if [ -n "$$UNFORMATTED" ]; then \
+		echo "  ✗ Unformatted Go files in api/:"; echo "$$UNFORMATTED" | sed 's/^/    /'; \
+		FORMAT_FAIL=1; \
+	else \
+		echo "  ✓ api/ Go formatting OK"; \
+	fi; \
+	echo "Checking web frontend formatting..."; \
+	if ! (cd web && npx prettier --check . 2>/dev/null); then \
+		echo "  ✗ Prettier check failed in web/"; \
+		FORMAT_FAIL=1; \
+	else \
+		echo "  ✓ web/ formatting OK"; \
+	fi; \
+	echo "Checking Python SDK formatting..."; \
+	if ! (cd sdk/python && ruff format --check . 2>/dev/null); then \
+		echo "  ✗ Ruff format check failed in sdk/python/"; \
+		FORMAT_FAIL=1; \
+	else \
+		echo "  ✓ sdk/python/ formatting OK"; \
+	fi; \
+	UNFORMATTED_SDK=$$(cd sdk/go && gofmt -l .); \
+	if [ -n "$$UNFORMATTED_SDK" ]; then \
+		echo "  ✗ Unformatted Go files in sdk/go/:"; echo "$$UNFORMATTED_SDK" | sed 's/^/    /'; \
+		FORMAT_FAIL=1; \
+	else \
+		echo "  ✓ sdk/go/ Go formatting OK"; \
+	fi; \
+	UNFORMATTED_CLI=$$(cd sdk/cli && gofmt -l .); \
+	if [ -n "$$UNFORMATTED_CLI" ]; then \
+		echo "  ✗ Unformatted Go files in sdk/cli/:"; echo "$$UNFORMATTED_CLI" | sed 's/^/    /'; \
+		FORMAT_FAIL=1; \
+	else \
+		echo "  ✓ sdk/cli/ Go formatting OK"; \
+	fi; \
+	if [ -n "$$FORMAT_FAIL" ]; then \
+		echo ""; \
+		echo "Formatting issues found. Run 'make format' to fix."; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	echo "All formatting checks passed."
 
 # ============================================
 # Code Generation
