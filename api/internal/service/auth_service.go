@@ -316,10 +316,34 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
+	// Rotate refresh token: generate a new one and invalidate the old session
+	newRefreshToken, err := s.generateRefreshToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Delete old session
+	if err := s.userRepo.DeleteSession(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to delete old session: %w", err)
+	}
+
+	// Create new session with the rotated refresh token
+	newSession := &domain.UserSession{
+		ID:           uuid.New(),
+		SessionToken: newRefreshToken,
+		UserID:       user.ID,
+		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.RefreshExpiry) * time.Hour),
+		CreatedAt:    time.Now(),
+	}
+
+	if err := s.userRepo.CreateSession(ctx, newSession); err != nil {
+		return nil, fmt.Errorf("failed to create new session: %w", err)
+	}
+
 	return &domain.AuthResult{
 		User:         user,
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: newRefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.AccessExpiry) * time.Minute),
 	}, nil
 }

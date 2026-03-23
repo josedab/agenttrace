@@ -421,6 +421,8 @@ func TestAuthService_RefreshToken(t *testing.T) {
 
 		userRepo.On("GetSessionByToken", mock.Anything, "valid-refresh-token").Return(session, nil)
 		userRepo.On("GetByID", mock.Anything, userID).Return(user, nil)
+		userRepo.On("DeleteSession", mock.Anything, "valid-refresh-token").Return(nil)
+		userRepo.On("CreateSession", mock.Anything, mock.AnythingOfType("*domain.UserSession")).Return(nil)
 
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
@@ -429,7 +431,10 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.NotEmpty(t, result.AccessToken)
-		assert.Equal(t, "valid-refresh-token", result.RefreshToken)
+		// Refresh token should be rotated (different from the original)
+		assert.NotEqual(t, "valid-refresh-token", result.RefreshToken)
+		assert.NotEmpty(t, result.RefreshToken)
+		userRepo.AssertExpectations(t)
 	})
 
 	t.Run("fails with invalid refresh token", func(t *testing.T) {
