@@ -806,12 +806,26 @@ func (r *mutationResolver) CreateOrganization(ctx context.Context, name string) 
 
 // UpdateOrganization is the resolver for the updateOrganization field.
 func (r *mutationResolver) UpdateOrganization(ctx context.Context, id uuid.UUID, name string) (*domain.Organization, error) {
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.OrgService.CheckAccess(ctx, id, userID, domain.OrgRoleAdmin); err != nil {
+		return nil, err
+	}
 	return r.OrgService.Update(ctx, id, name)
 }
 
 // DeleteOrganization is the resolver for the deleteOrganization field.
 func (r *mutationResolver) DeleteOrganization(ctx context.Context, id uuid.UUID) (bool, error) {
-	err := r.OrgService.Delete(ctx, id)
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return false, err
+	}
+	if err := r.OrgService.CheckAccess(ctx, id, userID, domain.OrgRoleOwner); err != nil {
+		return false, err
+	}
+	err = r.OrgService.Delete(ctx, id)
 	if err != nil {
 		return false, err
 	}
@@ -822,6 +836,11 @@ func (r *mutationResolver) DeleteOrganization(ctx context.Context, id uuid.UUID)
 func (r *mutationResolver) CreateProject(ctx context.Context, input model.CreateProjectInput) (*domain.Project, error) {
 	userID, err := getUserID(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	// User must be at least a member of the organization to create projects
+	if err := r.OrgService.CheckAccess(ctx, input.OrganizationId, userID, domain.OrgRoleMember); err != nil {
 		return nil, err
 	}
 
@@ -838,6 +857,14 @@ func (r *mutationResolver) CreateProject(ctx context.Context, input model.Create
 
 // UpdateProject is the resolver for the updateProject field.
 func (r *mutationResolver) UpdateProject(ctx context.Context, id uuid.UUID, input model.UpdateProjectInput) (*domain.Project, error) {
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.AuthService.CheckProjectAccess(ctx, id, userID, domain.OrgRoleAdmin); err != nil {
+		return nil, err
+	}
+
 	updateInput := &service.ProjectInput{
 		Name:            derefString(input.Name),
 		Description:     derefString(input.Description),
@@ -851,7 +878,14 @@ func (r *mutationResolver) UpdateProject(ctx context.Context, id uuid.UUID, inpu
 
 // DeleteProject is the resolver for the deleteProject field.
 func (r *mutationResolver) DeleteProject(ctx context.Context, id uuid.UUID) (bool, error) {
-	err := r.ProjectService.Delete(ctx, id)
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return false, err
+	}
+	if err := r.AuthService.CheckProjectAccess(ctx, id, userID, domain.OrgRoleAdmin); err != nil {
+		return false, err
+	}
+	err = r.ProjectService.Delete(ctx, id)
 	if err != nil {
 		return false, err
 	}
@@ -1481,6 +1515,13 @@ func (r *queryResolver) EvaluatorTemplates(ctx context.Context) ([]domain.Evalua
 
 // Organization is the resolver for the organization field.
 func (r *queryResolver) Organization(ctx context.Context, id uuid.UUID) (*domain.Organization, error) {
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.OrgService.CheckAccess(ctx, id, userID, domain.OrgRoleViewer); err != nil {
+		return nil, err
+	}
 	return r.OrgService.Get(ctx, id)
 }
 
@@ -1495,17 +1536,27 @@ func (r *queryResolver) Organizations(ctx context.Context) ([]domain.Organizatio
 
 // Project is the resolver for the project field.
 func (r *queryResolver) Project(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.AuthService.CheckProjectAccess(ctx, id, userID, domain.OrgRoleViewer); err != nil {
+		return nil, err
+	}
 	return r.ProjectService.Get(ctx, id)
 }
 
 // Projects is the resolver for the projects field.
 func (r *queryResolver) Projects(ctx context.Context, organizationID *uuid.UUID) ([]domain.Project, error) {
-	if organizationID != nil {
-		return r.ProjectService.ListByOrganization(ctx, *organizationID)
-	}
 	userID, err := getUserID(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if organizationID != nil {
+		if err := r.OrgService.CheckAccess(ctx, *organizationID, userID, domain.OrgRoleViewer); err != nil {
+			return nil, err
+		}
+		return r.ProjectService.ListByOrganization(ctx, *organizationID)
 	}
 	return r.ProjectService.ListByUser(ctx, userID)
 }
