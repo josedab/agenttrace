@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 	"github.com/agenttrace/agenttrace/api/internal/service"
@@ -252,10 +253,12 @@ func (h *OrganizationsHandler) RegisterRoutes(app *fiber.App, authMiddleware *mi
 
 	v1.Get("/organizations", h.ListOrganizations)
 	v1.Get("/organizations/slug/:slug", h.GetOrganizationBySlug)
-	v1.Get("/organizations/:orgId", h.GetOrganization)
 	v1.Post("/organizations", h.CreateOrganization)
-	v1.Patch("/organizations/:orgId", h.UpdateOrganization)
-	v1.Delete("/organizations/:orgId", h.DeleteOrganization)
 
-	v1.Get("/organizations/:orgId/members/:userId", h.GetMember)
+	// Routes that require org membership
+	orgRoutes := v1.Group("/organizations/:orgId")
+	orgRoutes.Get("", authMiddleware.RequireOrgAccess(domain.OrgRoleViewer), h.GetOrganization)
+	orgRoutes.Patch("", authMiddleware.RequireOrgAccess(domain.OrgRoleAdmin), h.UpdateOrganization)
+	orgRoutes.Delete("", authMiddleware.RequireOrgAccess(domain.OrgRoleOwner), h.DeleteOrganization)
+	orgRoutes.Get("/members/:userId", authMiddleware.RequireOrgAccess(domain.OrgRoleViewer), h.GetMember)
 }
