@@ -59,7 +59,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 	)
 
 	// Initialize middleware
-	authMiddleware := middleware.NewAuthMiddleware(svcs.Auth)
+	authMiddleware := middleware.NewAuthMiddleware(svcs.Auth, svcs.Org)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(dbs.Redis)
 	csrfMiddleware := middleware.NewCSRFMiddlewareWithConfig(middleware.CSRFConfig{
 		Enabled:        cfg.Server.CSRFEnabled,

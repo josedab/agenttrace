@@ -337,7 +337,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		t.Parallel()
 		// Note: In a real test we'd mock the AuthService
 		// For this unit test we just verify the constructor works
-		middleware := NewAuthMiddleware(nil)
+		middleware := NewAuthMiddleware(nil, nil)
 		assert.NotNil(t, middleware)
 	})
 }
@@ -352,7 +352,7 @@ func TestRequireAPIKeyHandler(t *testing.T) {
 		t.Parallel()
 		app := fiber.New()
 
-		middleware := NewAuthMiddleware(nil)
+		middleware := NewAuthMiddleware(nil, nil)
 		app.Use(middleware.RequireAPIKey())
 		app.Get("/test", func(c *fiber.Ctx) error {
 			return c.SendStatus(200)
@@ -375,7 +375,7 @@ func TestRequireJWTHandler(t *testing.T) {
 		t.Parallel()
 		app := fiber.New()
 
-		middleware := NewAuthMiddleware(nil)
+		middleware := NewAuthMiddleware(nil, nil)
 		app.Use(middleware.RequireJWT())
 		app.Get("/test", func(c *fiber.Ctx) error {
 			return c.SendStatus(200)
@@ -398,7 +398,7 @@ func TestRequireAuthHandler(t *testing.T) {
 		t.Parallel()
 		app := fiber.New()
 
-		middleware := NewAuthMiddleware(nil)
+		middleware := NewAuthMiddleware(nil, nil)
 		app.Use(middleware.RequireAuth())
 		app.Get("/test", func(c *fiber.Ctx) error {
 			return c.SendStatus(200)
@@ -421,7 +421,7 @@ func TestOptionalAuthHandler(t *testing.T) {
 		t.Parallel()
 		app := fiber.New()
 
-		middleware := NewAuthMiddleware(nil)
+		middleware := NewAuthMiddleware(nil, nil)
 		app.Use(middleware.OptionalAuth())
 		app.Get("/test", func(c *fiber.Ctx) error {
 			return c.SendStatus(200)

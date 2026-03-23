@@ -33,12 +33,14 @@ const (
 // AuthMiddleware handles authentication
 type AuthMiddleware struct {
 	authService *service.AuthService
+	orgService  *service.OrgService
 }
 
 // NewAuthMiddleware creates a new auth middleware
-func NewAuthMiddleware(authService *service.AuthService) *AuthMiddleware {
+func NewAuthMiddleware(authService *service.AuthService, orgService *service.OrgService) *AuthMiddleware {
 	return &AuthMiddleware{
 		authService: authService,
+		orgService:  orgService,
 	}
 }
 
@@ -188,6 +190,46 @@ func (m *AuthMiddleware) RequireProjectAccess() fiber.Handler {
 		}
 
 		c.Locals(string(ContextKeyProjectID), projectID)
+		return c.Next()
+	}
+}
+
+// RequireOrgAccess ensures the authenticated user has at least the specified role in the organization.
+// The organization ID is extracted from the :orgId route parameter.
+func (m *AuthMiddleware) RequireOrgAccess(requiredRole domain.OrgRole) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		orgIDParam := c.Params("orgId")
+		if orgIDParam == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":   "Bad Request",
+				"message": "Organization ID required",
+			})
+		}
+
+		orgID, err := uuid.Parse(orgIDParam)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":   "Bad Request",
+				"message": "Invalid organization ID",
+			})
+		}
+
+		userID, ok := c.Locals(string(ContextKeyUserID)).(uuid.UUID)
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error":   "Unauthorized",
+				"message": "User not authenticated",
+			})
+		}
+
+		if err := m.orgService.CheckAccess(c.Context(), orgID, userID, requiredRole); err != nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "Forbidden",
+				"message": "No access to this organization",
+			})
+		}
+
+		c.Locals(string(ContextKeyOrgID), orgID)
 		return c.Next()
 	}
 }
