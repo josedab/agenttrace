@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/graphql/generated"
+	gql "github.com/agenttrace/agenttrace/api/internal/graphql"
 	apihandler "github.com/agenttrace/agenttrace/api/internal/handler"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
 )
@@ -108,6 +110,18 @@ func main() {
 	corsMiddleware := middleware.NewCORSMiddleware(middleware.DefaultCORSConfig())
 	app.Use(corsMiddleware.Handler())
 
+	// Security headers middleware
+	app.Use(func(c *fiber.Ctx) error {
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("X-Frame-Options", "DENY")
+		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+		if cfg.Server.Env == "production" {
+			c.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+		}
+		return c.Next()
+	})
+
 	// Metrics middleware
 	metricsMiddleware := middleware.NewMetricsMiddleware(middleware.DefaultMetricsConfig())
 	app.Use(metricsMiddleware.Handler())
@@ -168,6 +182,15 @@ func setupGraphQL(app *fiber.App, deps *Dependencies, cfg *config.Config) {
 			Resolvers: deps.Resolver,
 		}),
 	)
+
+	// Add query complexity and depth limits
+	srv.Use(extension.FixedComplexityLimit(300))
+	srv.Use(gql.DepthLimitExtension{MaxDepth: 15})
+
+	// Introspection only in development
+	if cfg.Server.Env == "production" {
+		srv.Use(extension.Introspection{})
+	}
 
 	// GraphQL endpoint
 	app.All("/graphql", adaptor.HTTPHandler(srv))
