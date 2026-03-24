@@ -44,6 +44,9 @@ func NewOTLPGRPCServer(
 
 	srv.grpcServer = grpc.NewServer(
 		grpc.UnaryInterceptor(srv.authInterceptor),
+		grpc.MaxRecvMsgSize(16*1024*1024),
+		grpc.MaxSendMsgSize(16*1024*1024),
+		grpc.MaxConcurrentStreams(100),
 	)
 	v1.RegisterTraceServiceServer(srv.grpcServer, srv)
 
