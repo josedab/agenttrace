@@ -5,12 +5,16 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 )
+
+// validPythonPackageName matches safe Python package names (lowercase, underscores only).
+var validPythonPackageName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
@@ -257,6 +261,9 @@ func checkPythonFrameworks() []checkResult {
 	}
 
 	for pkg, name := range frameworks {
+		if !validPythonPackageName.MatchString(pkg) {
+			continue
+		}
 		out, err := exec.Command("python3", "-c", fmt.Sprintf("import %s; print(%s.__version__)", pkg, pkg)).Output()
 		if err != nil {
 			continue
