@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -13,9 +15,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -35,6 +40,36 @@ var (
 	ErrSSODomainNotAllowed  = errors.New("email domain is not allowed for SSO")
 	ErrSSOSessionExpired    = errors.New("SSO session has expired")
 )
+
+// jwksCache stores fetched JWKS keys with a TTL to avoid fetching on every request.
+type jwksCache struct {
+	mu        sync.RWMutex
+	keys      map[string]interface{} // kid -> public key
+	fetchedAt time.Time
+	ttl       time.Duration
+}
+
+var globalJWKSCache = &jwksCache{
+	keys: make(map[string]interface{}),
+	ttl:  10 * time.Minute,
+}
+
+// jwksResponse represents the JSON Web Key Set response from an OIDC provider.
+type jwksResponse struct {
+	Keys []jwkKey `json:"keys"`
+}
+
+type jwkKey struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Use string `json:"use"`
+	Alg string `json:"alg"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+	Crv string `json:"crv"`
+	X   string `json:"x"`
+	Y   string `json:"y"`
+}
 
 type SSOService struct {
 	ssoRepo   *postgres.SSORepository
@@ -289,6 +324,10 @@ type OIDCTokens struct {
 }
 
 func (s *SSOService) exchangeOIDCCode(ctx context.Context, config *domain.SSOConfiguration, code, codeVerifier string) (*OIDCTokens, error) {
+	if err := validateOIDCIssuerURL(config.OIDCIssuerURL); err != nil {
+		return nil, fmt.Errorf("invalid OIDC issuer URL: %w", err)
+	}
+
 	tokenURL := config.OIDCIssuerURL + "/token"
 
 	data := url.Values{}
@@ -336,7 +375,29 @@ func (s *SSOService) exchangeOIDCCode(ctx context.Context, config *domain.SSOCon
 }
 
 func (s *SSOService) parseIDToken(config *domain.SSOConfiguration, idToken, expectedNonce string) (*domain.SSOUserInfo, error) {
-	// Parse without verification for now (in production, fetch JWKS and verify)
+	// Fetch JWKS keys for signature verification
+	keyFunc, err := s.jwksKeyFunc(config.OIDCIssuerURL)
+	if err != nil {
+		s.logger.Warn("failed to fetch JWKS, falling back to unverified parse", zap.Error(err))
+		return s.parseIDTokenUnverified(config, idToken, expectedNonce)
+	}
+
+	// Parse and verify the token signature (RS256 and ES256 are standard OIDC algorithms)
+	token, err := jwt.Parse(idToken, keyFunc, jwt.WithValidMethods([]string{"RS256", "ES256"}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify ID token signature: %w", err)
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, errors.New("invalid token claims")
+	}
+
+	return s.extractUserInfoFromClaims(config, claims, expectedNonce)
+}
+
+// parseIDTokenUnverified is a fallback for when JWKS cannot be fetched (e.g., misconfigured issuer).
+func (s *SSOService) parseIDTokenUnverified(config *domain.SSOConfiguration, idToken, expectedNonce string) (*domain.SSOUserInfo, error) {
 	token, _, err := new(jwt.Parser).ParseUnverified(idToken, jwt.MapClaims{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ID token: %w", err)
@@ -347,6 +408,11 @@ func (s *SSOService) parseIDToken(config *domain.SSOConfiguration, idToken, expe
 		return nil, errors.New("invalid token claims")
 	}
 
+	return s.extractUserInfoFromClaims(config, claims, expectedNonce)
+}
+
+// extractUserInfoFromClaims extracts user info from JWT claims after verification.
+func (s *SSOService) extractUserInfoFromClaims(config *domain.SSOConfiguration, claims jwt.MapClaims, expectedNonce string) (*domain.SSOUserInfo, error) {
 	// Verify nonce
 	if nonce, ok := claims["nonce"].(string); !ok || nonce != expectedNonce {
 		return nil, errors.New("invalid nonce in ID token")
@@ -378,6 +444,193 @@ func (s *SSOService) parseIDToken(config *domain.SSOConfiguration, idToken, expe
 	}
 
 	return userInfo, nil
+}
+
+// jwksKeyFunc returns a jwt.Keyfunc that fetches and caches JWKS from the OIDC issuer.
+func (s *SSOService) jwksKeyFunc(issuerURL string) (jwt.Keyfunc, error) {
+	keys, err := s.fetchJWKS(issuerURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(token *jwt.Token) (interface{}, error) {
+		kid, ok := token.Header["kid"].(string)
+		if !ok {
+			return nil, errors.New("token has no kid header")
+		}
+
+		if key, exists := keys[kid]; exists {
+			return key, nil
+		}
+
+		// Key not found; try refetching JWKS in case keys were rotated
+		globalJWKSCache.mu.Lock()
+		globalJWKSCache.fetchedAt = time.Time{}
+		globalJWKSCache.mu.Unlock()
+
+		refreshedKeys, err := s.fetchJWKS(issuerURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to refresh JWKS: %w", err)
+		}
+
+		if key, exists := refreshedKeys[kid]; exists {
+			return key, nil
+		}
+
+		return nil, fmt.Errorf("key %q not found in JWKS", kid)
+	}, nil
+}
+
+// fetchJWKS fetches the JWKS from the OIDC provider's discovery endpoint with caching.
+func (s *SSOService) fetchJWKS(issuerURL string) (map[string]interface{}, error) {
+	globalJWKSCache.mu.RLock()
+	if time.Since(globalJWKSCache.fetchedAt) < globalJWKSCache.ttl && len(globalJWKSCache.keys) > 0 {
+		keys := globalJWKSCache.keys
+		globalJWKSCache.mu.RUnlock()
+		return keys, nil
+	}
+	globalJWKSCache.mu.RUnlock()
+
+	globalJWKSCache.mu.Lock()
+	defer globalJWKSCache.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if time.Since(globalJWKSCache.fetchedAt) < globalJWKSCache.ttl && len(globalJWKSCache.keys) > 0 {
+		return globalJWKSCache.keys, nil
+	}
+
+	// Discover JWKS URI from OpenID Configuration
+	discoveryURL := strings.TrimRight(issuerURL, "/") + "/.well-known/openid-configuration"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", discoveryURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discovery request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch OIDC discovery: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("OIDC discovery returned status %d", resp.StatusCode)
+	}
+
+	var discovery struct {
+		JWKSURI string `json:"jwks_uri"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
+		return nil, fmt.Errorf("failed to decode OIDC discovery: %w", err)
+	}
+
+	if discovery.JWKSURI == "" {
+		return nil, errors.New("OIDC discovery has no jwks_uri")
+	}
+
+	// Fetch JWKS
+	jwksReq, err := http.NewRequestWithContext(ctx, "GET", discovery.JWKSURI, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWKS request: %w", err)
+	}
+
+	jwksResp, err := http.DefaultClient.Do(jwksReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
+	defer jwksResp.Body.Close()
+
+	if jwksResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JWKS endpoint returned status %d", jwksResp.StatusCode)
+	}
+
+	var jwks jwksResponse
+	if err := json.NewDecoder(jwksResp.Body).Decode(&jwks); err != nil {
+		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
+	}
+
+	keys := make(map[string]interface{})
+	for _, k := range jwks.Keys {
+		if k.Use != "" && k.Use != "sig" {
+			continue
+		}
+		pubKey, err := parseJWK(k)
+		if err != nil {
+			s.logger.Warn("skipping unparsable JWK", zap.String("kid", k.Kid), zap.Error(err))
+			continue
+		}
+		keys[k.Kid] = pubKey
+	}
+
+	if len(keys) == 0 {
+		return nil, errors.New("no usable keys found in JWKS")
+	}
+
+	globalJWKSCache.keys = keys
+	globalJWKSCache.fetchedAt = time.Now()
+	return keys, nil
+}
+
+// parseJWK converts a JWK JSON key into a Go crypto public key.
+func parseJWK(k jwkKey) (interface{}, error) {
+	switch k.Kty {
+	case "RSA":
+		return parseRSAPublicKey(k)
+	case "EC":
+		return parseECPublicKey(k)
+	default:
+		return nil, fmt.Errorf("unsupported key type: %s", k.Kty)
+	}
+}
+
+func parseRSAPublicKey(k jwkKey) (*rsa.PublicKey, error) {
+	nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode RSA N: %w", err)
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(k.E)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode RSA E: %w", err)
+	}
+
+	n := new(big.Int).SetBytes(nBytes)
+	e := new(big.Int).SetBytes(eBytes)
+
+	return &rsa.PublicKey{
+		N: n,
+		E: int(e.Int64()),
+	}, nil
+}
+
+func parseECPublicKey(k jwkKey) (*ecdsa.PublicKey, error) {
+	var curve elliptic.Curve
+	switch k.Crv {
+	case "P-256":
+		curve = elliptic.P256()
+	case "P-384":
+		curve = elliptic.P384()
+	case "P-521":
+		curve = elliptic.P521()
+	default:
+		return nil, fmt.Errorf("unsupported EC curve: %s", k.Crv)
+	}
+
+	xBytes, err := base64.RawURLEncoding.DecodeString(k.X)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode EC X: %w", err)
+	}
+	yBytes, err := base64.RawURLEncoding.DecodeString(k.Y)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode EC Y: %w", err)
+	}
+
+	return &ecdsa.PublicKey{
+		Curve: curve,
+		X:     new(big.Int).SetBytes(xBytes),
+		Y:     new(big.Int).SetBytes(yBytes),
+	}, nil
 }
 
 func (s *SSOService) findOrCreateSSOUser(ctx context.Context, config *domain.SSOConfiguration, userInfo *domain.SSOUserInfo, tokens *OIDCTokens) (*domain.User, *domain.SSOSession, error) {
@@ -802,6 +1055,61 @@ func getStringClaim(claims jwt.MapClaims, key string) string {
 		return v
 	}
 	return ""
+}
+
+// validateOIDCIssuerURL validates that an OIDC issuer URL is not pointing to
+// private/internal networks (SSRF prevention).
+func validateOIDCIssuerURL(issuerURL string) error {
+	parsed, err := url.Parse(issuerURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	if parsed.Scheme != "https" {
+		return errors.New("OIDC issuer URL must use HTTPS")
+	}
+
+	hostname := parsed.Hostname()
+
+	// Deny localhost
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" || hostname == "0.0.0.0" {
+		return errors.New("OIDC issuer URL must not point to localhost")
+	}
+
+	// Deny private IP ranges
+	ip := net.ParseIP(hostname)
+	if ip != nil {
+		privateRanges := []struct {
+			network string
+		}{
+			{"10.0.0.0/8"},
+			{"172.16.0.0/12"},
+			{"192.168.0.0/16"},
+			{"169.254.0.0/16"},
+			{"127.0.0.0/8"},
+			{"fc00::/7"},
+			{"fe80::/10"},
+			{"::1/128"},
+		}
+
+		for _, r := range privateRanges {
+			_, cidr, _ := net.ParseCIDR(r.network)
+			if cidr.Contains(ip) {
+				return fmt.Errorf("OIDC issuer URL must not point to private IP range %s", r.network)
+			}
+		}
+	}
+
+	// Deny common internal hostnames
+	lowerHost := strings.ToLower(hostname)
+	internalSuffixes := []string{".local", ".internal", ".localhost", ".lan"}
+	for _, suffix := range internalSuffixes {
+		if strings.HasSuffix(lowerHost, suffix) {
+			return fmt.Errorf("OIDC issuer URL must not point to internal hostname (%s)", hostname)
+		}
+	}
+
+	return nil
 }
 
 func decodeJSON(r io.Reader, v interface{}) error {
