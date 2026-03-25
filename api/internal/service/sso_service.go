@@ -236,7 +236,10 @@ func (s *SSOService) InitiateOIDCLogin(ctx context.Context, orgID uuid.UUID, ret
 	authURL, err := url.Parse(config.OIDCIssuerURL + "/authorize")
 	if err != nil {
 		// Try well-known endpoint for issuer
-		authURL, _ = url.Parse(config.OIDCIssuerURL)
+		authURL, err = url.Parse(config.OIDCIssuerURL)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse OIDC issuer URL %q: %w", config.OIDCIssuerURL, err)
+		}
 		authURL.Path = "/authorize"
 	}
 
@@ -378,8 +381,7 @@ func (s *SSOService) parseIDToken(config *domain.SSOConfiguration, idToken, expe
 	// Fetch JWKS keys for signature verification
 	keyFunc, err := s.jwksKeyFunc(config.OIDCIssuerURL)
 	if err != nil {
-		s.logger.Warn("failed to fetch JWKS, falling back to unverified parse", zap.Error(err))
-		return s.parseIDTokenUnverified(config, idToken, expectedNonce)
+		return nil, fmt.Errorf("failed to fetch JWKS for token verification: %w", err)
 	}
 
 	// Parse and verify the token signature (RS256 and ES256 are standard OIDC algorithms)
@@ -390,21 +392,6 @@ func (s *SSOService) parseIDToken(config *domain.SSOConfiguration, idToken, expe
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return nil, errors.New("invalid token claims")
-	}
-
-	return s.extractUserInfoFromClaims(config, claims, expectedNonce)
-}
-
-// parseIDTokenUnverified is a fallback for when JWKS cannot be fetched (e.g., misconfigured issuer).
-func (s *SSOService) parseIDTokenUnverified(config *domain.SSOConfiguration, idToken, expectedNonce string) (*domain.SSOUserInfo, error) {
-	token, _, err := new(jwt.Parser).ParseUnverified(idToken, jwt.MapClaims{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ID token: %w", err)
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
 		return nil, errors.New("invalid token claims")
 	}
 
