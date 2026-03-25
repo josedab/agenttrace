@@ -123,7 +123,11 @@ func (s *StripeWebhookService) ProcessEvent(ctx context.Context, eventType strin
 func (s *StripeWebhookService) handleSubscriptionCreated(ctx context.Context, payload map[string]interface{}) error {
 	tenantIDStr, _ := extractNestedString(payload, "metadata", "tenant_id")
 	if tenantIDStr == "" {
-		tenantIDStr, _ = payload["tenant_id"].(string)
+		var ok bool
+		tenantIDStr, ok = payload["tenant_id"].(string)
+		if !ok {
+			return fmt.Errorf("missing or invalid tenant_id in subscription.created payload")
+		}
 	}
 
 	tenantID, err := uuid.Parse(tenantIDStr)
@@ -136,7 +140,12 @@ func (s *StripeWebhookService) handleSubscriptionCreated(ctx context.Context, pa
 		planSlug = "free"
 	}
 
-	stripeSubID, _ := payload["stripe_subscription_id"].(string)
+	stripeSubID, ok := payload["stripe_subscription_id"].(string)
+	if !ok || stripeSubID == "" {
+		s.logger.Warn("missing stripe_subscription_id in subscription.created payload",
+			zap.String("tenantId", tenantID.String()),
+		)
+	}
 
 	sub := &domain.BillingSubscription{
 		ID:                   uuid.New(),
@@ -165,9 +174,12 @@ func (s *StripeWebhookService) handleSubscriptionCreated(ctx context.Context, pa
 }
 
 func (s *StripeWebhookService) handleTrialEnding(ctx context.Context, payload map[string]interface{}) error {
-	tenantIDStr, _ := payload["tenant_id"].(string)
-	if tenantIDStr == "" {
+	tenantIDStr, ok := payload["tenant_id"].(string)
+	if !ok || tenantIDStr == "" {
 		tenantIDStr, _ = extractNestedString(payload, "metadata", "tenant_id")
+	}
+	if tenantIDStr == "" {
+		s.logger.Warn("missing tenant_id in trial ending webhook payload")
 	}
 
 	s.logger.Warn("trial ending soon",
