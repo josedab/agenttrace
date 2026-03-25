@@ -199,6 +199,7 @@ func initCoreServices(svcs *Services, cfg *config.Config, logger *zap.Logger, re
 	svcs.Dataset = service.NewDatasetService(repos.Dataset, repos.Trace, repos.Score)
 	svcs.Eval = service.NewEvalService(repos.Evaluator, svcs.Score)
 	svcs.Auth = service.NewAuthService(cfg, repos.User, repos.APIKey, repos.Org, repos.Project)
+	svcs.Auth.SetLogger(logger)
 	svcs.Org = service.NewOrgService(repos.Org)
 	svcs.Project = service.NewProjectService(repos.Project, repos.Org)
 	svcs.Realtime = service.NewRealtimeService()

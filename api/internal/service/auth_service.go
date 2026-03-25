@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
@@ -81,6 +82,7 @@ type AuthService struct {
 	orgRepo     OrgRepository
 	projectRepo ProjectRepository
 	auditLogger AuditLogger
+	logger      *zap.Logger
 }
 
 // NewAuthService creates a new auth service
@@ -97,6 +99,7 @@ func NewAuthService(
 		apiKeyRepo:  apiKeyRepo,
 		orgRepo:     orgRepo,
 		projectRepo: projectRepo,
+		logger:      zap.NewNop(),
 	}
 }
 
@@ -104,6 +107,11 @@ func NewAuthService(
 // This allows optional audit logging without making it a required dependency
 func (s *AuthService) SetAuditLogger(logger AuditLogger) {
 	s.auditLogger = logger
+}
+
+// SetLogger sets the structured logger for the auth service
+func (s *AuthService) SetLogger(logger *zap.Logger) {
+	s.logger = logger
 }
 
 // Register creates a new user account
@@ -192,7 +200,11 @@ func (s *AuthService) Register(ctx context.Context, input *domain.RegisterInput)
 	// Audit log: user registration
 	if s.auditLogger != nil {
 		go func() {
-			_ = s.auditLogger.LogUserCreated(context.Background(), org.ID, user.ID, user.Email, user.ID, user.Email)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := s.auditLogger.LogUserCreated(ctx, org.ID, user.ID, user.Email, user.ID, user.Email); err != nil {
+				s.logger.Error("failed to log user creation audit event", zap.Error(err))
+			}
 		}()
 	}
 
@@ -232,7 +244,11 @@ func (s *AuthService) LoginWithContext(ctx context.Context, input *domain.LoginI
 		// Audit log: failed login (OAuth user tried password login)
 		if s.auditLogger != nil && primaryOrgID != uuid.Nil {
 			go func() {
-				_ = s.auditLogger.LogLoginFailed(context.Background(), primaryOrgID, input.Email, ipAddress, userAgent, "OAuth user attempted password login")
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.auditLogger.LogLoginFailed(ctx, primaryOrgID, input.Email, ipAddress, userAgent, "OAuth user attempted password login"); err != nil {
+					s.logger.Error("failed to log login failed audit event", zap.Error(err))
+				}
 			}()
 		}
 		return nil, apperrors.Unauthorized("please login with your OAuth provider")
@@ -242,7 +258,11 @@ func (s *AuthService) LoginWithContext(ctx context.Context, input *domain.LoginI
 		// Audit log: failed login (invalid password)
 		if s.auditLogger != nil && primaryOrgID != uuid.Nil {
 			go func() {
-				_ = s.auditLogger.LogLoginFailed(context.Background(), primaryOrgID, input.Email, ipAddress, userAgent, "invalid password")
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.auditLogger.LogLoginFailed(ctx, primaryOrgID, input.Email, ipAddress, userAgent, "invalid password"); err != nil {
+					s.logger.Error("failed to log login failed audit event", zap.Error(err))
+				}
 			}()
 		}
 		return nil, apperrors.Unauthorized("invalid credentials")
@@ -276,7 +296,11 @@ func (s *AuthService) LoginWithContext(ctx context.Context, input *domain.LoginI
 	// Audit log: successful login
 	if s.auditLogger != nil && primaryOrgID != uuid.Nil {
 		go func() {
-			_ = s.auditLogger.LogLogin(context.Background(), primaryOrgID, user.ID, user.Email, ipAddress, userAgent)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := s.auditLogger.LogLogin(ctx, primaryOrgID, user.ID, user.Email, ipAddress, userAgent); err != nil {
+				s.logger.Error("failed to log login audit event", zap.Error(err))
+			}
 		}()
 	}
 
@@ -361,7 +385,11 @@ func (s *AuthService) LogoutWithContext(ctx context.Context, refreshToken string
 		orgs, err := s.orgRepo.ListByUserID(ctx, userID)
 		if err == nil && len(orgs) > 0 {
 			go func() {
-				_ = s.auditLogger.LogLogout(context.Background(), orgs[0].ID, userID, userEmail)
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.auditLogger.LogLogout(ctx, orgs[0].ID, userID, userEmail); err != nil {
+					s.logger.Error("failed to log logout audit event", zap.Error(err))
+				}
 			}()
 		}
 	}
@@ -420,7 +448,9 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, publicKey, secretKey s
 
 	// Update last used (async, don't fail on error)
 	go func() {
-		_ = s.apiKeyRepo.UpdateLastUsed(context.Background(), apiKey.ID)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = s.apiKeyRepo.UpdateLastUsed(ctx, apiKey.ID)
 	}()
 
 	return &apiKey.ProjectID, nil
@@ -496,7 +526,11 @@ func (s *AuthService) CreateAPIKeyWithContext(ctx context.Context, projectID uui
 		project, err := s.projectRepo.GetByID(ctx, projectID)
 		if err == nil && project != nil {
 			go func() {
-				_ = s.auditLogger.LogAPIKeyCreated(context.Background(), project.OrganizationID, userID, userEmail, apiKey.ID, apiKey.Name)
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.auditLogger.LogAPIKeyCreated(ctx, project.OrganizationID, userID, userEmail, apiKey.ID, apiKey.Name); err != nil {
+					s.logger.Error("failed to log API key created audit event", zap.Error(err))
+				}
 			}()
 		}
 	}
@@ -537,7 +571,11 @@ func (s *AuthService) DeleteAPIKeyWithContext(ctx context.Context, id uuid.UUID,
 	// Audit log: API key revoked
 	if s.auditLogger != nil && actorID != uuid.Nil && apiKey != nil && orgID != uuid.Nil {
 		go func() {
-			_ = s.auditLogger.LogAPIKeyRevoked(context.Background(), orgID, actorID, actorEmail, apiKey.ID, apiKey.Name)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := s.auditLogger.LogAPIKeyRevoked(ctx, orgID, actorID, actorEmail, apiKey.ID, apiKey.Name); err != nil {
+				s.logger.Error("failed to log API key revoked audit event", zap.Error(err))
+			}
 		}()
 	}
 
@@ -780,7 +818,11 @@ func (s *AuthService) HandleOAuthCallbackWithContext(ctx context.Context, input 
 		orgs, err := s.orgRepo.ListByUserID(ctx, user.ID)
 		if err == nil && len(orgs) > 0 {
 			go func() {
-				_ = s.auditLogger.LogSSOLogin(context.Background(), orgs[0].ID, user.ID, user.Email, input.Provider, ipAddress, userAgent)
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.auditLogger.LogSSOLogin(ctx, orgs[0].ID, user.ID, user.Email, input.Provider, ipAddress, userAgent); err != nil {
+					s.logger.Error("failed to log SSO login audit event", zap.Error(err))
+				}
 			}()
 		}
 	}
