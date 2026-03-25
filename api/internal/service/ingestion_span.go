@@ -243,7 +243,9 @@ func (s *IngestionService) UpdateObservationCosts(
 	// Update the trace's aggregated costs asynchronously
 	if traceID != "" {
 		go func() {
-			if err := s.updateTraceCosts(context.Background(), projectID, traceID); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := s.updateTraceCosts(ctx, projectID, traceID); err != nil {
 				s.logger.Error("failed to update trace costs after observation cost update",
 					zap.String("trace_id", traceID),
 					zap.String("observation_id", observationID),

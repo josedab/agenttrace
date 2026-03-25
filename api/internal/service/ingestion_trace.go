@@ -88,7 +88,9 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 	// Evaluate guardrails asynchronously
 	if s.guardrailService != nil {
 		go func() {
-			result, err := s.guardrailService.Evaluate(context.Background(), projectID, trace, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			result, err := s.guardrailService.Evaluate(ctx, projectID, trace, nil)
 			if err != nil {
 				s.logger.Error("failed to evaluate guardrails",
 					zap.String("trace_id", trace.ID),
@@ -108,7 +110,9 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 	// Trigger evaluators asynchronously
 	if s.evalService != nil {
 		go func() {
-			if err := s.evalService.TriggerForTrace(context.Background(), projectID, trace); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := s.evalService.TriggerForTrace(ctx, projectID, trace); err != nil {
 				s.logger.Error("failed to trigger evaluators for trace",
 					zap.String("trace_id", trace.ID),
 					zap.String("project_id", projectID.String()),

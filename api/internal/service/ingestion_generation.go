@@ -178,7 +178,9 @@ func (s *IngestionService) IngestGeneration(ctx context.Context, projectID uuid.
 	// Update trace with accumulated costs
 	if obs.CostDetails.TotalCost > 0 {
 		go func() {
-			if err := s.updateTraceCosts(context.Background(), projectID, traceID); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := s.updateTraceCosts(ctx, projectID, traceID); err != nil {
 				s.logger.Error("failed to update trace costs",
 					zap.String("trace_id", traceID),
 					zap.String("observation_id", obsID),
@@ -192,7 +194,9 @@ func (s *IngestionService) IngestGeneration(ctx context.Context, projectID uuid.
 	// Trigger evaluators asynchronously
 	if s.evalService != nil {
 		go func() {
-			if err := s.evalService.TriggerForObservation(context.Background(), projectID, obs); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := s.evalService.TriggerForObservation(ctx, projectID, obs); err != nil {
 				s.logger.Error("failed to trigger evaluators for observation",
 					zap.String("observation_id", obs.ID),
 					zap.String("trace_id", obs.TraceID),
