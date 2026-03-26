@@ -18,12 +18,7 @@ Thank you for your interest in contributing to AgentTrace! This document provide
 
 ## Code of Conduct
 
-By participating in this project, you agree to maintain a respectful and inclusive environment. We expect all contributors to:
-
-- Be respectful and considerate in all interactions
-- Welcome newcomers and help them get started
-- Focus on constructive feedback
-- Accept responsibility for mistakes and learn from them
+By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Getting Started
 

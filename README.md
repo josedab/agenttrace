@@ -8,6 +8,12 @@
 
 Open-source observability platform for AI coding agents. LLM traces, evaluations, prompt management, and dataset experiments with Langfuse feature parity.
 
+<p align="center">
+  <img src="docs/static/img/dashboard-screenshot.png" alt="AgentTrace Dashboard" width="800" />
+  <br />
+  <em>AgentTrace dashboard showing real-time trace exploration with agent graph views</em>
+</p>
+
 ## Features
 
 - **Trace Exploration**: Real-time trace visualization with parent-child relationships, latency waterfall, and agent graph views
