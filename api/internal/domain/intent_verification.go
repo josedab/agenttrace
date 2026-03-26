@@ -6,6 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// IntentDeclaration records an agent's declared intent and its verification
+// result, tracking alignment between what the agent said it would do and
+// what it actually did.
 type IntentDeclaration struct {
 	ID              uuid.UUID           `json:"id"`
 	ProjectID       uuid.UUID           `json:"projectId"`
@@ -21,6 +24,8 @@ type IntentDeclaration struct {
 	VerifiedAt      *time.Time          `json:"verifiedAt,omitempty"`
 }
 
+// IntentMisalignment describes a specific discrepancy between a declared
+// action and the action actually performed by the agent.
 type IntentMisalignment struct {
 	DeclaredAction string `json:"declaredAction"`
 	ActualAction   string `json:"actualAction"`
@@ -28,6 +33,7 @@ type IntentMisalignment struct {
 	Description    string `json:"description"`
 }
 
+// IntentVerificationStats holds aggregate intent verification statistics for a project.
 type IntentVerificationStats struct {
 	ProjectID          uuid.UUID      `json:"projectId"`
 	TotalVerifications int            `json:"totalVerifications"`
@@ -35,6 +41,7 @@ type IntentVerificationStats struct {
 	MisalignmentsByAgent map[string]int `json:"misalignmentsByAgent"`
 }
 
+// IntentInput is the input for declaring an agent's intent before execution.
 type IntentInput struct {
 	TraceID         string   `json:"traceId" validate:"required"`
 	AgentName       string   `json:"agentName" validate:"required"`

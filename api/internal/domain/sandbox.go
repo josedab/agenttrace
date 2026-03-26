@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// SandboxStatus represents the lifecycle state of a sandbox review.
 type SandboxStatus string
 
 const (
@@ -16,6 +17,7 @@ const (
 	SandboxStatusExpired   SandboxStatus = "expired"
 )
 
+// IsValid reports whether s is a recognized sandbox status value.
 func (s SandboxStatus) IsValid() bool {
 	switch s {
 	case SandboxStatusPending, SandboxStatusReviewing, SandboxStatusApproved, SandboxStatusRejected, SandboxStatusExpired:
@@ -24,6 +26,8 @@ func (s SandboxStatus) IsValid() bool {
 	return false
 }
 
+// SandboxReview represents an agent action review, including proposed actions,
+// risk assessment, and approval state.
 type SandboxReview struct {
 	ID              uuid.UUID       `json:"id"`
 	ProjectID       uuid.UUID       `json:"projectId"`
@@ -40,6 +44,7 @@ type SandboxReview struct {
 	ExpiresAt       time.Time       `json:"expiresAt"`
 }
 
+// SandboxAction describes a single proposed agent action subject to sandbox review.
 type SandboxAction struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"` // file_write, file_delete, command_exec, network_request, env_access
@@ -50,6 +55,8 @@ type SandboxAction struct {
 	Approved    *bool  `json:"approved,omitempty"`
 }
 
+// SandboxPolicy defines the security policy governing which agent actions
+// are allowed, blocked, or require human review.
 type SandboxPolicy struct {
 	ID              uuid.UUID `json:"id"`
 	ProjectID       uuid.UUID `json:"projectId"`
@@ -65,17 +72,21 @@ type SandboxPolicy struct {
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
+// SandboxReviewInput is the input for creating a new sandbox review.
 type SandboxReviewInput struct {
 	TraceID         uuid.UUID       `json:"traceId" validate:"required"`
 	ProposedActions []SandboxAction `json:"proposedActions" validate:"required"`
 }
 
+// SandboxDecision represents a reviewer's decision on a sandbox review,
+// including full approval, rejection, or partial approval of specific actions.
 type SandboxDecision struct {
 	Action    string   `json:"action"` // approve, reject, approve_partial
 	Note      string   `json:"note,omitempty"`
 	ActionIDs []string `json:"actionIds,omitempty"` // for partial approval
 }
 
+// SandboxPolicyInput is the input for creating or updating a sandbox policy.
 type SandboxPolicyInput struct {
 	Name            string   `json:"name" validate:"required"`
 	AllowedPaths    []string `json:"allowedPaths"`
@@ -88,6 +99,7 @@ type SandboxPolicyInput struct {
 	MaxFileSize     *int64   `json:"maxFileSizeBytes"`
 }
 
+// SandboxStats contains aggregate statistics for sandbox reviews within a project.
 type SandboxStats struct {
 	TotalReviews    int                `json:"totalReviews"`
 	PendingReviews  int                `json:"pendingReviews"`
@@ -98,6 +110,7 @@ type SandboxStats struct {
 	TopBlockedPaths []PathBlockCount   `json:"topBlockedPaths"`
 }
 
+// PathBlockCount tracks how many times a specific path has been blocked by sandbox policy.
 type PathBlockCount struct {
 	Path  string `json:"path"`
 	Count int    `json:"count"`

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// SkillDimension represents a measurable capability area for AI agents.
 type SkillDimension string
 
 const (
@@ -18,6 +19,8 @@ const (
 	SkillCodeReview     SkillDimension = "code_review"
 )
 
+// AgentSkillProfile aggregates an agent's performance scores across skill
+// dimensions, languages, and models for a given project.
 type AgentSkillProfile struct {
 	AgentName      string                        `json:"agentName"`
 	ProjectID      uuid.UUID                     `json:"projectId"`
@@ -32,6 +35,7 @@ type AgentSkillProfile struct {
 	UpdatedAt      time.Time                     `json:"updatedAt"`
 }
 
+// SkillScore holds the performance metrics for a single skill dimension.
 type SkillScore struct {
 	Score       float64 `json:"score"`       // 0-100
 	Confidence  float64 `json:"confidence"`  // 0-1 based on sample size
@@ -41,6 +45,7 @@ type SkillScore struct {
 	AvgCost     float64 `json:"avgCost"`
 }
 
+// LanguageStat contains per-language performance statistics for an agent.
 type LanguageStat struct {
 	Language    string  `json:"language"`
 	TraceCount  int     `json:"traceCount"`
@@ -48,6 +53,7 @@ type LanguageStat struct {
 	AvgQuality  float64 `json:"avgQuality"`
 }
 
+// ModelStat contains per-model performance statistics for an agent.
 type ModelStat struct {
 	Model       string  `json:"model"`
 	TraceCount  int     `json:"traceCount"`
@@ -56,11 +62,14 @@ type ModelStat struct {
 	SuccessRate float64 `json:"successRate"`
 }
 
+// AgentComparison presents a side-by-side comparison of multiple agent skill
+// profiles, identifying the best-performing agent for each skill dimension.
 type AgentComparison struct {
 	Agents    []AgentSkillProfile       `json:"agents"`
 	BestAgent map[SkillDimension]string `json:"bestAgent"`
 }
 
+// SkillProfileFilter specifies criteria for querying agent skill profiles.
 type SkillProfileFilter struct {
 	ProjectID uuid.UUID
 	AgentName string

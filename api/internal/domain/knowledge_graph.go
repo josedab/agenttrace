@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// KnowledgeGraph represents the full knowledge graph for a project, containing
+// nodes (files, functions, tools, agents) and the edges connecting them.
 type KnowledgeGraph struct {
 	ProjectID uuid.UUID `json:"projectId"`
 	Nodes     []KGNode  `json:"nodes"`
@@ -13,6 +15,7 @@ type KnowledgeGraph struct {
 	Stats     KGStats   `json:"stats"`
 }
 
+// KGNode is a single node in the knowledge graph (e.g., a file, function, or agent).
 type KGNode struct {
 	ID       string         `json:"id"`
 	Type     string         `json:"type"` // file, function, module, tool, agent, dependency
@@ -21,6 +24,7 @@ type KGNode struct {
 	Weight   int            `json:"weight"`
 }
 
+// KGEdge is a directed relationship between two nodes in the knowledge graph.
 type KGEdge struct {
 	Source       string    `json:"source"`
 	Target       string    `json:"target"`
@@ -29,6 +33,7 @@ type KGEdge struct {
 	LastSeen     time.Time `json:"lastSeen"`
 }
 
+// KGStats contains summary statistics for a knowledge graph.
 type KGStats struct {
 	TotalNodes    int    `json:"totalNodes"`
 	TotalEdges    int    `json:"totalEdges"`
@@ -36,6 +41,7 @@ type KGStats struct {
 	Clusters      int    `json:"clusters"`
 }
 
+// KGQuery specifies parameters for querying a subset of the knowledge graph.
 type KGQuery struct {
 	NodeType  string `json:"nodeType,omitempty"`
 	Depth     int    `json:"depth,omitempty"`

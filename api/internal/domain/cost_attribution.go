@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// CostAttribution links a trace's incurred cost to the issue or task it resolved,
+// enabling ROI calculation for AI agent usage.
 type CostAttribution struct {
 	ID                 uuid.UUID `json:"id"`
 	ProjectID          uuid.UUID `json:"projectId"`
@@ -21,11 +23,14 @@ type CostAttribution struct {
 	CreatedAt          time.Time `json:"createdAt"`
 }
 
+// AttributionDateRange defines a time period for filtering cost attribution reports.
 type AttributionDateRange struct {
 	From string `json:"from"`
 	To   string `json:"to"`
 }
 
+// AttributionReport aggregates cost attributions for a project over a given period,
+// including per-category ROI breakdowns.
 type AttributionReport struct {
 	ProjectID       uuid.UUID              `json:"projectId"`
 	Period          AttributionDateRange   `json:"period"`
@@ -36,6 +41,7 @@ type AttributionReport struct {
 	ByCategory      map[string]CategoryROI `json:"byCategory"`
 }
 
+// CategoryROI summarizes cost and value metrics for a single attribution category.
 type CategoryROI struct {
 	Category   string  `json:"category"`
 	Cost       float64 `json:"cost"`
@@ -44,6 +50,7 @@ type CategoryROI struct {
 	TraceCount int     `json:"traceCount"`
 }
 
+// AttributionInput is the input for creating a new cost attribution.
 type AttributionInput struct {
 	TraceID    string  `json:"traceId" validate:"required"`
 	IssueRef   string  `json:"issueRef" validate:"required"`

@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// CrossOrgBenchmark represents an anonymized industry benchmark for a specific
+// metric, allowing organizations to compare their AI agent performance against peers.
 type CrossOrgBenchmark struct {
 	ID                uuid.UUID `json:"id"`
 	Category          string    `json:"category"`
@@ -19,6 +21,8 @@ type CrossOrgBenchmark struct {
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
+// CrossOrgSubmission represents an organization's anonymized metric submission
+// to the cross-organization benchmark pool.
 type CrossOrgSubmission struct {
 	ID          uuid.UUID          `json:"id"`
 	ProjectID   uuid.UUID          `json:"projectId"`
@@ -28,6 +32,8 @@ type CrossOrgSubmission struct {
 	SubmittedAt time.Time          `json:"submittedAt"`
 }
 
+// CrossOrgReport provides a project's benchmark results compared to industry
+// data, highlighting strengths and areas for improvement.
 type CrossOrgReport struct {
 	ProjectID         uuid.UUID           `json:"projectId"`
 	Benchmarks        []CrossOrgBenchmark `json:"benchmarks"`
@@ -36,6 +42,7 @@ type CrossOrgReport struct {
 	WeakAreas         []string            `json:"weakAreas"`
 }
 
+// CrossOrgSubmissionInput is the input for submitting metrics to the cross-org benchmark.
 type CrossOrgSubmissionInput struct {
 	Category string             `json:"category" validate:"required"`
 	Metrics  map[string]float64 `json:"metrics" validate:"required"`

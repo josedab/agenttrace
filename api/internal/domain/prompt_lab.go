@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// PromptExperimentStatus represents the lifecycle state of a prompt experiment.
 type PromptExperimentStatus string
 
 const (
@@ -15,6 +16,7 @@ const (
 	PromptExpStatusCancelled PromptExperimentStatus = "cancelled"
 )
 
+// IsValid reports whether s is a recognized prompt experiment status value.
 func (s PromptExperimentStatus) IsValid() bool {
 	switch s {
 	case PromptExpStatusDraft, PromptExpStatusRunning, PromptExpStatusCompleted, PromptExpStatusCancelled:
@@ -23,6 +25,8 @@ func (s PromptExperimentStatus) IsValid() bool {
 	return false
 }
 
+// PromptExperiment represents an A/B test comparing multiple prompt variants
+// for a given prompt name within a project.
 type PromptExperiment struct {
 	ID          uuid.UUID        `json:"id"`
 	ProjectID   uuid.UUID        `json:"projectId"`
@@ -37,6 +41,8 @@ type PromptExperiment struct {
 	CompletedAt *time.Time       `json:"completedAt,omitempty"`
 }
 
+// PromptVariant is a single variant in a prompt experiment, carrying its
+// content, traffic allocation, and observed metrics.
 type PromptVariant struct {
 	ID            uuid.UUID            `json:"id"`
 	ExperimentID  uuid.UUID            `json:"experimentId"`
@@ -47,6 +53,7 @@ type PromptVariant struct {
 	IsControl     bool                 `json:"isControl"`
 }
 
+// PromptVariantMetrics holds the aggregated performance metrics for a prompt variant.
 type PromptVariantMetrics struct {
 	Traces       int     `json:"traces"`
 	AvgQuality   float64 `json:"avgQuality"`
@@ -56,6 +63,8 @@ type PromptVariantMetrics struct {
 	ErrorRate    float64 `json:"errorRate"`
 }
 
+// OptimizationSuggestion describes a suggested prompt optimization, including
+// the technique used and estimated token savings.
 type OptimizationSuggestion struct {
 	ID              uuid.UUID `json:"id"`
 	ProjectID       uuid.UUID `json:"projectId"`
@@ -70,6 +79,7 @@ type OptimizationSuggestion struct {
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
+// PromptExperimentInput is the input for creating a new prompt experiment.
 type PromptExperimentInput struct {
 	Name        string         `json:"name" validate:"required"`
 	Description string         `json:"description,omitempty"`
@@ -77,6 +87,7 @@ type PromptExperimentInput struct {
 	Variants    []PromptVariantInput `json:"variants" validate:"required,min=2"`
 }
 
+// PromptVariantInput is the input for defining a variant within a prompt experiment.
 type PromptVariantInput struct {
 	Name          string  `json:"name" validate:"required"`
 	PromptContent string  `json:"promptContent" validate:"required"`
