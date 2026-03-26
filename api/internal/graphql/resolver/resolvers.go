@@ -1463,13 +1463,32 @@ func (r *queryResolver) DatasetByName(ctx context.Context, name string) (*domain
 
 // Evaluator is the resolver for the evaluator field.
 func (r *queryResolver) Evaluator(ctx context.Context, id uuid.UUID) (*domain.Evaluator, error) {
-	return r.EvalService.Get(ctx, id)
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	evaluator, err := r.EvalService.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.AuthService.CheckProjectAccess(ctx, evaluator.ProjectID, userID, domain.OrgRoleViewer); err != nil {
+		return nil, err
+	}
+	return evaluator, nil
 }
 
 // Evaluators is the resolver for the evaluators field.
 func (r *queryResolver) Evaluators(ctx context.Context, input model.EvaluatorsInput) (*model.EvaluatorConnection, error) {
 	projectID, err := getProjectID(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	userID, err := getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.AuthService.CheckProjectAccess(ctx, projectID, userID, domain.OrgRoleViewer); err != nil {
 		return nil, err
 	}
 
