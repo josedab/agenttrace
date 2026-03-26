@@ -59,7 +59,10 @@ func (h *TraceKBHandler) CreateEntry(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title is required"})
 	}
 
-	userID := uuid.New() // TODO: extract from auth context
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found"})
+	}
 	result, err := h.service.CreateEntry(c.Context(), projectID, userID, &input)
 	if err != nil {
 		h.logger.Error("failed to create knowledge base entry", zap.Error(err))

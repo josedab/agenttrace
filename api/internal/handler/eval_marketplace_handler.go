@@ -79,7 +79,10 @@ func (h *EvalMarketplaceHandler) PublishDataset(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	authorID := uuid.New() // TODO: extract from auth context
+	authorID, ok := middleware.GetUserID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found"})
+	}
 	result, err := h.service.PublishDataset(c.Context(), projectID, authorID, &input)
 	if err != nil {
 		h.logger.Error("failed to publish dataset", zap.Error(err))
@@ -143,7 +146,10 @@ func (h *EvalMarketplaceHandler) RateDataset(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	userID := uuid.New() // TODO: extract from auth context
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found"})
+	}
 	err = h.service.RateDataset(c.Context(), datasetUUID2, userID, input.Rating, input.Review)
 	if err != nil {
 		h.logger.Error("failed to rate dataset", zap.Error(err))
