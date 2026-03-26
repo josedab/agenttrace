@@ -4,6 +4,15 @@
 # Backend
 /api/ @josedab
 
+# Auth & Security (critical paths requiring explicit review)
+/api/internal/service/auth_service.go @josedab
+/api/internal/service/sso_service.go @josedab
+/api/internal/middleware/ @josedab
+/SECURITY.md @josedab
+
+# Ingestion pipeline (critical path)
+/api/internal/service/ingestion_*.go @josedab
+
 # Frontend
 /web/ @josedab
 
