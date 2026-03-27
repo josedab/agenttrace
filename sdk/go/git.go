@@ -154,6 +154,7 @@ func (t *Trace) GitLink(opts *GitLinkOptions) *GitLinkInfo {
 	}
 }
 
+// getCommitMessage returns the subject line of the most recent git commit.
 func getCommitMessage() string {
 	if out, err := exec.Command("git", "log", "-1", "--format=%s").Output(); err == nil {
 		return strings.TrimSpace(string(out))
@@ -161,6 +162,7 @@ func getCommitMessage() string {
 	return ""
 }
 
+// getAuthorInfo returns the author name and email from the most recent git commit.
 func getAuthorInfo() (name, email string) {
 	if out, err := exec.Command("git", "log", "-1", "--format=%an").Output(); err == nil {
 		name = strings.TrimSpace(string(out))
@@ -171,6 +173,7 @@ func getAuthorInfo() (name, email string) {
 	return
 }
 
+// getChangedFiles returns a deduplicated list of staged, unstaged, and untracked files.
 func getChangedFiles() []string {
 	files := []string{}
 	seen := make(map[string]bool)
@@ -208,6 +211,7 @@ func getChangedFiles() []string {
 	return files
 }
 
+// getDiffStats returns the total line additions and deletions from the current working tree diff.
 func getDiffStats() (additions, deletions int) {
 	if out, err := exec.Command("git", "diff", "--shortstat").Output(); err == nil {
 		output := string(out)

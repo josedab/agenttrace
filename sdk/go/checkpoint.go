@@ -139,6 +139,7 @@ func (t *Trace) Checkpoint(opts CheckpointOptions) *CheckpointInfo {
 	}
 }
 
+// getGitInfo returns the current HEAD commit SHA, branch name, and remote origin URL.
 func getGitInfo() GitInfo {
 	var info GitInfo
 
