@@ -618,7 +618,12 @@ class Trace:
 
 
 class Span:
-    """Represents a span within a trace."""
+    """
+    Represents a span within a trace.
+
+    A span is a generic timed operation used to track non-LLM work such as
+    data processing, tool calls, or arbitrary code execution.
+    """
 
     def __init__(
         self,
@@ -665,6 +670,12 @@ class Span:
         })
 
     def end(self, output: Optional[Any] = None) -> None:
+        """
+        End the span and record its duration.
+
+        Args:
+            output: Optional output data to attach to the span.
+        """
         if self._ended:
             return
 
@@ -685,7 +696,12 @@ class Span:
 
 
 class Generation:
-    """Represents an LLM generation within a trace."""
+    """
+    Represents an LLM generation within a trace.
+
+    A generation tracks a single call to a language model, including the model
+    name, input prompt, output response, token usage, and latency.
+    """
 
     def __init__(
         self,
@@ -744,6 +760,15 @@ class Generation:
         usage: Optional[Dict[str, int]] = None,
         model: Optional[str] = None,
     ) -> None:
+        """
+        End the generation and record its output and token usage.
+
+        Args:
+            output: The LLM response or output data.
+            usage: Token usage dict with keys like ``input_tokens``,
+                ``output_tokens``, and ``total_tokens``.
+            model: Override the model name if it changed during execution.
+        """
         if self._ended:
             return
 
