@@ -96,3 +96,56 @@ Open the command palette and type **AgentTrace** to see all available commands:
 - **Extension not activating**: Ensure you are signed in and have a valid API key.
 - **No traces appearing**: Check that `projectId` is set and the API URL is reachable.
 - **Git linking not working**: Verify the workspace is a Git repository with a remote configured.
+
+## Advanced Features
+
+### Keyboard Shortcuts
+
+| Shortcut (Mac / Windows-Linux) | Action |
+|-------------------------------|--------|
+| `Cmd+Shift+T` / `Ctrl+Shift+T` | Open Trace Explorer |
+| `Cmd+Shift+L` / `Ctrl+Shift+L` | Open latest trace |
+| `Cmd+Shift+C` / `Ctrl+Shift+C` | Copy current trace ID |
+
+### Inline Annotations
+
+When enabled, the extension shows gutter decorations on instrumented functions:
+
+- **Green dot**: Last trace succeeded
+- **Yellow dot**: Last trace had warnings
+- **Red dot**: Last trace had errors
+
+Hover over the gutter icon to see trace name, latency, cost, and a link to open the full trace.
+
+Enable or disable inline annotations in settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `agenttrace.showAnnotations` | `true` | Display inline gutter annotations |
+| `agenttrace.annotationDetail` | `compact` | Annotation detail level (`compact` or `full`) |
+
+### Trace Diff View
+
+Compare two traces side-by-side to identify regressions or improvements:
+
+1. Open the Trace Explorer sidebar
+2. Right-click a trace and select **Compare With…**
+3. Select the second trace from the list
+4. The diff view highlights differences in span trees, latencies, and costs
+
+### Multi-Root Workspace Support
+
+The extension works with VS Code multi-root workspaces. Each workspace folder can be associated with a different project:
+
+1. Open **Settings** > **Workspace** > **AgentTrace**
+2. Configure `agenttrace.projectId` per folder in your `.code-workspace` file
+
+### Status Bar Integration
+
+The status bar widget at the bottom of the editor shows:
+
+- **Session cost**: Running total for the current session
+- **Active traces**: Number of in-progress traces
+- **Connection status**: Green (connected), yellow (reconnecting), or red (disconnected)
+
+Click the status bar widget to open the cost summary panel.

@@ -90,3 +90,59 @@ The plugin is compatible with all IntelliJ Platform 2023.1+ IDEs:
 - **Tool window not visible**: Go to **View** > **Tool Windows** > **AgentTrace**. If missing, verify the plugin is enabled under **Settings** > **Plugins** > **Installed**.
 - **Connection errors**: Check your API key and API URL in **Settings** > **Tools** > **AgentTrace**. Ensure the URL is reachable from your network.
 - **Annotations not showing**: Confirm **Show Annotations** is enabled in settings. Annotations require at least one trace linked to the current project.
+
+## Advanced Features
+
+### Keyboard Shortcuts
+
+Default keyboard shortcuts (customizable via **Settings** > **Keymap**):
+
+| Shortcut (Mac / Windows-Linux) | Action |
+|-------------------------------|--------|
+| `Cmd+Shift+T` / `Ctrl+Shift+T` | Open Trace Explorer tool window |
+| `Cmd+Shift+L` / `Ctrl+Shift+L` | Open latest trace |
+| `Alt+T` / `Alt+T` | Toggle inline annotations |
+
+### Trace Diff View
+
+Compare two traces side-by-side to identify regressions:
+
+1. Open the Trace Explorer tool window
+2. Select a trace, then right-click and choose **Compare With…**
+3. Select the second trace
+4. A diff panel opens highlighting differences in span trees, latencies, and token usage
+
+### Live Tail Mode
+
+Stream incoming traces in real time:
+
+1. Open the Trace Explorer tool window
+2. Click the **Live Tail** toggle in the toolbar
+3. New traces appear at the top of the list as they arrive
+4. Click any trace to inspect it while the tail continues
+
+### Cost Monitoring Panel
+
+Track LLM spending without leaving the IDE:
+
+- **Session cost widget** in the status bar shows the running total
+- Open the **Costs** tab in the Trace Explorer for per-trace and per-model breakdowns
+- Configure spending alerts in **Settings** > **Tools** > **AgentTrace** > **Cost Warning Threshold**
+
+### Run Configuration Integration
+
+Automatically attach tracing to your run configurations:
+
+1. Open **Run** > **Edit Configurations…**
+2. Select your configuration
+3. In the **Before launch** section, add **AgentTrace: Start Trace**
+4. Traces are automatically created when you run or debug your application
+
+### Search and Filtering
+
+The Trace Explorer supports advanced filtering:
+
+- **Full-text search**: Filter traces by name, tags, or metadata
+- **Model filter**: Show only traces using a specific model (e.g., `gpt-4`, `claude-3`)
+- **Date range**: Narrow results to a specific time window
+- **Status filter**: Show only successful, failed, or in-progress traces
