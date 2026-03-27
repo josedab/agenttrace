@@ -264,6 +264,12 @@ export class Trace {
 
   /**
    * Create a span within this trace.
+   *
+   * A span represents a generic timed operation such as data processing,
+   * tool calls, or other non-LLM work.
+   *
+   * @param options - Configuration for the new span.
+   * @returns A new {@link Span} instance.
    */
   span(options: SpanOptions): Span {
     return new Span({
@@ -280,6 +286,12 @@ export class Trace {
 
   /**
    * Create a generation (LLM call) within this trace.
+   *
+   * A generation tracks a single language model invocation, including the
+   * model name, input prompt, output response, token usage, and latency.
+   *
+   * @param options - Configuration for the new generation.
+   * @returns A new {@link Generation} instance.
    */
   generation(options: GenerationOptions): Generation {
     return new Generation({
