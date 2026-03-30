@@ -150,9 +150,22 @@ const sidebars: SidebarsConfig = {
       ],
     },
     {
-      type: 'doc',
-      id: 'troubleshooting',
+      type: 'category',
       label: 'Troubleshooting',
+      link: {
+        type: 'doc',
+        id: 'troubleshooting/index',
+      },
+      items: [
+        'troubleshooting/connection',
+        'troubleshooting/authentication',
+        'troubleshooting/sdk',
+        'troubleshooting/integrations',
+        'troubleshooting/data',
+        'troubleshooting/performance',
+        'troubleshooting/deployment',
+        'troubleshooting/ui',
+      ],
     },
   ],
 };
