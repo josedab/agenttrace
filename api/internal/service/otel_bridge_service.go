@@ -229,3 +229,90 @@ func (s *OTelBridgeService) GetStats(ctx context.Context, projectID uuid.UUID) (
 	}
 	return st, nil
 }
+
+// GenerateCollectorConfig generates an OTel Collector YAML configuration
+// that can be used with the standard OpenTelemetry Collector to forward
+// spans to AgentTrace and other configured destinations
+func (s *OTelBridgeService) GenerateCollectorConfig(ctx context.Context, projectID uuid.UUID, apiKey string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	cfg, ok := s.configs[projectID]
+	if !ok {
+		return "", fmt.Errorf("OTel bridge config not found for project: %s", projectID)
+	}
+
+	// Build exporters section
+	exporters := `  otlp/agenttrace:
+    endpoint: "${AGENTTRACE_API_URL}"
+    headers:
+      Authorization: "Bearer ${AGENTTRACE_API_KEY}"
+    tls:
+      insecure: false
+`
+
+	for _, dest := range cfg.ExportDestinations {
+		if !dest.Enabled {
+			continue
+		}
+		exporterName := fmt.Sprintf("  otlp/%s", dest.Name)
+		exporters += fmt.Sprintf(`%s:
+    endpoint: "%s"
+    protocol: %s
+`, exporterName, dest.Endpoint, dest.Protocol)
+
+		if len(dest.Headers) > 0 {
+			exporters += "    headers:\n"
+			for k, v := range dest.Headers {
+				exporters += fmt.Sprintf("      %s: \"%s\"\n", k, v)
+			}
+		}
+	}
+
+	// Build pipeline destination list
+	pipelineExporters := "otlp/agenttrace"
+	for _, dest := range cfg.ExportDestinations {
+		if dest.Enabled {
+			pipelineExporters += fmt.Sprintf(", otlp/%s", dest.Name)
+		}
+	}
+
+	yamlConfig := fmt.Sprintf(`# Auto-generated OpenTelemetry Collector config for AgentTrace
+# Generated at: %s
+# Project: %s
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+  resource:
+    attributes:
+      - key: service.name
+        value: "${SERVICE_NAME:-agenttrace}"
+        action: upsert
+
+exporters:
+%s
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [%s]
+`, time.Now().Format(time.RFC3339), projectID, exporters, pipelineExporters)
+
+	s.logger.Info("generated OTel collector config",
+		zap.String("projectId", projectID.String()),
+		zap.Int("destinationCount", len(cfg.ExportDestinations)),
+	)
+
+	return yamlConfig, nil
+}
