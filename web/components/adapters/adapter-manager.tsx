@@ -85,6 +85,8 @@ const frameworkIcons: Record<string, string> = {
   langgraph: "📊",
   openhands: "🤲",
   semantic_kernel: "🧠",
+  openai_agents: "🔮",
+  mcp: "🔌",
   custom: "⚙️",
 };
 
@@ -162,6 +164,44 @@ graph.add_node("agent", agent_node)
 app = graph.compile()
 app.invoke({"messages": [...]})`,
     dependencies: ["agenttrace[langgraph]", "langgraph"],
+  },
+  {
+    framework: "openai_agents",
+    name: "OpenAI Agents SDK",
+    description: "Trace capture for OpenAI Agents SDK with tool use, handoffs, and guardrails",
+    language: "python",
+    setupCode: `from agenttrace.adapters import OpenAIAgentsAdapter
+
+adapter = OpenAIAgentsAdapter(api_key="your-key")
+adapter.instrument()
+
+# Your OpenAI Agents code — traces are captured automatically
+from agents import Agent, Runner
+
+agent = Agent(name="assistant", instructions="You are a helpful assistant.")
+result = Runner.run_sync(agent, "What is the weather in SF?")
+print(result.final_output)`,
+    dependencies: ["agenttrace[openai-agents]", "openai-agents"],
+  },
+  {
+    framework: "mcp",
+    name: "Model Context Protocol (MCP)",
+    description: "Trace capture for MCP servers and clients — tools, resources, and prompts",
+    language: "python",
+    setupCode: `from agenttrace.adapters import MCPAdapter
+
+adapter = MCPAdapter(api_key="your-key")
+adapter.instrument()
+
+# Your MCP server code — traces are captured automatically
+from mcp.server import Server
+
+server = Server("my-server")
+
+@server.tool()
+async def get_weather(city: str) -> str:
+    return f"Weather in {city}: 72°F"`,
+    dependencies: ["agenttrace[mcp]", "mcp"],
   },
 ];
 
@@ -258,10 +298,12 @@ export function AdapterManager() {
                       <SelectValue placeholder="Select framework" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="openai_agents">🔮 OpenAI Agents SDK</SelectItem>
                       <SelectItem value="langchain">🦜 LangChain</SelectItem>
                       <SelectItem value="crewai">🚀 CrewAI</SelectItem>
                       <SelectItem value="autogen">🤖 AutoGen</SelectItem>
                       <SelectItem value="langgraph">📊 LangGraph</SelectItem>
+                      <SelectItem value="mcp">🔌 MCP</SelectItem>
                       <SelectItem value="openhands">🤲 OpenHands</SelectItem>
                       <SelectItem value="semantic_kernel">🧠 Semantic Kernel</SelectItem>
                       <SelectItem value="custom">⚙️ Custom</SelectItem>

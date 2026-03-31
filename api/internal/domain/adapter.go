@@ -26,6 +26,8 @@ const (
 	AdapterFrameworkLangGraph      AdapterFramework = "langgraph"
 	AdapterFrameworkOpenHands      AdapterFramework = "openhands"
 	AdapterFrameworkSemanticKernel AdapterFramework = "semantic_kernel"
+	AdapterFrameworkOpenAIAgents   AdapterFramework = "openai_agents"
+	AdapterFrameworkMCP            AdapterFramework = "mcp"
 	AdapterFrameworkCustom         AdapterFramework = "custom"
 )
 

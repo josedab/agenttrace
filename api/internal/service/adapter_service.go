@@ -268,15 +268,267 @@ func isValidFramework(f domain.AdapterFramework) bool {
 		domain.AdapterFrameworkLangGraph,
 		domain.AdapterFrameworkOpenHands,
 		domain.AdapterFrameworkSemanticKernel,
+		domain.AdapterFrameworkOpenAIAgents,
+		domain.AdapterFrameworkMCP,
 		domain.AdapterFrameworkCustom:
 		return true
 	}
 	return false
 }
 
+// TransformEvent applies framework-specific schema mapping to normalize an event into AgentTrace's native format
+func (s *AdapterService) TransformEvent(ctx context.Context, adapter *domain.AgentAdapter, rawEvent map[string]interface{}) (*domain.AdapterEvent, error) {
+	event := &domain.AdapterEvent{
+		AdapterID: adapter.ID,
+		Framework: adapter.Framework,
+		StartTime: time.Now(),
+	}
+
+	// Apply framework-specific mapping
+	switch adapter.Framework {
+	case domain.AdapterFrameworkOpenAIAgents:
+		return s.transformOpenAIAgentsEvent(adapter, rawEvent, event)
+	case domain.AdapterFrameworkMCP:
+		return s.transformMCPEvent(adapter, rawEvent, event)
+	case domain.AdapterFrameworkLangChain:
+		return s.transformLangChainEvent(adapter, rawEvent, event)
+	case domain.AdapterFrameworkCrewAI:
+		return s.transformCrewAIEvent(adapter, rawEvent, event)
+	case domain.AdapterFrameworkAutoGen:
+		return s.transformAutoGenEvent(adapter, rawEvent, event)
+	default:
+		return s.transformGenericEvent(adapter, rawEvent, event)
+	}
+}
+
+func (s *AdapterService) transformOpenAIAgentsEvent(adapter *domain.AgentAdapter, raw map[string]interface{}, event *domain.AdapterEvent) (*domain.AdapterEvent, error) {
+	// Map OpenAI Agents SDK trace format → AgentTrace native
+	event.EventType = mapStringField(raw, "type", "span_start")
+	event.Name = mapStringField(raw, "name", "openai-agent-event")
+	event.TraceID = mapStringField(raw, "trace_id", "")
+	event.SpanID = mapStringField(raw, "span_id", "")
+	event.ParentID = mapStringField(raw, "parent_id", "")
+
+	if input, ok := raw["input"]; ok {
+		if m, ok := input.(map[string]interface{}); ok {
+			event.Input = m
+		}
+	}
+	if output, ok := raw["output"]; ok {
+		if m, ok := output.(map[string]interface{}); ok {
+			event.Output = m
+		}
+	}
+
+	// Map agent-specific fields
+	event.Metadata = map[string]interface{}{
+		"framework":  "openai_agents",
+		"agent_name": mapStringField(raw, "agent_name", ""),
+		"model":      mapStringField(raw, "model", ""),
+		"tool_calls": raw["tool_calls"],
+		"handoff":    raw["handoff"],
+	}
+
+	if errMsg := mapStringField(raw, "error", ""); errMsg != "" {
+		event.StatusCode = "error"
+		event.Error = errMsg
+	} else {
+		event.StatusCode = "ok"
+	}
+
+	return event, nil
+}
+
+func (s *AdapterService) transformMCPEvent(adapter *domain.AgentAdapter, raw map[string]interface{}, event *domain.AdapterEvent) (*domain.AdapterEvent, error) {
+	// Map MCP (Model Context Protocol) format → AgentTrace native
+	method := mapStringField(raw, "method", "")
+	event.Name = method
+	event.TraceID = mapStringField(raw, "id", "")
+
+	switch {
+	case method == "tools/call":
+		event.EventType = "tool_call"
+	case method == "resources/read":
+		event.EventType = "resource_read"
+	case method == "prompts/get":
+		event.EventType = "prompt_get"
+	case method == "sampling/createMessage":
+		event.EventType = "llm_call"
+	default:
+		event.EventType = "mcp_" + method
+	}
+
+	if params, ok := raw["params"].(map[string]interface{}); ok {
+		event.Input = params
+	}
+	if result, ok := raw["result"].(map[string]interface{}); ok {
+		event.Output = result
+	}
+
+	event.Metadata = map[string]interface{}{
+		"framework":    "mcp",
+		"mcp_method":   method,
+		"jsonrpc":      mapStringField(raw, "jsonrpc", "2.0"),
+		"server_name":  mapStringField(raw, "server_name", ""),
+		"capabilities": raw["capabilities"],
+	}
+
+	if errObj, ok := raw["error"].(map[string]interface{}); ok {
+		event.StatusCode = "error"
+		event.Error = mapStringField(errObj, "message", "unknown error")
+	} else {
+		event.StatusCode = "ok"
+	}
+
+	return event, nil
+}
+
+func (s *AdapterService) transformLangChainEvent(adapter *domain.AgentAdapter, raw map[string]interface{}, event *domain.AdapterEvent) (*domain.AdapterEvent, error) {
+	event.EventType = mapStringField(raw, "event", "chain_start")
+	event.Name = mapStringField(raw, "name", "langchain-event")
+	event.TraceID = mapStringField(raw, "run_id", "")
+	event.ParentID = mapStringField(raw, "parent_run_id", "")
+
+	if input, ok := raw["inputs"].(map[string]interface{}); ok {
+		event.Input = input
+	}
+	if output, ok := raw["outputs"].(map[string]interface{}); ok {
+		event.Output = output
+	}
+
+	event.Metadata = map[string]interface{}{
+		"framework": "langchain",
+		"run_type":  mapStringField(raw, "run_type", ""),
+		"tags":      raw["tags"],
+	}
+	event.StatusCode = "ok"
+	return event, nil
+}
+
+func (s *AdapterService) transformCrewAIEvent(adapter *domain.AgentAdapter, raw map[string]interface{}, event *domain.AdapterEvent) (*domain.AdapterEvent, error) {
+	event.EventType = mapStringField(raw, "type", "task_execution")
+	event.Name = mapStringField(raw, "task_name", mapStringField(raw, "agent_name", "crewai-event"))
+	event.TraceID = mapStringField(raw, "crew_id", "")
+
+	if input, ok := raw["input"].(map[string]interface{}); ok {
+		event.Input = input
+	}
+	if output, ok := raw["output"].(map[string]interface{}); ok {
+		event.Output = output
+	}
+
+	event.Metadata = map[string]interface{}{
+		"framework":  "crewai",
+		"agent_role": mapStringField(raw, "agent_role", ""),
+		"crew_name":  mapStringField(raw, "crew_name", ""),
+	}
+	event.StatusCode = "ok"
+	return event, nil
+}
+
+func (s *AdapterService) transformAutoGenEvent(adapter *domain.AgentAdapter, raw map[string]interface{}, event *domain.AdapterEvent) (*domain.AdapterEvent, error) {
+	event.EventType = mapStringField(raw, "type", "message")
+	event.Name = mapStringField(raw, "sender", "autogen-event")
+	event.TraceID = mapStringField(raw, "conversation_id", "")
+
+	if content, ok := raw["content"].(string); ok {
+		event.Input = map[string]interface{}{"content": content}
+	}
+
+	event.Metadata = map[string]interface{}{
+		"framework": "autogen",
+		"sender":    mapStringField(raw, "sender", ""),
+		"recipient": mapStringField(raw, "recipient", ""),
+	}
+	event.StatusCode = "ok"
+	return event, nil
+}
+
+func (s *AdapterService) transformGenericEvent(adapter *domain.AgentAdapter, raw map[string]interface{}, event *domain.AdapterEvent) (*domain.AdapterEvent, error) {
+	event.EventType = mapStringField(raw, "type", mapStringField(raw, "event_type", "generic"))
+	event.Name = mapStringField(raw, "name", "event")
+	event.TraceID = mapStringField(raw, "trace_id", mapStringField(raw, "traceId", ""))
+	event.SpanID = mapStringField(raw, "span_id", mapStringField(raw, "spanId", ""))
+	event.ParentID = mapStringField(raw, "parent_id", mapStringField(raw, "parentId", ""))
+
+	if input, ok := raw["input"].(map[string]interface{}); ok {
+		event.Input = input
+	}
+	if output, ok := raw["output"].(map[string]interface{}); ok {
+		event.Output = output
+	}
+
+	// Apply custom transform rules from adapter config
+	for _, rule := range adapter.Config.TransformRules {
+		if val, exists := raw[rule.SourceField]; exists {
+			switch rule.TargetField {
+			case "name":
+				if s, ok := val.(string); ok {
+					event.Name = s
+				}
+			case "eventType":
+				if s, ok := val.(string); ok {
+					event.EventType = s
+				}
+			}
+		}
+	}
+
+	event.Metadata = raw
+	event.StatusCode = "ok"
+	return event, nil
+}
+
+func mapStringField(m map[string]interface{}, key, defaultVal string) string {
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			return s
+		}
+	}
+	return defaultVal
+}
+
 // GetTemplates returns framework setup templates
 func (s *AdapterService) GetTemplates(ctx context.Context) []domain.AdapterTemplateV2 {
 	return []domain.AdapterTemplateV2{
+		{
+			Framework:   domain.AdapterFrameworkOpenAIAgents,
+			Name:        "OpenAI Agents SDK",
+			Description: "Trace capture for OpenAI Agents SDK with tool use, handoffs, and guardrails",
+			Language:    "python",
+			SetupCode: `from agenttrace.adapters import OpenAIAgentsAdapter
+
+adapter = OpenAIAgentsAdapter(api_key="your-key")
+adapter.instrument()
+
+# Your OpenAI Agents code — traces are captured automatically
+from agents import Agent, Runner
+
+agent = Agent(name="assistant", instructions="You are a helpful assistant.")
+result = Runner.run_sync(agent, "What is the weather in SF?")
+print(result.final_output)`,
+			Dependencies: []string{"agenttrace[openai-agents]", "openai-agents"},
+		},
+		{
+			Framework:   domain.AdapterFrameworkMCP,
+			Name:        "Model Context Protocol (MCP)",
+			Description: "Trace capture for MCP servers and clients — tools, resources, and prompts",
+			Language:    "python",
+			SetupCode: `from agenttrace.adapters import MCPAdapter
+
+adapter = MCPAdapter(api_key="your-key")
+adapter.instrument()
+
+# Your MCP server code — traces are captured automatically
+from mcp.server import Server
+
+server = Server("my-server")
+
+@server.tool()
+async def get_weather(city: str) -> str:
+    return f"Weather in {city}: 72°F"`,
+			Dependencies: []string{"agenttrace[mcp]", "mcp"},
+		},
 		{
 			Framework:   domain.AdapterFrameworkLangChain,
 			Name:        "LangChain",
