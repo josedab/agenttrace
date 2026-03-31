@@ -1054,6 +1054,8 @@ export const api = {
     attribute: (data: any) => fetchWithAuth<any>("/api/public/cost-attribution", { method: "POST", body: JSON.stringify(data) }),
     getReport: () => fetchWithAuth<any>("/api/public/cost-attribution/report"),
     list: () => fetchWithAuth<any>("/api/public/cost-attribution"),
+    getBreakdown: (data: { period: string; groupBy: string }) => fetchWithAuth<any>(`/api/public/cost-attribution/breakdown?period=${encodeURIComponent(data.period)}&groupBy=${encodeURIComponent(data.groupBy)}`),
+    getModelPricing: () => fetchWithAuth<any>("/api/public/cost-attribution/model-pricing"),
   },
 
   // Knowledge Graph
@@ -1157,6 +1159,8 @@ export const api = {
     evaluateGate: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/gates/evaluate", { method: "POST", body: JSON.stringify(data) }),
     getRegressionHistory: () => fetchWithAuth<any>("/api/public/prompt-ci/regressions"),
     getDashboardStats: () => fetchWithAuth<any>("/api/public/prompt-ci/dashboard"),
+    triggerCIWebhook: (data: any) => fetchWithAuth<any>("/api/public/prompt-ci/ci-webhook", { method: "POST", body: JSON.stringify(data) }),
+    generateCIConfig: (provider: string) => fetchWithAuth<any>(`/api/public/prompt-ci/ci-config?provider=${encodeURIComponent(provider)}`),
   },
 
   // Agent Benchmarks
