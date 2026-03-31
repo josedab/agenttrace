@@ -76,4 +76,55 @@ type SemanticTraceSearchDashboard struct {
 	TopClusters        []TraceCluster   `json:"topClusters"`
 	AnomalyPatterns    []TraceAnomalyPattern `json:"anomalyPatterns"`
 	TotalIndexedTraces int64            `json:"totalIndexedTraces"`
+	IndexHealth        string           `json:"indexHealth"`
+	EmbeddingModel     string           `json:"embeddingModel"`
+	LastIndexedAt      *time.Time       `json:"lastIndexedAt,omitempty"`
+}
+
+// SearchMode represents the search strategy
+type SearchMode string
+
+const (
+	SearchModeSemantic SearchMode = "semantic"
+	SearchModeHybrid   SearchMode = "hybrid"
+	SearchModeKeyword  SearchMode = "keyword"
+)
+
+// RAGSearchQuery extends SemanticTraceSearchQuery with RAG capabilities
+type RAGSearchQuery struct {
+	Query          string                     `json:"query"`
+	ProjectID      uuid.UUID                  `json:"projectId"`
+	Filters        SemanticTraceSearchFilters `json:"filters"`
+	Limit          int                        `json:"limit"`
+	Offset         int                        `json:"offset"`
+	SearchMode     SearchMode                 `json:"searchMode,omitempty"`
+	IncludeContext bool                       `json:"includeContext,omitempty"`
+	MinScore       float64                    `json:"minScore,omitempty"`
+}
+
+// RAGSearchResult extends SemanticTraceSearchResult with context
+type RAGSearchResult struct {
+	SemanticTraceSearchResult
+	Context       string                `json:"context,omitempty"`
+	Summary       string                `json:"summary,omitempty"`
+	RelatedTraces []RelatedTraceResult  `json:"relatedTraces,omitempty"`
+}
+
+// RelatedTraceResult represents a related trace found via similarity search
+type RelatedTraceResult struct {
+	TraceID    uuid.UUID `json:"traceId"`
+	TraceName  string    `json:"traceName"`
+	Similarity float64   `json:"similarity"`
+}
+
+// EmbeddingIndexStatus represents the state of the embedding index
+type EmbeddingIndexStatus struct {
+	TotalDocuments   int64     `json:"totalDocuments"`
+	IndexedDocuments int64     `json:"indexedDocuments"`
+	PendingDocuments int64     `json:"pendingDocuments"`
+	LastIndexedAt    time.Time `json:"lastIndexedAt"`
+	EmbeddingModel   string    `json:"embeddingModel"`
+	VectorDimensions int       `json:"vectorDimensions"`
+	IndexSizeBytes   int64     `json:"indexSizeBytes"`
+	Status           string    `json:"status"`
 }

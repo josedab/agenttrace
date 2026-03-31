@@ -39,12 +39,47 @@ export interface SearchDashboard {
   clusterCount: number;
   anomalyPatternCount: number;
   recentSearches: { query: string; resultCount: number; timestamp: string }[];
+  indexHealth: "healthy" | "stale" | "rebuilding";
+  embeddingModel: string;
+  lastIndexedAt: string;
+}
+
+export interface RAGSearchQuery {
+  query: string;
+  limit?: number;
+  filters?: Record<string, unknown>;
+  searchMode?: "semantic" | "hybrid" | "keyword";
+  minScore?: number;
+  dateRange?: { from: string; to: string };
+  traceTypes?: string[];
+  includeContext?: boolean;
+}
+
+export interface RAGSearchResult extends SemanticSearchResult {
+  context?: string;
+  summary?: string;
+  relatedTraces?: { traceId: string; similarity: number }[];
+}
+
+export interface EmbeddingIndexStatus {
+  totalDocuments: number;
+  indexedDocuments: number;
+  pendingDocuments: number;
+  lastIndexedAt: string;
+  embeddingModel: string;
+  vectorDimensions: number;
+  indexSizeBytes: number;
+  status: "ready" | "indexing" | "error";
 }
 
 export function useSemanticSearch() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { query: string; limit?: number; filters?: Record<string, unknown> }) =>
-      api.semanticSearch.search(data) as Promise<SemanticSearchResult[]>,
+    mutationFn: (data: RAGSearchQuery) =>
+      api.semanticSearch.search(data) as Promise<RAGSearchResult[]>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["search-dashboard"] });
+    },
   });
 }
 
@@ -69,5 +104,25 @@ export function useSearchDashboard() {
     queryKey: ["search-dashboard"],
     queryFn: () =>
       api.semanticSearch.getDashboard() as Promise<SearchDashboard>,
+  });
+}
+
+export function useRebuildIndex() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.semanticSearch.search({ query: "__rebuild_index__", limit: 0 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["search-dashboard"] });
+    },
+  });
+}
+
+export function useSimilarTraces(traceId: string) {
+  return useQuery({
+    queryKey: ["similar-traces", traceId],
+    queryFn: () =>
+      api.semanticSearch.search({ query: `similar:${traceId}`, limit: 10 }) as Promise<RAGSearchResult[]>,
+    enabled: !!traceId,
   });
 }
