@@ -291,6 +291,100 @@ func (h *PromptCIHandler) GetRegressionHistory(c *fiber.Ctx) error {
 	return c.JSON(history)
 }
 
+// CIWebhookRequest represents an incoming CI/CD webhook trigger
+type CIWebhookRequest struct {
+	Provider     string             `json:"provider"` // github, gitlab, custom
+	Branch       string             `json:"branch"`
+	CommitSHA    string             `json:"commitSha"`
+	PRNumber     *int               `json:"prNumber,omitempty"`
+	GateConfigID string             `json:"gateConfigId,omitempty"`
+	BaselineID   string             `json:"baselineId,omitempty"`
+	Scores       map[string]float64 `json:"scores,omitempty"`
+	CallbackURL  string             `json:"callbackUrl,omitempty"`
+}
+
+// CIWebhookResponse returns the gate result with CI-friendly fields
+type CIWebhookResponse struct {
+	Passed          bool                       `json:"passed"`
+	ExitCode        int                        `json:"exitCode"`
+	OverallSeverity string                     `json:"overallSeverity"`
+	Summary         string                     `json:"summary"`
+	BlockReason     string                     `json:"blockReason,omitempty"`
+	MetricResults   []domain.MetricGateResult  `json:"metricResults"`
+	StatusBadgeURL  string                     `json:"statusBadgeUrl,omitempty"`
+}
+
+// HandleCIWebhook handles POST /api/public/prompt-ci/ci-webhook
+// Unified endpoint for CI/CD providers (GitHub Actions, GitLab CI, etc.)
+func (h *PromptCIHandler) HandleCIWebhook(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
+
+	var req CIWebhookRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.Branch == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "branch is required"})
+	}
+	if req.CommitSHA == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "commitSha is required"})
+	}
+
+	var gateConfigID uuid.UUID
+	if req.GateConfigID != "" {
+		var err error
+		gateConfigID, err = uuid.Parse(req.GateConfigID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid gate config ID"})
+		}
+	}
+
+	evalInput := &domain.PromptCIGateEvalInput{
+		GateConfigID: gateConfigID,
+		Branch:       req.Branch,
+		CommitSHA:    req.CommitSHA,
+		PRNumber:     req.PRNumber,
+		Scores:       req.Scores,
+	}
+
+	result, err := h.promptCIService.EvaluateGate(c.Context(), projectID, evalInput)
+	if err != nil {
+		h.logger.Error("CI webhook gate evaluation failed", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gate evaluation failed: " + err.Error()})
+	}
+
+	// Record the regression event
+	if _, err := h.promptCIService.RecordRegressionEvent(c.Context(), projectID, result, req.Branch, req.CommitSHA, req.PRNumber); err != nil {
+		h.logger.Warn("failed to record regression event", zap.Error(err))
+	}
+
+	exitCode := 0
+	if !result.Passed {
+		exitCode = 1
+	}
+
+	resp := CIWebhookResponse{
+		Passed:          result.Passed,
+		ExitCode:        exitCode,
+		OverallSeverity: string(result.OverallSeverity),
+		Summary:         result.Summary,
+		BlockReason:     result.BlockReason,
+		MetricResults:   result.MetricResults,
+	}
+
+	h.logger.Info("CI webhook processed",
+		zap.String("provider", req.Provider),
+		zap.String("branch", req.Branch),
+		zap.Bool("passed", result.Passed),
+	)
+
+	return c.JSON(resp)
+}
+
 // GetDashboardStats handles GET /api/public/prompt-ci/stats
 func (h *PromptCIHandler) GetDashboardStats(c *fiber.Ctx) error {
 	projectID, ok := middleware.GetProjectID(c)

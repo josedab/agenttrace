@@ -1,0 +1,13 @@
+{
+  "gateConfigId": "",
+  "baselineId": "",
+  "maxRegressionPercent": 5,
+  "blockOnSeverity": "major",
+  "enforceMode": "block",
+  "confidenceLevel": 0.95,
+  "requiredMetrics": ["accuracy", "relevance", "coherence"],
+  "notifications": {
+    "slack": "",
+    "email": ""
+  }
+}

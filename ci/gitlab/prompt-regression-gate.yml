@@ -1,0 +1,157 @@
+# AgentTrace Prompt Regression CI Gate for GitLab CI
+# Include this in your .gitlab-ci.yml:
+#   include:
+#     - local: 'ci/gitlab/prompt-regression-gate.yml'
+
+.prompt-regression-gate:
+  stage: test
+  image: alpine:3.19
+  variables:
+    AGENTTRACE_API_URL: "${AGENTTRACE_API_URL}"
+    AGENTTRACE_API_KEY: "${AGENTTRACE_API_KEY}"
+    PROMPT_CI_THRESHOLD: "5"
+    PROMPT_CI_BLOCK_SEVERITY: "major"
+    PROMPT_CI_ENFORCE_MODE: "block"
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      set -euo pipefail
+
+      # Validate API key
+      if [ -z "${AGENTTRACE_API_KEY:-}" ]; then
+        echo "WARNING: AGENTTRACE_API_KEY not set. Skipping prompt regression check."
+        exit 0
+      fi
+
+      # Load config from file if exists
+      if [ -f ".agenttrace/prompt-ci.json" ]; then
+        echo "Found .agenttrace/prompt-ci.json configuration"
+        GATE_CONFIG_ID=$(jq -r '.gateConfigId // empty' .agenttrace/prompt-ci.json)
+        BASELINE_ID=$(jq -r '.baselineId // empty' .agenttrace/prompt-ci.json)
+        FILE_THRESHOLD=$(jq -r '.maxRegressionPercent // empty' .agenttrace/prompt-ci.json)
+        FILE_BLOCK_SEVERITY=$(jq -r '.blockOnSeverity // empty' .agenttrace/prompt-ci.json)
+        FILE_ENFORCE_MODE=$(jq -r '.enforceMode // empty' .agenttrace/prompt-ci.json)
+
+        [ -n "$FILE_THRESHOLD" ] && PROMPT_CI_THRESHOLD="$FILE_THRESHOLD"
+        [ -n "$FILE_BLOCK_SEVERITY" ] && PROMPT_CI_BLOCK_SEVERITY="$FILE_BLOCK_SEVERITY"
+        [ -n "$FILE_ENFORCE_MODE" ] && PROMPT_CI_ENFORCE_MODE="$FILE_ENFORCE_MODE"
+      fi
+
+      BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_REF_NAME}"
+      COMMIT_SHA="$CI_COMMIT_SHA"
+      MR_IID="${CI_MERGE_REQUEST_IID:-}"
+
+      echo "🔍 Running prompt regression check..."
+      echo "  Branch: $BRANCH"
+      echo "  Commit: $COMMIT_SHA"
+      echo "  MR: ${MR_IID:-N/A}"
+
+      # Build evaluation request
+      PAYLOAD=$(jq -n \
+        --arg branch "$BRANCH" \
+        --arg commitSha "$COMMIT_SHA" \
+        --arg gateConfigId "${GATE_CONFIG_ID:-}" \
+        --arg baselineId "${BASELINE_ID:-}" \
+        '{
+          branch: $branch,
+          commitSha: $commitSha,
+          gateConfigId: (if $gateConfigId != "" then $gateConfigId else null end),
+          baselineId: (if $baselineId != "" then $baselineId else null end)
+        }')
+
+      if [ -n "$MR_IID" ]; then
+        PAYLOAD=$(echo "$PAYLOAD" | jq --argjson mr "$MR_IID" '.prNumber = $mr')
+      fi
+
+      HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
+        -X POST "${AGENTTRACE_API_URL}/api/public/prompt-ci/gates/evaluate" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+        -d "$PAYLOAD" || echo -e "\n000")
+
+      HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+      HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -1)
+
+      if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+        echo "WARNING: Prompt CI API returned status $HTTP_STATUS"
+        if [ "$PROMPT_CI_ENFORCE_MODE" = "block" ]; then
+          exit 1
+        fi
+        exit 0
+      fi
+
+      PASSED=$(echo "$HTTP_BODY" | jq -r '.passed')
+      SEVERITY=$(echo "$HTTP_BODY" | jq -r '.overallSeverity')
+      SUMMARY=$(echo "$HTTP_BODY" | jq -r '.summary')
+      BLOCK_REASON=$(echo "$HTTP_BODY" | jq -r '.blockReason // empty')
+
+      echo ""
+      echo "📊 Results:"
+      echo "  Passed: $PASSED"
+      echo "  Severity: $SEVERITY"
+      echo "  Summary: $SUMMARY"
+
+      # Display metric results
+      echo ""
+      echo "$HTTP_BODY" | jq -r '
+        .metricResults // [] | .[] |
+        "  \(.metricName): \(.baselineValue) → \(.currentValue) (\(.actualChangePercent)%) \(if .passed then "✅" else "❌" end)"'
+
+      if [ -n "$BLOCK_REASON" ]; then
+        echo ""
+        echo "⚠️  Block reason: $BLOCK_REASON"
+      fi
+
+      # Post MR note if in merge request context
+      if [ -n "$MR_IID" ] && [ -n "${GITLAB_TOKEN:-}" ]; then
+        ICON="✅"
+        [ "$PASSED" != "true" ] && ICON="❌"
+        TITLE="${ICON} Prompt Regression Check $([ "$PASSED" = "true" ] && echo "Passed" || echo "Failed")"
+
+        NOTE_BODY="${TITLE}\n\n**Severity:** ${SEVERITY}\n**Summary:** ${SUMMARY}"
+        if [ -n "$BLOCK_REASON" ]; then
+          NOTE_BODY="${NOTE_BODY}\n\n> ⚠️ ${BLOCK_REASON}"
+        fi
+        NOTE_BODY="${NOTE_BODY}\n\n---\n*Evaluated by AgentTrace Prompt CI Gate*"
+
+        curl -s -X POST \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${MR_IID}/notes" \
+          -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d "{\"body\": \"$(echo -e "$NOTE_BODY")\"}" > /dev/null 2>&1 || true
+      fi
+
+      # Enforce gate decision
+      severity_rank() {
+        case "$1" in
+          none)     echo 0 ;;
+          minor)    echo 1 ;;
+          major)    echo 2 ;;
+          critical) echo 3 ;;
+          *)        echo 0 ;;
+        esac
+      }
+
+      if [ "$PASSED" != "true" ]; then
+        ACTUAL_RANK=$(severity_rank "$SEVERITY")
+        THRESHOLD_RANK=$(severity_rank "$PROMPT_CI_BLOCK_SEVERITY")
+
+        if [ "$ACTUAL_RANK" -ge "$THRESHOLD_RANK" ] && [ "$PROMPT_CI_ENFORCE_MODE" = "block" ]; then
+          echo ""
+          echo "❌ GATE BLOCKED: severity '$SEVERITY' >= threshold '$PROMPT_CI_BLOCK_SEVERITY'"
+          exit 1
+        elif [ "$PROMPT_CI_ENFORCE_MODE" = "warn" ]; then
+          echo "⚠️  Regression detected but enforce mode is 'warn'"
+        fi
+      else
+        echo ""
+        echo "✅ Prompt regression gate passed"
+      fi
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == "main"
+    - when: manual
+
+prompt-regression-gate:
+  extends: .prompt-regression-gate

@@ -136,3 +136,50 @@ export function usePromptCIDashboardStats() {
     queryFn: () => api.promptCI.getDashboardStats() as Promise<PromptCIDashboardStats>,
   });
 }
+
+export interface CIWebhookPayload {
+  provider: "github" | "gitlab" | "custom";
+  branch: string;
+  commitSha: string;
+  prNumber?: number;
+  gateConfigId?: string;
+  scores?: Record<string, number>;
+}
+
+export interface CIWebhookResult {
+  passed: boolean;
+  exitCode: number;
+  overallSeverity: string;
+  summary: string;
+  blockReason?: string;
+  metricResults: {
+    metricName: string;
+    baselineValue: number;
+    currentValue: number;
+    thresholdPercent: number;
+    actualChangePercent: number;
+    passed: boolean;
+    severity: string;
+  }[];
+}
+
+export function useTriggerCIWebhook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CIWebhookPayload) =>
+      api.promptCI.triggerCIWebhook(data) as Promise<CIWebhookResult>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prompt-ci-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["prompt-ci-regressions"] });
+      queryClient.invalidateQueries({ queryKey: ["prompt-ci-dashboard"] });
+    },
+  });
+}
+
+export function useGenerateCIConfig(provider: string) {
+  return useQuery({
+    queryKey: ["prompt-ci-config", provider],
+    queryFn: () => api.promptCI.generateCIConfig(provider),
+    enabled: !!provider,
+  });
+}

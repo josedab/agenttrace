@@ -1,0 +1,258 @@
+name: Prompt Regression Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      baseline_id:
+        description: "Baseline ID to compare against"
+        required: false
+      gate_config_id:
+        description: "Gate configuration ID"
+        required: false
+      threshold:
+        description: "Maximum regression percentage (default: 5)"
+        required: false
+        default: "5"
+
+env:
+  AGENTTRACE_API_URL: ${{ vars.AGENTTRACE_API_URL || 'http://localhost:8080' }}
+  AGENTTRACE_API_KEY: ${{ secrets.AGENTTRACE_API_KEY }}
+
+jobs:
+  prompt-regression-check:
+    name: Prompt Regression Check
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'prompt-check') ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate configuration
+        id: validate
+        run: |
+          if [ -z "$AGENTTRACE_API_KEY" ]; then
+            echo "::warning::AGENTTRACE_API_KEY not set. Skipping prompt regression check."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+          # Load config from .agenttrace/prompt-ci.json if it exists
+          if [ -f ".agenttrace/prompt-ci.json" ]; then
+            echo "Found .agenttrace/prompt-ci.json configuration"
+            GATE_CONFIG_ID=$(jq -r '.gateConfigId // empty' .agenttrace/prompt-ci.json)
+            BASELINE_ID=$(jq -r '.baselineId // empty' .agenttrace/prompt-ci.json)
+            THRESHOLD=$(jq -r '.maxRegressionPercent // "5"' .agenttrace/prompt-ci.json)
+            BLOCK_ON_SEVERITY=$(jq -r '.blockOnSeverity // "major"' .agenttrace/prompt-ci.json)
+            ENFORCE_MODE=$(jq -r '.enforceMode // "block"' .agenttrace/prompt-ci.json)
+
+            [ -n "$GATE_CONFIG_ID" ] && echo "gate_config_id=$GATE_CONFIG_ID" >> $GITHUB_OUTPUT
+            [ -n "$BASELINE_ID" ] && echo "baseline_id=$BASELINE_ID" >> $GITHUB_OUTPUT
+            echo "threshold=${THRESHOLD}" >> $GITHUB_OUTPUT
+            echo "block_on_severity=${BLOCK_ON_SEVERITY}" >> $GITHUB_OUTPUT
+            echo "enforce_mode=${ENFORCE_MODE}" >> $GITHUB_OUTPUT
+          else
+            echo "threshold=${{ github.event.inputs.threshold || '5' }}" >> $GITHUB_OUTPUT
+            echo "block_on_severity=major" >> $GITHUB_OUTPUT
+            echo "enforce_mode=block" >> $GITHUB_OUTPUT
+          fi
+
+          # Override with workflow_dispatch inputs if provided
+          if [ -n "${{ github.event.inputs.gate_config_id }}" ]; then
+            echo "gate_config_id=${{ github.event.inputs.gate_config_id }}" >> $GITHUB_OUTPUT
+          fi
+          if [ -n "${{ github.event.inputs.baseline_id }}" ]; then
+            echo "baseline_id=${{ github.event.inputs.baseline_id }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run prompt regression evaluation
+        if: steps.validate.outputs.skip != 'true'
+        id: evaluate
+        run: |
+          set -euo pipefail
+
+          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          COMMIT_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          echo "🔍 Running prompt regression check..."
+          echo "  Branch: $BRANCH"
+          echo "  Commit: $COMMIT_SHA"
+          echo "  PR: ${PR_NUMBER:-N/A}"
+
+          # Build evaluation request
+          PAYLOAD=$(jq -n \
+            --arg branch "$BRANCH" \
+            --arg commitSha "$COMMIT_SHA" \
+            --arg gateConfigId "${{ steps.validate.outputs.gate_config_id }}" \
+            --arg baselineId "${{ steps.validate.outputs.baseline_id }}" \
+            '{
+              branch: $branch,
+              commitSha: $commitSha,
+              gateConfigId: (if $gateConfigId != "" then $gateConfigId else null end),
+              baselineId: (if $baselineId != "" then $baselineId else null end)
+            }')
+
+          # Add PR number if available
+          if [ -n "$PR_NUMBER" ]; then
+            PAYLOAD=$(echo "$PAYLOAD" | jq --argjson pr "$PR_NUMBER" '.prNumber = $pr')
+          fi
+
+          # Call AgentTrace API to evaluate the gate
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST "${AGENTTRACE_API_URL}/api/public/prompt-ci/gates/evaluate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${AGENTTRACE_API_KEY}" \
+            -d "$PAYLOAD" || echo -e "\n000")
+
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -1)
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::warning::Prompt CI API returned status $HTTP_STATUS. Body: $HTTP_BODY"
+            if [ "${{ steps.validate.outputs.enforce_mode }}" = "block" ]; then
+              echo "result=error" >> $GITHUB_OUTPUT
+            else
+              echo "result=warn" >> $GITHUB_OUTPUT
+            fi
+            exit 0
+          fi
+
+          # Parse results
+          PASSED=$(echo "$HTTP_BODY" | jq -r '.passed')
+          SEVERITY=$(echo "$HTTP_BODY" | jq -r '.overallSeverity')
+          SUMMARY=$(echo "$HTTP_BODY" | jq -r '.summary')
+          BLOCK_REASON=$(echo "$HTTP_BODY" | jq -r '.blockReason // empty')
+
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "block_reason=$BLOCK_REASON" >> $GITHUB_OUTPUT
+
+          # Format metric results as a markdown table
+          METRIC_TABLE=$(echo "$HTTP_BODY" | jq -r '
+            .metricResults // [] | 
+            ["| Metric | Baseline | Current | Change | Status |",
+             "|--------|----------|---------|--------|--------|"] +
+            [.[] | "| \(.metricName) | \(.baselineValue | tostring) | \(.currentValue | tostring) | \(.actualChangePercent | tostring)% | \(if .passed then "✅" else "❌" end) |"]
+            | .[]')
+
+          echo "metric_table<<EOF" >> $GITHUB_OUTPUT
+          echo "$METRIC_TABLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ "$PASSED" = "true" ]; then
+            echo "✅ Prompt regression check passed (severity: $SEVERITY)"
+            echo "result=pass" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Prompt regression detected: $BLOCK_REASON"
+            echo "result=fail" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post PR comment with results
+        if: >
+          steps.validate.outputs.skip != 'true' &&
+          github.event_name == 'pull_request' &&
+          steps.evaluate.outputs.result != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = '${{ steps.evaluate.outputs.result }}';
+            const passed = '${{ steps.evaluate.outputs.passed }}' === 'true';
+            const severity = '${{ steps.evaluate.outputs.severity }}';
+            const summary = '${{ steps.evaluate.outputs.summary }}';
+            const blockReason = '${{ steps.evaluate.outputs.block_reason }}';
+            const metricTable = `${{ steps.evaluate.outputs.metric_table }}`;
+
+            const icon = passed ? '✅' : '❌';
+            const title = passed 
+              ? 'Prompt Regression Check Passed' 
+              : 'Prompt Regression Detected';
+
+            let body = `## ${icon} ${title}\n\n`;
+            body += `**Severity:** ${severity}\n`;
+            body += `**Summary:** ${summary}\n\n`;
+
+            if (metricTable) {
+              body += `### Metric Results\n\n${metricTable}\n\n`;
+            }
+
+            if (blockReason) {
+              body += `> ⚠️ **Block Reason:** ${blockReason}\n\n`;
+            }
+
+            body += `---\n*Evaluated by [AgentTrace](https://agenttrace.dev) Prompt CI Gate*`;
+
+            // Find and update existing comment or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c => 
+              c.body && c.body.includes('Prompt Regression Check') && 
+              c.user && c.user.type === 'Bot'
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Enforce gate decision
+        if: steps.validate.outputs.skip != 'true'
+        run: |
+          RESULT="${{ steps.evaluate.outputs.result }}"
+          ENFORCE="${{ steps.validate.outputs.enforce_mode }}"
+          SEVERITY="${{ steps.evaluate.outputs.severity }}"
+          BLOCK_SEVERITY="${{ steps.validate.outputs.block_on_severity }}"
+
+          severity_rank() {
+            case "$1" in
+              none)     echo 0 ;;
+              minor)    echo 1 ;;
+              major)    echo 2 ;;
+              critical) echo 3 ;;
+              *)        echo 0 ;;
+            esac
+          }
+
+          if [ "$RESULT" = "fail" ]; then
+            ACTUAL_RANK=$(severity_rank "$SEVERITY")
+            THRESHOLD_RANK=$(severity_rank "$BLOCK_SEVERITY")
+
+            if [ "$ACTUAL_RANK" -ge "$THRESHOLD_RANK" ] && [ "$ENFORCE" = "block" ]; then
+              echo "::error::Prompt regression gate BLOCKED: severity '$SEVERITY' >= threshold '$BLOCK_SEVERITY'"
+              exit 1
+            elif [ "$ENFORCE" = "warn" ]; then
+              echo "::warning::Prompt regression detected (severity: $SEVERITY) but enforce mode is 'warn'"
+            else
+              echo "::notice::Prompt regression detected but below blocking threshold"
+            fi
+          elif [ "$RESULT" = "error" ]; then
+            if [ "$ENFORCE" = "block" ]; then
+              echo "::error::Prompt regression gate failed due to API error"
+              exit 1
+            else
+              echo "::warning::Prompt regression gate encountered an error but enforce mode is '$ENFORCE'"
+            fi
+          else
+            echo "✅ Prompt regression gate passed"
+          fi

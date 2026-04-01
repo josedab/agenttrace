@@ -569,3 +569,20 @@ jobs:
           path: |
             /tmp/server.log
           retention-days: 7
+
+  # Prompt Regression Gate
+  prompt-regression-gate:
+    name: Prompt Regression Gate
+    runs-on: ubuntu-latest
+    needs: [go-backend]
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run prompt regression check
+        uses: ./.github/workflows/prompt-regression-gate.yml
+        env:
+          AGENTTRACE_API_URL: ${{ vars.AGENTTRACE_API_URL }}
+          AGENTTRACE_API_KEY: ${{ secrets.AGENTTRACE_API_KEY }}
+        continue-on-error: true
