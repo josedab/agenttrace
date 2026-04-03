@@ -315,8 +315,13 @@ func (h *AuditHandler) SetRetentionPolicy(c *fiber.Ctx) error {
 	}
 
 	// Log the change
-	userID := c.Locals("userID").(uuid.UUID)
-	userEmail := c.Locals("userEmail").(string)
+	userID, ok := c.Locals("userID").(uuid.UUID)
+	if !ok {
+		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{
+			Error: "User authentication required",
+		})
+	}
+	userEmail, _ := c.Locals("userEmail").(string)
 	h.auditService.LogSettingsChanged(c.Context(), orgID, userID, userEmail, "audit_retention",
 		nil, map[string]any{"retention_days": req.RetentionDays, "enabled": req.Enabled})
 
@@ -373,7 +378,12 @@ func (h *AuditHandler) CreateExportJob(c *fiber.Ctx) error {
 		filter.ResourceType = &rt
 	}
 
-	userID := c.Locals("userID").(uuid.UUID)
+	userID, ok := c.Locals("userID").(uuid.UUID)
+	if !ok {
+		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{
+			Error: "User authentication required",
+		})
+	}
 
 	job, err := h.auditService.CreateExportJob(c.Context(), orgID, &userID, filter, req.Format, req.Compress)
 	if err != nil {
