@@ -90,7 +90,10 @@ func (h *AnomalyHandler) CreateRule(c *fiber.Ctx) error {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid project ID")
 	}
 
-	userID := uuid.New() // In real implementation, get from auth context
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return errorResponse(c, fiber.StatusUnauthorized, "User authentication required")
+	}
 
 	var input domain.AnomalyRuleInput
 	if err := c.BodyParser(&input); err != nil {
@@ -411,7 +414,10 @@ func (h *AnomalyHandler) AcknowledgeAlert(c *fiber.Ctx) error {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid alert ID")
 	}
 
-	userID := uuid.New() // In real implementation, get from auth context
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return errorResponse(c, fiber.StatusUnauthorized, "User authentication required")
+	}
 
 	h.logger.Info("Acknowledge alert",
 		zap.String("alertId", alertID.String()),
@@ -444,7 +450,10 @@ func (h *AnomalyHandler) ResolveAlert(c *fiber.Ctx) error {
 		return errorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	userID := uuid.New() // In real implementation, get from auth context
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return errorResponse(c, fiber.StatusUnauthorized, "User authentication required")
+	}
 
 	h.logger.Info("Resolve alert",
 		zap.String("alertId", alertID.String()),
@@ -486,7 +495,10 @@ func (h *AnomalyHandler) AddAlertNote(c *fiber.Ctx) error {
 		return errorResponse(c, fiber.StatusBadRequest, "Note content is required")
 	}
 
-	userID := uuid.New() // In real implementation, get from auth context
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return errorResponse(c, fiber.StatusUnauthorized, "User authentication required")
+	}
 
 	note := &domain.AlertNote{
 		ID:        uuid.New(),
