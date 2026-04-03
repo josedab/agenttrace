@@ -258,7 +258,14 @@ func (h *ImportHandler) ImportDatasetCSV(c *fiber.Ctx) error {
 
 		// Get metadata
 		if metadataIdx >= 0 && metadataIdx < len(row) && row[metadataIdx] != "" {
-			_ = json.Unmarshal([]byte(row[metadataIdx]), &metadata)
+			if err := json.Unmarshal([]byte(row[metadataIdx]), &metadata); err != nil {
+				h.logger.Warn("failed to parse metadata JSON in CSV row, skipping row",
+					zap.String("dataset_id", dataset.ID.String()),
+					zap.String("raw_metadata", row[metadataIdx]),
+					zap.Error(err),
+				)
+				continue
+			}
 		}
 
 		itemInput := &domain.DatasetItemInput{
