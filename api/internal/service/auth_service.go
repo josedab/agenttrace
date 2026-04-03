@@ -325,7 +325,11 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 	// Check if refresh token session has expired
 	if session.ExpiresAt.Before(time.Now()) {
 		// Clean up the expired session
-		_ = s.userRepo.DeleteSession(ctx, refreshToken)
+		if err := s.userRepo.DeleteSession(ctx, refreshToken); err != nil {
+			s.logger.Warn("failed to delete expired session during refresh",
+				zap.Error(err),
+			)
+		}
 		return nil, apperrors.Unauthorized("refresh token expired")
 	}
 
