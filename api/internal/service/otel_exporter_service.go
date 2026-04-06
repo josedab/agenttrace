@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,9 +44,10 @@ type OTelExporterService struct {
 	grpcConns map[string]*grpc.ClientConn
 
 	// Batch processing
-	batchMu    sync.Mutex
-	batches    map[uuid.UUID]*exportBatch
-	stopCh     chan struct{}
+	batchMu       sync.Mutex
+	batches       map[uuid.UUID]*exportBatch
+	stopCh        chan struct{}
+	batchErrors   sync.Map // exporterID (uuid.UUID) -> *int64 (atomic error count)
 }
 
 // exportBatch holds spans waiting to be exported
@@ -585,7 +587,9 @@ func (s *OTelExporterService) sendBatch(exporter *domain.OTelExporter, batch *ex
 			zap.String("exporterId", exporter.ID.String()),
 			zap.Error(err),
 		)
-		// Update error stats (in real impl, persist to DB)
+		// Track error count per exporter
+		counter, _ := s.batchErrors.LoadOrStore(exporter.ID, new(int64))
+		atomic.AddInt64(counter.(*int64), 1)
 	} else {
 		s.logger.Debug("Exported spans",
 			zap.String("exporterId", exporter.ID.String()),
@@ -638,7 +642,10 @@ func (s *OTelExporterService) sendHTTP(exporter *domain.OTelExporter, request *d
 	}
 
 	// Configure TLS if needed
-	client := s.getHTTPClient(exporter)
+	client, err := s.getHTTPClient(exporter)
+	if err != nil {
+		return fmt.Errorf("failed to configure HTTP client: %w", err)
+	}
 
 	// Send request with circuit breaker protection
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(exporter.Timeout)*time.Second)
@@ -995,8 +1002,9 @@ func hexToBytes(hexStr string, expectedLen int) ([]byte, error) {
 	return hex.DecodeString(hexStr)
 }
 
-// getHTTPClient returns an HTTP client configured for the exporter
-func (s *OTelExporterService) getHTTPClient(exporter *domain.OTelExporter) *http.Client {
+// getHTTPClient returns an HTTP client configured for the exporter.
+// Returns error if TLS certificate loading fails (matching gRPC behavior).
+func (s *OTelExporterService) getHTTPClient(exporter *domain.OTelExporter) (*http.Client, error) {
 	transport := &http.Transport{}
 
 	if exporter.TLSConfig != nil || exporter.Insecure {
@@ -1005,21 +1013,26 @@ func (s *OTelExporterService) getHTTPClient(exporter *domain.OTelExporter) *http
 		}
 
 		if exporter.TLSConfig != nil {
-			// Load certificates if specified
+			// Load client certificate if specified
 			if exporter.TLSConfig.CertFile != "" && exporter.TLSConfig.KeyFile != "" {
 				cert, err := tls.LoadX509KeyPair(exporter.TLSConfig.CertFile, exporter.TLSConfig.KeyFile)
-				if err == nil {
-					tlsConfig.Certificates = []tls.Certificate{cert}
+				if err != nil {
+					return nil, fmt.Errorf("failed to load client certificate: %w", err)
 				}
+				tlsConfig.Certificates = []tls.Certificate{cert}
 			}
 
+			// Load CA certificate if specified
 			if exporter.TLSConfig.CAFile != "" {
 				caCert, err := os.ReadFile(exporter.TLSConfig.CAFile)
-				if err == nil {
-					caCertPool := x509.NewCertPool()
-					caCertPool.AppendCertsFromPEM(caCert)
-					tlsConfig.RootCAs = caCertPool
+				if err != nil {
+					return nil, fmt.Errorf("failed to read CA file: %w", err)
 				}
+				caCertPool := x509.NewCertPool()
+				if !caCertPool.AppendCertsFromPEM(caCert) {
+					return nil, fmt.Errorf("failed to parse CA certificate")
+				}
+				tlsConfig.RootCAs = caCertPool
 			}
 
 			if exporter.TLSConfig.ServerName != "" {
@@ -1033,7 +1046,7 @@ func (s *OTelExporterService) getHTTPClient(exporter *domain.OTelExporter) *http
 	return &http.Client{
 		Transport: transport,
 		Timeout:   time.Duration(exporter.Timeout) * time.Second,
-	}
+	}, nil
 }
 
 // TestExporter tests the connection to an exporter
@@ -1097,4 +1110,13 @@ func (s *OTelExporterService) Stop() {
 		}
 	}
 	s.grpcConns = make(map[string]*grpc.ClientConn)
+}
+
+// GetBatchErrorCount returns the number of batch export errors for a given exporter.
+func (s *OTelExporterService) GetBatchErrorCount(exporterID uuid.UUID) int64 {
+	counter, ok := s.batchErrors.Load(exporterID)
+	if !ok {
+		return 0
+	}
+	return atomic.LoadInt64(counter.(*int64))
 }
