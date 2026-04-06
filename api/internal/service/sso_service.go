@@ -41,17 +41,22 @@ var (
 	ErrSSOSessionExpired    = errors.New("SSO session has expired")
 )
 
-// jwksCache stores fetched JWKS keys with a TTL to avoid fetching on every request.
-type jwksCache struct {
-	mu        sync.RWMutex
+// jwksCacheEntry stores fetched JWKS keys for a single issuer.
+type jwksCacheEntry struct {
 	keys      map[string]interface{} // kid -> public key
 	fetchedAt time.Time
-	ttl       time.Duration
+}
+
+// jwksCache stores fetched JWKS keys per issuer with a TTL.
+type jwksCache struct {
+	mu      sync.RWMutex
+	entries map[string]*jwksCacheEntry // issuerURL -> cache entry
+	ttl     time.Duration
 }
 
 var globalJWKSCache = &jwksCache{
-	keys: make(map[string]interface{}),
-	ttl:  10 * time.Minute,
+	entries: make(map[string]*jwksCacheEntry),
+	ttl:     10 * time.Minute,
 }
 
 // jwksResponse represents the JSON Web Key Set response from an OIDC provider.
@@ -452,7 +457,9 @@ func (s *SSOService) jwksKeyFunc(issuerURL string) (jwt.Keyfunc, error) {
 
 		// Key not found; try refetching JWKS in case keys were rotated
 		globalJWKSCache.mu.Lock()
-		globalJWKSCache.fetchedAt = time.Time{}
+		if entry, ok := globalJWKSCache.entries[issuerURL]; ok {
+			entry.fetchedAt = time.Time{}
+		}
 		globalJWKSCache.mu.Unlock()
 
 		refreshedKeys, err := s.fetchJWKS(issuerURL)
@@ -468,13 +475,15 @@ func (s *SSOService) jwksKeyFunc(issuerURL string) (jwt.Keyfunc, error) {
 	}, nil
 }
 
-// fetchJWKS fetches the JWKS from the OIDC provider's discovery endpoint with caching.
+// fetchJWKS fetches the JWKS from the OIDC provider's discovery endpoint with per-issuer caching.
 func (s *SSOService) fetchJWKS(issuerURL string) (map[string]interface{}, error) {
 	globalJWKSCache.mu.RLock()
-	if time.Since(globalJWKSCache.fetchedAt) < globalJWKSCache.ttl && len(globalJWKSCache.keys) > 0 {
-		keys := globalJWKSCache.keys
-		globalJWKSCache.mu.RUnlock()
-		return keys, nil
+	if entry, ok := globalJWKSCache.entries[issuerURL]; ok {
+		if time.Since(entry.fetchedAt) < globalJWKSCache.ttl && len(entry.keys) > 0 {
+			keys := entry.keys
+			globalJWKSCache.mu.RUnlock()
+			return keys, nil
+		}
 	}
 	globalJWKSCache.mu.RUnlock()
 
@@ -482,8 +491,10 @@ func (s *SSOService) fetchJWKS(issuerURL string) (map[string]interface{}, error)
 	defer globalJWKSCache.mu.Unlock()
 
 	// Double-check after acquiring write lock
-	if time.Since(globalJWKSCache.fetchedAt) < globalJWKSCache.ttl && len(globalJWKSCache.keys) > 0 {
-		return globalJWKSCache.keys, nil
+	if entry, ok := globalJWKSCache.entries[issuerURL]; ok {
+		if time.Since(entry.fetchedAt) < globalJWKSCache.ttl && len(entry.keys) > 0 {
+			return entry.keys, nil
+		}
 	}
 
 	// Discover JWKS URI from OpenID Configuration
@@ -555,8 +566,10 @@ func (s *SSOService) fetchJWKS(issuerURL string) (map[string]interface{}, error)
 		return nil, errors.New("no usable keys found in JWKS")
 	}
 
-	globalJWKSCache.keys = keys
-	globalJWKSCache.fetchedAt = time.Now()
+	globalJWKSCache.entries[issuerURL] = &jwksCacheEntry{
+		keys:      keys,
+		fetchedAt: time.Now(),
+	}
 	return keys, nil
 }
 
@@ -913,7 +926,12 @@ func (s *SSOService) GetSession(ctx context.Context, sessionID uuid.UUID) (*doma
 		return nil, nil
 	}
 	if session.ExpiresAt.Before(time.Now()) {
-		s.ssoRepo.DeleteSession(ctx, sessionID)
+		if err := s.ssoRepo.DeleteSession(ctx, sessionID); err != nil && s.logger != nil {
+			s.logger.Warn("failed to delete expired SSO session",
+				zap.String("sessionId", sessionID.String()),
+				zap.Error(err),
+			)
+		}
 		return nil, ErrSSOSessionExpired
 	}
 	return session, nil

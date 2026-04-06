@@ -559,3 +559,170 @@ func TestSSOService_ConfigurationInput(t *testing.T) {
 		assert.Contains(t, input.AllowedDomains, "example.com")
 	})
 }
+
+func TestJWKSCache_ConcurrentAccess(t *testing.T) {
+	// Reset global cache for test isolation
+	globalJWKSCache.mu.Lock()
+	globalJWKSCache.entries = make(map[string]*jwksCacheEntry)
+	globalJWKSCache.mu.Unlock()
+
+	t.Run("concurrent reads do not race", func(t *testing.T) {
+		// Pre-populate cache
+		globalJWKSCache.mu.Lock()
+		globalJWKSCache.entries["https://issuer1.example.com"] = &jwksCacheEntry{
+			keys:      map[string]interface{}{"kid1": "key1"},
+			fetchedAt: time.Now(),
+		}
+		globalJWKSCache.entries["https://issuer2.example.com"] = &jwksCacheEntry{
+			keys:      map[string]interface{}{"kid2": "key2"},
+			fetchedAt: time.Now(),
+		}
+		globalJWKSCache.mu.Unlock()
+
+		done := make(chan bool, 20)
+		for i := 0; i < 20; i++ {
+			go func(idx int) {
+				issuer := "https://issuer1.example.com"
+				if idx%2 == 0 {
+					issuer = "https://issuer2.example.com"
+				}
+				globalJWKSCache.mu.RLock()
+				entry, ok := globalJWKSCache.entries[issuer]
+				if ok {
+					_ = entry.keys
+				}
+				globalJWKSCache.mu.RUnlock()
+				done <- true
+			}(i)
+		}
+		for i := 0; i < 20; i++ {
+			<-done
+		}
+	})
+
+	t.Run("per-issuer caching isolates different providers", func(t *testing.T) {
+		globalJWKSCache.mu.Lock()
+		globalJWKSCache.entries["https://auth.google.com"] = &jwksCacheEntry{
+			keys:      map[string]interface{}{"google-kid": "google-key"},
+			fetchedAt: time.Now(),
+		}
+		globalJWKSCache.entries["https://auth.okta.com"] = &jwksCacheEntry{
+			keys:      map[string]interface{}{"okta-kid": "okta-key"},
+			fetchedAt: time.Now(),
+		}
+		globalJWKSCache.mu.Unlock()
+
+		globalJWKSCache.mu.RLock()
+		googleEntry := globalJWKSCache.entries["https://auth.google.com"]
+		oktaEntry := globalJWKSCache.entries["https://auth.okta.com"]
+		globalJWKSCache.mu.RUnlock()
+
+		assert.Contains(t, googleEntry.keys, "google-kid")
+		assert.NotContains(t, googleEntry.keys, "okta-kid")
+		assert.Contains(t, oktaEntry.keys, "okta-kid")
+		assert.NotContains(t, oktaEntry.keys, "google-kid")
+	})
+
+	t.Run("cache expiry is per-issuer", func(t *testing.T) {
+		globalJWKSCache.mu.Lock()
+		globalJWKSCache.entries["https://expired.example.com"] = &jwksCacheEntry{
+			keys:      map[string]interface{}{"kid": "key"},
+			fetchedAt: time.Now().Add(-20 * time.Minute), // expired
+		}
+		globalJWKSCache.entries["https://fresh.example.com"] = &jwksCacheEntry{
+			keys:      map[string]interface{}{"kid": "key"},
+			fetchedAt: time.Now(), // fresh
+		}
+		globalJWKSCache.mu.Unlock()
+
+		globalJWKSCache.mu.RLock()
+		expiredEntry := globalJWKSCache.entries["https://expired.example.com"]
+		freshEntry := globalJWKSCache.entries["https://fresh.example.com"]
+		globalJWKSCache.mu.RUnlock()
+
+		assert.True(t, time.Since(expiredEntry.fetchedAt) > globalJWKSCache.ttl, "expired entry should be past TTL")
+		assert.True(t, time.Since(freshEntry.fetchedAt) < globalJWKSCache.ttl, "fresh entry should be within TTL")
+	})
+}
+
+func TestSSOService_SAMLXMLParsing(t *testing.T) {
+	// Go's encoding/xml does not support external entity expansion (safe from XXE by default)
+	t.Run("rejects malformed SAML XML", func(t *testing.T) {
+		config := &domain.SSOConfiguration{
+			AttributeMapping: domain.SSOAttributeMapping{
+				Email: "email",
+			},
+		}
+		svc := &SSOService{}
+		_, _, err := svc.parseSAMLResponse(config, []byte("not xml at all"))
+		assert.Error(t, err)
+	})
+
+	t.Run("parses valid SAML response", func(t *testing.T) {
+		config := &domain.SSOConfiguration{
+			AttributeMapping: domain.SSOAttributeMapping{
+				Email:     "email",
+				FirstName: "firstName",
+			},
+		}
+		samlXML := `<Response><Assertion>
+			<Subject><NameID>user@example.com</NameID></Subject>
+			<Conditions NotBefore="2024-01-01T00:00:00Z" NotOnOrAfter="2025-01-01T00:00:00Z"/>
+			<AuthnStatement SessionIndex="sess123"/>
+			<AttributeStatement>
+				<Attribute Name="email"><AttributeValue>user@example.com</AttributeValue></Attribute>
+				<Attribute Name="firstName"><AttributeValue>Test</AttributeValue></Attribute>
+			</AttributeStatement>
+		</Assertion></Response>`
+
+		svc := &SSOService{}
+		userInfo, sessionIdx, err := svc.parseSAMLResponse(config, []byte(samlXML))
+		require.NoError(t, err)
+		assert.Equal(t, "user@example.com", userInfo.Email)
+		assert.Equal(t, "Test", userInfo.FirstName)
+		assert.Equal(t, "sess123", sessionIdx)
+	})
+
+	t.Run("XXE entity expansion is not supported by Go xml decoder", func(t *testing.T) {
+		config := &domain.SSOConfiguration{
+			AttributeMapping: domain.SSOAttributeMapping{Email: "email"},
+		}
+		// Go's encoding/xml ignores external entities entirely
+		xxeXML := `<?xml version="1.0"?>
+		<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+		<Response><Assertion>
+			<Subject><NameID>&xxe;</NameID></Subject>
+			<Conditions/><AuthnStatement/>
+			<AttributeStatement/>
+		</Assertion></Response>`
+
+		svc := &SSOService{}
+		_, _, err := svc.parseSAMLResponse(config, []byte(xxeXML))
+		// Go's xml.Unmarshal will error on entity references
+		assert.Error(t, err)
+	})
+}
+
+func TestSSOService_JWKParsing(t *testing.T) {
+	t.Run("parses RSA JWK", func(t *testing.T) {
+		key := jwkKey{
+			Kty: "RSA",
+			Kid: "rsa-key-1",
+			Use: "sig",
+			N:   "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+			E:   "AQAB",
+		}
+		pubKey, err := parseJWK(key)
+		require.NoError(t, err)
+		assert.NotNil(t, pubKey)
+	})
+
+	t.Run("rejects unsupported key type", func(t *testing.T) {
+		key := jwkKey{
+			Kty: "oct",
+			Kid: "oct-key",
+		}
+		_, err := parseJWK(key)
+		assert.Error(t, err)
+	})
+}
