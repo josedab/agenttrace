@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/id"
@@ -52,13 +51,9 @@ func (s *IngestionService) IngestBatch(ctx context.Context, projectID uuid.UUID,
 		if input.Metadata != nil {
 			metadataBytes, err := json.Marshal(input.Metadata)
 			if err != nil {
-				s.logger.Warn("failed to marshal trace metadata in batch, skipping metadata",
-					zap.String("trace_id", traceID),
-					zap.Error(err),
-				)
-			} else {
-				metadata = string(metadataBytes)
+				return fmt.Errorf("failed to marshal trace metadata for trace %s: %w", traceID, err)
 			}
+			metadata = string(metadataBytes)
 		}
 
 		startTime := now
@@ -115,35 +110,23 @@ func (s *IngestionService) IngestBatch(ctx context.Context, projectID uuid.UUID,
 		if input.Metadata != nil {
 			metadataBytes, err := json.Marshal(input.Metadata)
 			if err != nil {
-				s.logger.Warn("failed to marshal observation metadata in batch, skipping metadata",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				metadata = string(metadataBytes)
+				return fmt.Errorf("failed to marshal observation metadata for %s: %w", obsID, err)
 			}
+			metadata = string(metadataBytes)
 		}
 		if input.Input != nil {
 			inputBytes, err := json.Marshal(input.Input)
 			if err != nil {
-				s.logger.Warn("failed to marshal observation input in batch, skipping input",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				inputStr = string(inputBytes)
+				return fmt.Errorf("failed to marshal observation input for %s: %w", obsID, err)
 			}
+			inputStr = string(inputBytes)
 		}
 		if input.Output != nil {
 			outputBytes, err := json.Marshal(input.Output)
 			if err != nil {
-				s.logger.Warn("failed to marshal observation output in batch, skipping output",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				outputStr = string(outputBytes)
+				return fmt.Errorf("failed to marshal observation output for %s: %w", obsID, err)
 			}
+			outputStr = string(outputBytes)
 		}
 
 		startTime := now
@@ -218,46 +201,30 @@ func (s *IngestionService) IngestBatch(ctx context.Context, projectID uuid.UUID,
 		if input.Metadata != nil {
 			metadataBytes, err := json.Marshal(input.Metadata)
 			if err != nil {
-				s.logger.Warn("failed to marshal generation metadata in batch, skipping metadata",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				metadata = string(metadataBytes)
+				return fmt.Errorf("failed to marshal generation metadata for %s: %w", obsID, err)
 			}
+			metadata = string(metadataBytes)
 		}
 		if input.Input != nil {
 			inputBytes, err := json.Marshal(input.Input)
 			if err != nil {
-				s.logger.Warn("failed to marshal generation input in batch, skipping input",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				inputStr = string(inputBytes)
+				return fmt.Errorf("failed to marshal generation input for %s: %w", obsID, err)
 			}
+			inputStr = string(inputBytes)
 		}
 		if input.Output != nil {
 			outputBytes, err := json.Marshal(input.Output)
 			if err != nil {
-				s.logger.Warn("failed to marshal generation output in batch, skipping output",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				outputStr = string(outputBytes)
+				return fmt.Errorf("failed to marshal generation output for %s: %w", obsID, err)
 			}
+			outputStr = string(outputBytes)
 		}
 		if input.ModelParameters != nil {
 			paramsBytes, err := json.Marshal(input.ModelParameters)
 			if err != nil {
-				s.logger.Warn("failed to marshal model parameters in batch, skipping model params",
-					zap.String("observation_id", obsID),
-					zap.Error(err),
-				)
-			} else {
-				modelParams = string(paramsBytes)
+				return fmt.Errorf("failed to marshal model parameters for %s: %w", obsID, err)
 			}
+			modelParams = string(paramsBytes)
 		}
 
 		startTime := now
