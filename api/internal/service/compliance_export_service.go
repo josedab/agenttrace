@@ -145,7 +145,12 @@ func (s *ComplianceExportService) GenerateReport(ctx context.Context, jobID uuid
 	_, compErr := s.complianceService.GetComplianceStatus(ctx, job.ProjectID)
 	if compErr != nil {
 		job.Status = "failed"
-		_ = s.exportRepo.SaveJob(ctx, job)
+		if saveErr := s.exportRepo.SaveJob(ctx, job); saveErr != nil {
+			s.logger.Error("failed to save job failure status",
+				zap.String("jobId", job.ID.String()),
+				zap.Error(saveErr),
+			)
+		}
 		return fmt.Errorf("failed to gather compliance data: %w", compErr)
 	}
 
