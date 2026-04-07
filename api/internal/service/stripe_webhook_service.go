@@ -190,13 +190,19 @@ func (s *StripeWebhookService) handleTrialEnding(ctx context.Context, payload ma
 }
 
 func (s *StripeWebhookService) handlePaymentFailed(ctx context.Context, payload map[string]interface{}) error {
-	tenantIDStr, _ := payload["tenant_id"].(string)
+	tenantIDStr, ok := payload["tenant_id"].(string)
+	if !ok || tenantIDStr == "" {
+		return fmt.Errorf("missing or invalid tenant_id in payment_failed payload")
+	}
 	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		return fmt.Errorf("invalid tenant_id in payment_failed: %w", err)
 	}
 
-	amountCents, _ := payload["amount_cents"].(float64)
+	amountCents, ok := payload["amount_cents"].(float64)
+	if !ok {
+		amountCents = 0
+	}
 
 	s.logger.Error("payment failed",
 		zap.String("tenantId", tenantID.String()),
@@ -224,7 +230,10 @@ func (s *StripeWebhookService) handlePaymentFailed(ctx context.Context, payload 
 }
 
 func (s *StripeWebhookService) handleUpcomingInvoice(ctx context.Context, payload map[string]interface{}) error {
-	tenantIDStr, _ := payload["tenant_id"].(string)
+	tenantIDStr, ok := payload["tenant_id"].(string)
+	if !ok {
+		tenantIDStr = ""
+	}
 	s.logger.Info("upcoming invoice",
 		zap.String("tenantId", tenantIDStr),
 	)
@@ -233,8 +242,14 @@ func (s *StripeWebhookService) handleUpcomingInvoice(ctx context.Context, payloa
 }
 
 func (s *StripeWebhookService) handleInvoiceFinalized(ctx context.Context, payload map[string]interface{}) error {
-	tenantIDStr, _ := payload["tenant_id"].(string)
-	amountCents, _ := payload["amount_cents"].(float64)
+	tenantIDStr, ok := payload["tenant_id"].(string)
+	if !ok {
+		tenantIDStr = ""
+	}
+	amountCents, ok := payload["amount_cents"].(float64)
+	if !ok {
+		amountCents = 0
+	}
 
 	s.logger.Info("invoice finalized",
 		zap.String("tenantId", tenantIDStr),
@@ -244,8 +259,14 @@ func (s *StripeWebhookService) handleInvoiceFinalized(ctx context.Context, paylo
 }
 
 func (s *StripeWebhookService) handleCustomerCreated(ctx context.Context, payload map[string]interface{}) error {
-	email, _ := payload["email"].(string)
-	stripeCustomerID, _ := payload["stripe_customer_id"].(string)
+	email, ok := payload["email"].(string)
+	if !ok {
+		email = ""
+	}
+	stripeCustomerID, ok := payload["stripe_customer_id"].(string)
+	if !ok {
+		stripeCustomerID = ""
+	}
 
 	s.logger.Info("customer created in stripe",
 		zap.String("email", email),

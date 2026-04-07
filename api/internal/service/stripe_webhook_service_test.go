@@ -106,6 +106,122 @@ func TestStripeWebhookService_HandleCustomerCreated(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStripeWebhookService_HandlePaymentFailed(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("valid payload", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "invoice.payment_failed", map[string]interface{}{
+			"tenant_id":    uuid.New().String(),
+			"amount_cents": float64(9900),
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing tenant_id returns error", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "invoice.payment_failed", map[string]interface{}{
+			"amount_cents": float64(9900),
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing or invalid tenant_id")
+	})
+
+	t.Run("invalid tenant_id returns error", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "invoice.payment_failed", map[string]interface{}{
+			"tenant_id": "not-a-uuid",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid tenant_id")
+	})
+
+	t.Run("wrong type for amount_cents uses zero", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "invoice.payment_failed", map[string]interface{}{
+			"tenant_id":    uuid.New().String(),
+			"amount_cents": "not-a-number",
+		})
+		assert.NoError(t, err)
+	})
+}
+
+func TestStripeWebhookService_HandleUpcomingInvoice(t *testing.T) {
+	logger := zap.NewNop()
+	svc := NewStripeWebhookService(logger, "", nil, nil)
+
+	t.Run("valid payload", func(t *testing.T) {
+		err := svc.ProcessEvent(context.Background(), "invoice.upcoming", map[string]interface{}{
+			"tenant_id": uuid.New().String(),
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing tenant_id does not panic", func(t *testing.T) {
+		err := svc.ProcessEvent(context.Background(), "invoice.upcoming", map[string]interface{}{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("wrong type for tenant_id does not panic", func(t *testing.T) {
+		err := svc.ProcessEvent(context.Background(), "invoice.upcoming", map[string]interface{}{
+			"tenant_id": 12345,
+		})
+		assert.NoError(t, err)
+	})
+}
+
+func TestStripeWebhookService_HandleInvoiceFinalized(t *testing.T) {
+	logger := zap.NewNop()
+	svc := NewStripeWebhookService(logger, "", nil, nil)
+
+	t.Run("valid payload", func(t *testing.T) {
+		err := svc.ProcessEvent(context.Background(), "invoice.finalized", map[string]interface{}{
+			"tenant_id":    uuid.New().String(),
+			"amount_cents": float64(4900),
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("malformed payload does not panic", func(t *testing.T) {
+		err := svc.ProcessEvent(context.Background(), "invoice.finalized", map[string]interface{}{
+			"tenant_id":    12345,
+			"amount_cents": "bad",
+		})
+		assert.NoError(t, err)
+	})
+}
+
+func TestStripeWebhookService_HandleSubscriptionCreated(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("missing tenant_id returns error", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "customer.subscription.created", map[string]interface{}{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing or invalid tenant_id")
+	})
+
+	t.Run("invalid tenant_id returns error", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "customer.subscription.created", map[string]interface{}{
+			"tenant_id": "not-a-uuid",
+		})
+		assert.Error(t, err)
+	})
+
+	t.Run("valid payload with metadata", func(t *testing.T) {
+		svc := NewStripeWebhookService(logger, "", &BillingService{}, nil)
+		err := svc.ProcessEvent(context.Background(), "customer.subscription.created", map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"tenant_id": uuid.New().String(),
+				"plan_slug": "pro",
+			},
+			"stripe_subscription_id": "sub_test123",
+		})
+		assert.NoError(t, err)
+	})
+}
+
 func TestUsageMeteringService_RecordUsage(t *testing.T) {
 	logger := zap.NewNop()
 	svc := NewUsageMeteringService(logger)
