@@ -15,14 +15,14 @@ repos:
 
       - id: golangci-lint-sdk-go
         name: golangci-lint (sdk/go)
-        entry: bash -c 'cd sdk/go && golangci-lint run --timeout=5m'
+        entry: bash -c 'cd sdk/go && golangci-lint run --no-config --timeout=5m'
         language: system
         files: ^sdk/go/.*\.go$
         pass_filenames: false
 
       - id: golangci-lint-sdk-cli
         name: golangci-lint (sdk/cli)
-        entry: bash -c 'cd sdk/cli && golangci-lint run --timeout=5m'
+        entry: bash -c 'cd sdk/cli && golangci-lint run --no-config --timeout=5m'
         language: system
         files: ^sdk/cli/.*\.go$
         pass_filenames: false

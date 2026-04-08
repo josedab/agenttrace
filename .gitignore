@@ -3,6 +3,7 @@ bin/
 dist/
 build/
 tmp/
+deploy/backups/
 api/server
 *.exe
 *.dll
@@ -53,3 +54,7 @@ yarn-error.log*
 
 # TypeScript build info
 web/tsconfig.tsbuildinfo
+
+# Keep frontend source visible even when a user-level ignore contains `lib/`.
+!/web/lib/
+!/web/lib/**
