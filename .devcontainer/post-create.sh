@@ -7,7 +7,6 @@ echo "=== AgentTrace Dev Container Setup ==="
 echo "Installing Go tools..."
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 go install github.com/99designs/gqlgen@latest
-go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
 # Setup API
 echo "Setting up API..."
@@ -40,16 +39,11 @@ echo "Setting up CLI..."
 cd /workspace/sdk/cli
 go mod download
 
-# Create MinIO bucket
-echo "Creating MinIO bucket..."
-mc alias set local http://minio:9000 minioadmin minioadmin || true
-mc mb local/agenttrace --ignore-existing || true
-
 echo "=== Setup Complete ==="
 echo ""
 echo "To get started:"
 echo "  1. Run database migrations:  cd /workspace/api && make migrate-pg-up && make migrate-ch-up"
-echo "  2. Start the API server:     cd /workspace/api && go run cmd/server/main.go"
+echo "  2. Start the API server:     cd /workspace/api && make run-core"
 echo "  3. Start the web frontend:   cd /workspace/web && npm run dev"
 echo ""
 echo "Access the application at http://localhost:3000"

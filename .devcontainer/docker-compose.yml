@@ -1,4 +1,4 @@
-version: "3.8"
+name: agenttrace-devcontainer
 
 services:
   devcontainer:
@@ -11,10 +11,6 @@ services:
       postgres:
         condition: service_healthy
       clickhouse:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
         condition: service_healthy
 
   postgres:
@@ -55,6 +51,7 @@ services:
       - "9000:9000"
 
   redis:
+    profiles: ["full"]
     image: redis:7-alpine
     restart: unless-stopped
     command: redis-server --appendonly yes
@@ -69,6 +66,7 @@ services:
       - "6379:6379"
 
   minio:
+    profiles: ["full"]
     image: minio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"

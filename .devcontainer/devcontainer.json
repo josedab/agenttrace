@@ -5,7 +5,7 @@
   "workspaceFolder": "/workspace",
   "features": {
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.24"
+      "version": "1.25.12"
     },
     "ghcr.io/devcontainers/features/node:1": {
       "version": "20"
@@ -71,7 +71,7 @@
       }
     }
   },
-  "forwardPorts": [3000, 8080, 5432, 9000, 8123, 6379, 9001],
+  "forwardPorts": [3000, 8080, 5432, 9000, 8123],
   "portsAttributes": {
     "3000": {
       "label": "Frontend (Next.js)",
@@ -89,18 +89,13 @@
     },
     "8123": {
       "label": "ClickHouse HTTP"
-    },
-    "6379": {
-      "label": "Redis"
-    },
-    "9001": {
-      "label": "MinIO Console"
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "postStartCommand": "bash .devcontainer/post-start.sh",
   "remoteUser": "vscode",
   "containerEnv": {
+    "AGENTTRACE_DEVCONTAINER": "true",
     "POSTGRES_HOST": "postgres",
     "POSTGRES_PORT": "5432",
     "POSTGRES_USER": "agenttrace",
@@ -110,11 +105,14 @@
     "CLICKHOUSE_PORT": "9000",
     "CLICKHOUSE_USER": "agenttrace",
     "CLICKHOUSE_PASSWORD": "agenttrace",
-    "CLICKHOUSE_DATABASE": "agenttrace",
+    "CLICKHOUSE_DB": "agenttrace",
+    "REDIS_ENABLED": "false",
     "REDIS_HOST": "redis",
     "REDIS_PORT": "6379",
+    "MINIO_ENABLED": "false",
     "MINIO_ENDPOINT": "minio:9000",
     "MINIO_ACCESS_KEY": "agenttrace",
-    "MINIO_SECRET_KEY": "agenttrace123"
+    "MINIO_SECRET_KEY": "agenttrace123",
+    "RATE_LIMIT_ENABLED": "false"
   }
 }
