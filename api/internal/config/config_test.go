@@ -15,24 +15,41 @@ func validConfig() *Config {
 			Port: 8080,
 			Env:  "development",
 		},
+		CORS: CORSConfig{
+			AllowedOrigins:   []string{"https://app.example.com"},
+			AllowCredentials: true,
+		},
 		Postgres: PostgresConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "agenttrace",
-			Password: "secret",
-			Database: "agenttrace",
-			SSLMode:  "disable",
+			Host:          "localhost",
+			Port:          5432,
+			User:          "agenttrace",
+			Password:      "secret",
+			Database:      "agenttrace",
+			SSLMode:       "disable",
+			AllowInsecure: true,
 		},
 		ClickHouse: ClickHouseConfig{
-			Host: "localhost",
-			Port: 9000,
+			Host:     "localhost",
+			Port:     9000,
+			Password: "secure-clickhouse",
 		},
 		Redis: RedisConfig{
-			Host: "localhost",
-			Port: 6379,
+			Enabled:  true,
+			Host:     "localhost",
+			Port:     6379,
+			Password: "secure-redis",
+		},
+		MinIO: MinIOConfig{
+			Enabled:   true,
+			Endpoint:  "localhost:9002",
+			AccessKey: "agenttrace",
+			SecretKey: "secure-minio-key",
+			Bucket:    "agenttrace-exports",
 		},
 		JWT: JWTConfig{
-			Secret: "test-secret-key",
+			Secret:       "test-secret-key",
+			AccessExpiry: 1440,
+			Issuer:       "agenttrace",
 		},
 	}
 }
@@ -118,6 +135,15 @@ func TestValidate_EmptyRedisHost(t *testing.T) {
 	assert.Contains(t, err.Error(), "redis_host is required")
 }
 
+func TestValidate_RedisDisabledAllowsEmptyAddress(t *testing.T) {
+	cfg := validConfig()
+	cfg.Redis.Enabled = false
+	cfg.Redis.Host = ""
+	cfg.Redis.Port = 0
+
+	assert.NoError(t, validate(cfg))
+}
+
 func TestValidate_InvalidServerPort(t *testing.T) {
 	cfg := validConfig()
 	cfg.Server.Port = -1
@@ -143,9 +169,10 @@ func TestValidate_ProductionWarnsDisabledSSL(t *testing.T) {
 	cfg.JWT.Secret = "real-secret"
 	cfg.Postgres.Password = "secure-pw"
 	cfg.Postgres.SSLMode = "disable"
+	cfg.Postgres.AllowInsecure = false
 	err := validate(cfg)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "postgres_ssl_mode should not be 'disable' in production")
+	assert.Contains(t, err.Error(), "postgres_ssl_mode must use TLS in production")
 }
 
 func TestValidate_MultipleErrors(t *testing.T) {
@@ -162,6 +189,47 @@ func TestValidate_MultipleErrors(t *testing.T) {
 	assert.True(t, strings.Contains(errMsg, "redis_host is required"))
 }
 
+func TestValidate_NoEgressRejectsExternalProviders(t *testing.T) {
+	cfg := validConfig()
+	cfg.Privacy.NoEgress = true
+	cfg.Privacy.RedactionEnabled = false
+	cfg.GitHub.ReportingEnabled = true
+	cfg.OTel.ExporterEnabled = true
+	cfg.Sentry.Enabled = true
+	cfg.Eval.Enabled = true
+	cfg.Eval.APIKey = "external-key"
+
+	err := validate(cfg)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "privacy_redaction_enabled")
+	assert.Contains(t, err.Error(), "github_reporting_enabled")
+	assert.Contains(t, err.Error(), "otel_exporter_enabled")
+	assert.Contains(t, err.Error(), "sentry_enabled")
+	assert.Contains(t, err.Error(), "external evaluation providers")
+}
+
+func TestValidate_NoEgressAllowsLocalServices(t *testing.T) {
+	cfg := validConfig()
+	cfg.Privacy.NoEgress = true
+	cfg.Privacy.RedactionEnabled = true
+
+	assert.NoError(t, validate(cfg))
+}
+
+func TestValidate_NoEgressRejectsModelKeyEvenWhenEvalWorkerIsDisabled(t *testing.T) {
+	cfg := validConfig()
+	cfg.Privacy.NoEgress = true
+	cfg.Privacy.RedactionEnabled = true
+	cfg.Eval.Enabled = false
+	cfg.Eval.APIKey = "external-key"
+
+	err := validate(cfg)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "external evaluation providers")
+}
+
 func TestPostgresDSN(t *testing.T) {
 	cfg := PostgresConfig{
 		Host:     "db.example.com",
@@ -173,6 +241,23 @@ func TestPostgresDSN(t *testing.T) {
 	}
 	expected := "postgres://admin:secret@db.example.com:5432/mydb?sslmode=require"
 	assert.Equal(t, expected, cfg.DSN())
+}
+
+func TestPostgresDSNEncodesCredentials(t *testing.T) {
+	cfg := PostgresConfig{
+		Host:     "db.example.com",
+		Port:     5432,
+		User:     "admin@example.com",
+		Password: "p@ss:/word",
+		Database: "mydb",
+		SSLMode:  "require",
+	}
+
+	assert.Equal(
+		t,
+		"postgres://admin%40example.com:p%40ss%3A%2Fword@db.example.com:5432/mydb?sslmode=require",
+		cfg.DSN(),
+	)
 }
 
 func TestRedisAddr(t *testing.T) {

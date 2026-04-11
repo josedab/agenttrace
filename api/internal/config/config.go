@@ -1,6 +1,8 @@
 package config
 
 import (
+	"net"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -8,12 +10,15 @@ import (
 // Config holds all configuration for the application
 type Config struct {
 	Server     ServerConfig
+	Privacy    PrivacyConfig
+	CORS       CORSConfig
 	Postgres   PostgresConfig
 	ClickHouse ClickHouseConfig
 	Redis      RedisConfig
 	MinIO      MinIOConfig
 	JWT        JWTConfig
 	OAuth      OAuthConfig
+	GitHub     GitHubConfig
 	RateLimit  RateLimitConfig
 	Worker     WorkerConfig
 	Log        LogConfig
@@ -25,30 +30,52 @@ type Config struct {
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Host                 string `mapstructure:"host"`
-	Port                 int    `mapstructure:"port"`
-	Env                  string `mapstructure:"env"`
-	CSRFEnabled          bool   `mapstructure:"csrf_enabled"`
-	SecureCookies        bool   `mapstructure:"secure_cookies"`
-	StripeWebhookSecret  string `mapstructure:"stripe_webhook_secret"`
+	Host                string `mapstructure:"host"`
+	Port                int    `mapstructure:"port"`
+	Env                 string `mapstructure:"env"`
+	CSRFEnabled         bool   `mapstructure:"csrf_enabled"`
+	SecureCookies       bool   `mapstructure:"secure_cookies"`
+	StripeWebhookSecret string `mapstructure:"stripe_webhook_secret"`
+	PublicURL           string `mapstructure:"public_url"`
+}
+
+// PrivacyConfig controls local/private mode and deterministic redaction.
+type PrivacyConfig struct {
+	NoEgress         bool `mapstructure:"no_egress"`
+	RedactionEnabled bool `mapstructure:"redaction_enabled"`
+}
+
+// CORSConfig holds cross-origin request configuration.
+type CORSConfig struct {
+	AllowedOrigins   []string `mapstructure:"allowed_origins"`
+	AllowCredentials bool     `mapstructure:"allow_credentials"`
 }
 
 // PostgresConfig holds PostgreSQL configuration
 type PostgresConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	Database string `mapstructure:"database"`
-	SSLMode  string `mapstructure:"ssl_mode"`
-	MaxConns int32  `mapstructure:"max_conns"`
-	MinConns int32  `mapstructure:"min_conns"`
+	Host          string `mapstructure:"host"`
+	Port          int    `mapstructure:"port"`
+	User          string `mapstructure:"user"`
+	Password      string `mapstructure:"password"`
+	Database      string `mapstructure:"database"`
+	SSLMode       string `mapstructure:"ssl_mode"`
+	AllowInsecure bool   `mapstructure:"allow_insecure"`
+	MaxConns      int32  `mapstructure:"max_conns"`
+	MinConns      int32  `mapstructure:"min_conns"`
 }
 
 // DSN returns the PostgreSQL connection string
 func (c PostgresConfig) DSN() string {
-	return "postgres://" + c.User + ":" + c.Password + "@" + c.Host + ":" +
-		strconv.Itoa(c.Port) + "/" + c.Database + "?sslmode=" + c.SSLMode
+	dsn := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(c.User, c.Password),
+		Host:   net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
+		Path:   c.Database,
+	}
+	query := dsn.Query()
+	query.Set("sslmode", c.SSLMode)
+	dsn.RawQuery = query.Encode()
+	return dsn.String()
 }
 
 // ClickHouseConfig holds ClickHouse configuration
@@ -61,8 +88,24 @@ type ClickHouseConfig struct {
 	Database string `mapstructure:"database"`
 }
 
+// MigrationURL returns a golang-migrate compatible ClickHouse URL.
+func (c ClickHouseConfig) MigrationURL() string {
+	dsn := &url.URL{
+		Scheme: "clickhouse",
+		Host:   net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
+	}
+	query := dsn.Query()
+	query.Set("username", c.User)
+	query.Set("password", c.Password)
+	query.Set("database", c.Database)
+	query.Set("x-multi-statement", "true")
+	dsn.RawQuery = query.Encode()
+	return dsn.String()
+}
+
 // RedisConfig holds Redis configuration
 type RedisConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
 	Password string `mapstructure:"password"`
@@ -76,6 +119,7 @@ func (c RedisConfig) Addr() string {
 
 // MinIOConfig holds MinIO configuration
 type MinIOConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
 	Endpoint  string `mapstructure:"endpoint"`
 	AccessKey string `mapstructure:"access_key"`
 	SecretKey string `mapstructure:"secret_key"`
@@ -90,8 +134,8 @@ type JWTConfig struct {
 	RefreshExpiryDays int           `mapstructure:"refresh_expiry_days"`
 	Expiry            time.Duration `mapstructure:"-"`
 	RefreshExpiry     time.Duration `mapstructure:"-"`
-	AccessExpiry      int           `mapstructure:"access_expiry"`  // Access token expiry in minutes
-	Issuer            string        `mapstructure:"issuer"`         // JWT issuer
+	AccessExpiry      int           `mapstructure:"access_expiry"` // Access token expiry in minutes
+	Issuer            string        `mapstructure:"issuer"`        // JWT issuer
 }
 
 // OAuthConfig holds OAuth provider configuration
@@ -100,6 +144,14 @@ type OAuthConfig struct {
 	GoogleClientSecret string `mapstructure:"google_client_secret"`
 	GitHubClientID     string `mapstructure:"github_client_id"`
 	GitHubClientSecret string `mapstructure:"github_client_secret"`
+	CallbackSecret     string `mapstructure:"callback_secret"`
+}
+
+// GitHubConfig controls optional outbound workflow reporting.
+type GitHubConfig struct {
+	ReportingEnabled bool   `mapstructure:"reporting_enabled"`
+	APIURL           string `mapstructure:"api_url"`
+	ReportToken      string `mapstructure:"report_token"`
 }
 
 // RateLimitConfig holds rate limiting configuration
@@ -112,12 +164,12 @@ type RateLimitConfig struct {
 
 // WorkerConfig holds background worker configuration
 type WorkerConfig struct {
-	Concurrency    int    `mapstructure:"concurrency"`
-	QueueCritical  string `mapstructure:"queue_critical"`
-	QueueDefault   string `mapstructure:"queue_default"`
-	QueueLow       string `mapstructure:"queue_low"`
-	CostEnabled    bool   `mapstructure:"cost_enabled"`
-	CostBatchSize  int    `mapstructure:"cost_batch_size"`
+	Concurrency   int    `mapstructure:"concurrency"`
+	QueueCritical string `mapstructure:"queue_critical"`
+	QueueDefault  string `mapstructure:"queue_default"`
+	QueueLow      string `mapstructure:"queue_low"`
+	CostEnabled   bool   `mapstructure:"cost_enabled"`
+	CostBatchSize int    `mapstructure:"cost_batch_size"`
 }
 
 // LogConfig holds logging configuration
@@ -151,9 +203,9 @@ type OTelConfig struct {
 	ExporterEnabled bool `mapstructure:"exporter_enabled"`
 
 	// Default batch settings for new exporters
-	DefaultBatchSize      int `mapstructure:"default_batch_size"`
-	DefaultMaxQueueSize   int `mapstructure:"default_max_queue_size"`
-	DefaultBatchTimeoutMs int `mapstructure:"default_batch_timeout_ms"`
+	DefaultBatchSize       int `mapstructure:"default_batch_size"`
+	DefaultMaxQueueSize    int `mapstructure:"default_max_queue_size"`
+	DefaultBatchTimeoutMs  int `mapstructure:"default_batch_timeout_ms"`
 	DefaultExportTimeoutMs int `mapstructure:"default_export_timeout_ms"`
 
 	// Default retry settings
