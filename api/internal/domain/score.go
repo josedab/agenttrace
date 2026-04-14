@@ -26,6 +26,10 @@ type Score struct {
 
 // ScoreInput represents input for creating a score
 type ScoreInput struct {
+	// ID is only set by server-side importers that need a deterministic
+	// identity so retries replace the same row instead of creating duplicates.
+	// It is never accepted from client payloads.
+	ID            *uuid.UUID    `json:"-"`
 	TraceID       string        `json:"traceId" validate:"required"`
 	ObservationID *string       `json:"observationId,omitempty"`
 	Name          string        `json:"name" validate:"required"`

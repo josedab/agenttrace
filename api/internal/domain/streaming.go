@@ -41,6 +41,7 @@ type LiveMetrics struct {
 type StreamActivity struct {
 	ID          string          `json:"id"`
 	TraceID     uuid.UUID       `json:"traceId"`
+	ProjectID   uuid.UUID       `json:"-"`
 	Type        StreamEventType `json:"type"`
 	Title       string          `json:"title"`
 	Description string          `json:"description,omitempty"`

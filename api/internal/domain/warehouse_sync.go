@@ -106,3 +106,11 @@ type WarehouseConnectionInput struct {
 	SchemaMapping []SchemaMap   `json:"schemaMapping,omitempty"`
 	SyncSchedule  string        `json:"syncSchedule,omitempty"`
 }
+
+// WarehouseConnectionTest reports whether a connection is usable before syncing.
+type WarehouseConnectionTest struct {
+	ConnectionID uuid.UUID `json:"connectionId"`
+	Reachable    bool      `json:"reachable"`
+	Message      string    `json:"message,omitempty"`
+	CheckedAt    time.Time `json:"checkedAt"`
+}

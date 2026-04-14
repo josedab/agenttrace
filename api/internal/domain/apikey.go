@@ -58,6 +58,8 @@ func DefaultScopes() []string {
 		"scores:write",
 		"scores:read",
 		"prompts:read",
+		"metrics:write",
+		"logs:write",
 	}
 }
 
@@ -95,6 +97,11 @@ func AllScopes() []string {
 
 		// Metrics operations
 		"metrics:read",
+		"metrics:write",
+
+		// Log operations
+		"logs:read",
+		"logs:write",
 
 		// Export operations
 		"exports:read",
@@ -146,6 +153,12 @@ type APIKeyContext struct {
 	APIKeyID  uuid.UUID
 	ProjectID uuid.UUID
 	Scopes    []string
+	// UserID is the identity of the user that created the API key, when known.
+	// It is nil for legacy keys created before ownership tracking existed. When
+	// non-nil it is used as the acting user for user-foreign-key constrained
+	// operations (Eval Hub, replay, prompt/migration import) so that machine
+	// callers are attributed to a real user rather than the API key UUID.
+	UserID *uuid.UUID
 }
 
 // HasScope checks if the context has a specific scope
@@ -153,6 +166,12 @@ func (c *APIKeyContext) HasScope(scope string) bool {
 	for _, s := range c.Scopes {
 		if s == scope || s == "admin:write" {
 			return true
+		}
+		if len(s) > 1 && s[len(s)-1] == '*' {
+			prefix := s[:len(s)-1]
+			if len(scope) >= len(prefix) && scope[:len(prefix)] == prefix {
+				return true
+			}
 		}
 	}
 	return false

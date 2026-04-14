@@ -1,5 +1,18 @@
 package domain
 
+import "fmt"
+
+func scanEnumString(value any) (string, error) {
+	switch value := value.(type) {
+	case string:
+		return value, nil
+	case []byte:
+		return string(value), nil
+	default:
+		return "", fmt.Errorf("cannot scan enum value of type %T", value)
+	}
+}
+
 // Level represents the severity level
 type Level string
 
@@ -17,6 +30,16 @@ func (l Level) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// Scan implements sql.Scanner for database enum values.
+func (l *Level) Scan(value any) error {
+	scanned, err := scanEnumString(value)
+	if err != nil {
+		return err
+	}
+	*l = Level(scanned)
+	return nil
 }
 
 // ObservationType represents the type of observation
@@ -37,6 +60,16 @@ func (t ObservationType) IsValid() bool {
 	return false
 }
 
+// Scan implements sql.Scanner for database enum values.
+func (t *ObservationType) Scan(value any) error {
+	scanned, err := scanEnumString(value)
+	if err != nil {
+		return err
+	}
+	*t = ObservationType(scanned)
+	return nil
+}
+
 // ScoreSource represents the source of a score
 type ScoreSource string
 
@@ -55,6 +88,16 @@ func (s ScoreSource) IsValid() bool {
 	return false
 }
 
+// Scan implements sql.Scanner for database enum values.
+func (s *ScoreSource) Scan(value any) error {
+	scanned, err := scanEnumString(value)
+	if err != nil {
+		return err
+	}
+	*s = ScoreSource(scanned)
+	return nil
+}
+
 // ScoreDataType represents the data type of a score
 type ScoreDataType string
 
@@ -71,6 +114,16 @@ func (t ScoreDataType) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// Scan implements sql.Scanner for database enum values.
+func (t *ScoreDataType) Scan(value any) error {
+	scanned, err := scanEnumString(value)
+	if err != nil {
+		return err
+	}
+	*t = ScoreDataType(scanned)
+	return nil
 }
 
 // PromptType represents the type of prompt
@@ -169,8 +222,11 @@ func (r OrgRole) CanRead() bool {
 type ExportFormat string
 
 const (
-	ExportFormatJSON          ExportFormat = "json"
-	ExportFormatCSV           ExportFormat = "csv"
+	// ExportFormatJSON exports records as JSON.
+	ExportFormatJSON ExportFormat = "json"
+	// ExportFormatCSV exports records as CSV.
+	ExportFormatCSV ExportFormat = "csv"
+	// ExportFormatOpenAIFinetune exports datasets in OpenAI fine-tuning format.
 	ExportFormatOpenAIFinetune ExportFormat = "openai_finetune"
 )
 
@@ -263,6 +319,16 @@ func (t CheckpointType) IsValid() bool {
 	return false
 }
 
+// Scan implements sql.Scanner for database enum values.
+func (t *CheckpointType) Scan(value any) error {
+	scanned, err := scanEnumString(value)
+	if err != nil {
+		return err
+	}
+	*t = CheckpointType(scanned)
+	return nil
+}
+
 // GitLinkType represents the type of git link
 type GitLinkType string
 
@@ -280,6 +346,16 @@ func (t GitLinkType) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// Scan implements sql.Scanner for database enum values.
+func (t *GitLinkType) Scan(value any) error {
+	scanned, err := scanEnumString(value)
+	if err != nil {
+		return err
+	}
+	*t = GitLinkType(scanned)
+	return nil
 }
 
 // FileOperationType represents the type of file operation

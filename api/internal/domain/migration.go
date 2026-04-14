@@ -45,13 +45,14 @@ type MigrationJob struct {
 
 // MigrationConfig holds configuration for a migration job
 type MigrationConfig struct {
-	SourceDSN       string `json:"sourceDsn"`
-	IncrementalMode bool   `json:"incrementalMode"`
-	DryRun          bool   `json:"dryRun"`
-	IncludeTraces   bool   `json:"includeTraces"`
-	IncludePrompts  bool   `json:"includePrompts"`
-	IncludeDatasets bool   `json:"includeDatasets"`
-	IncludeScores   bool   `json:"includeScores"`
+	SourceDSN         string `json:"sourceDsn"`
+	IncrementalMode   bool   `json:"incrementalMode"`
+	DryRun            bool   `json:"dryRun"`
+	IncludeTraces     bool   `json:"includeTraces"`
+	IncludePrompts    bool   `json:"includePrompts"`
+	IncludeDatasets   bool   `json:"includeDatasets"`
+	IncludeScores     bool   `json:"includeScores"`
+	SourceFingerprint string `json:"sourceFingerprint,omitempty"`
 }
 
 // MigrationProgress tracks the progress of a migration job

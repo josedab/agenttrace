@@ -20,27 +20,29 @@ const (
 // EventType represents the type of event that can trigger notifications
 type EventType string
 
+// Notification event types.
 const (
-	EventTypeTraceError       EventType = "trace.error"
-	EventTypeTraceCostThreshold EventType = "trace.cost_threshold"
+	EventTypeTraceError            EventType = "trace.error"
+	EventTypeTraceCostThreshold    EventType = "trace.cost_threshold"
 	EventTypeTraceLatencyThreshold EventType = "trace.latency_threshold"
-	EventTypeDailyCostReport  EventType = "daily.cost_report"
-	EventTypeEvalFailed       EventType = "eval.failed"
-	EventTypeEvalScoreLow     EventType = "eval.score_low"
-	EventTypeAnomalyDetected  EventType = "anomaly.detected"
+	EventTypeDailyCostReport       EventType = "daily.cost_report"
+	EventTypeEvalFailed            EventType = "eval.failed"
+	EventTypeEvalScoreLow          EventType = "eval.score_low"
+	EventTypeAnomalyDetected       EventType = "anomaly.detected"
+	EventTypeTeamDigest            EventType = "team.digest"
 )
 
 // Webhook represents a notification webhook configuration
 type Webhook struct {
-	ID           uuid.UUID    `json:"id"`
-	ProjectID    uuid.UUID    `json:"projectId"`
-	Type         WebhookType  `json:"type"`
-	Name         string       `json:"name"`
-	URL          string       `json:"url"`
-	Secret       string       `json:"secret,omitempty"` // For signature verification
-	Events       []EventType  `json:"events"`
-	IsEnabled    bool         `json:"isEnabled"`
-	Headers      map[string]string `json:"headers,omitempty"`
+	ID        uuid.UUID         `json:"id"`
+	ProjectID uuid.UUID         `json:"projectId"`
+	Type      WebhookType       `json:"type"`
+	Name      string            `json:"name"`
+	URL       string            `json:"url"`
+	Secret    string            `json:"secret,omitempty"` // For signature verification
+	Events    []EventType       `json:"events"`
+	IsEnabled bool              `json:"isEnabled"`
+	Headers   map[string]string `json:"headers,omitempty"`
 
 	// Thresholds for threshold-based events
 	CostThreshold    *float64 `json:"costThreshold,omitempty"`    // USD per trace
@@ -51,11 +53,11 @@ type Webhook struct {
 	RateLimitPerHour *int `json:"rateLimitPerHour,omitempty"`
 
 	// Audit fields
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 	LastTriggeredAt *time.Time `json:"lastTriggeredAt,omitempty"`
-	SuccessCount int64      `json:"successCount"`
-	FailureCount int64      `json:"failureCount"`
+	SuccessCount    int64      `json:"successCount"`
+	FailureCount    int64      `json:"failureCount"`
 }
 
 // WebhookInput represents input for creating a webhook
@@ -106,10 +108,10 @@ type SlackMessage struct {
 
 // SlackBlock represents a Slack Block Kit block
 type SlackBlock struct {
-	Type     string     `json:"type"`
-	Text     *SlackText `json:"text,omitempty"`
-	Fields   []SlackText `json:"fields,omitempty"`
-	Accessory any       `json:"accessory,omitempty"`
+	Type      string      `json:"type"`
+	Text      *SlackText  `json:"text,omitempty"`
+	Fields    []SlackText `json:"fields,omitempty"`
+	Accessory any         `json:"accessory,omitempty"`
 }
 
 // SlackText represents text content in a Slack block
@@ -138,10 +140,10 @@ type SlackField struct {
 
 // DiscordMessage represents a Discord webhook message payload
 type DiscordMessage struct {
-	Content   string          `json:"content,omitempty"`
-	Username  string          `json:"username,omitempty"`
-	AvatarURL string          `json:"avatar_url,omitempty"`
-	Embeds    []DiscordEmbed  `json:"embeds,omitempty"`
+	Content   string         `json:"content,omitempty"`
+	Username  string         `json:"username,omitempty"`
+	AvatarURL string         `json:"avatar_url,omitempty"`
+	Embeds    []DiscordEmbed `json:"embeds,omitempty"`
 }
 
 // DiscordEmbed represents a Discord embed
@@ -170,16 +172,19 @@ type DiscordEmbedField struct {
 
 // WebhookDelivery represents a delivery attempt for a webhook
 type WebhookDelivery struct {
-	ID          uuid.UUID `json:"id"`
-	WebhookID   uuid.UUID `json:"webhookId"`
-	EventType   EventType `json:"eventType"`
-	Payload     string    `json:"payload"`
-	StatusCode  int       `json:"statusCode"`
-	Response    string    `json:"response,omitempty"`
-	Success     bool      `json:"success"`
-	Error       string    `json:"error,omitempty"`
-	Duration    int64     `json:"duration"` // milliseconds
-	RetryCount  int       `json:"retryCount"`
+	ID         uuid.UUID `json:"id"`
+	WebhookID  uuid.UUID `json:"webhookId"`
+	EventType  EventType `json:"eventType"`
+	Payload    string    `json:"payload"`
+	StatusCode int       `json:"statusCode"`
+	Response   string    `json:"response,omitempty"`
+	Success    bool      `json:"success"`
+	Error      string    `json:"error,omitempty"`
+	Duration   int64     `json:"duration"` // milliseconds
+	RetryCount int       `json:"retryCount"`
+	// DeliveryKey identifies the logical payload so an immediate retry of the
+	// same content can be recognized instead of delivered twice.
+	DeliveryKey string    `json:"deliveryKey,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
