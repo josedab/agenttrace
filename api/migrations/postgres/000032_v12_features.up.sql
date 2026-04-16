@@ -58,24 +58,10 @@ CREATE TABLE IF NOT EXISTS prompt_ci_gate_configs (
 
 CREATE INDEX idx_prompt_ci_gate_configs_project ON prompt_ci_gate_configs(project_id);
 
--- Prompt CI runs persistence
-CREATE TABLE IF NOT EXISTS prompt_ci_runs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    baseline_id UUID NOT NULL,
-    branch VARCHAR(255) NOT NULL,
-    commit_sha VARCHAR(64) NOT NULL,
-    pr_number INTEGER,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',
-    score_comparison JSONB NOT NULL DEFAULT '[]'::jsonb,
-    overall_severity VARCHAR(20) NOT NULL DEFAULT 'none',
-    summary TEXT,
-    started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMP WITH TIME ZONE
-);
-
-CREATE INDEX idx_prompt_ci_runs_project ON prompt_ci_runs(project_id);
-CREATE INDEX idx_prompt_ci_runs_baseline ON prompt_ci_runs(baseline_id);
+-- Prompt CI runs were introduced in migration 000030. Widen identifiers for v12.
+ALTER TABLE prompt_ci_runs
+    ALTER COLUMN branch TYPE VARCHAR(255),
+    ALTER COLUMN commit_sha TYPE VARCHAR(64);
 
 -- Universal Agent Protocol Adapter
 CREATE TABLE IF NOT EXISTS agent_adapters (
@@ -337,7 +323,7 @@ CREATE INDEX idx_ab_test_results_test ON ab_test_results(test_id);
 CREATE INDEX idx_ab_test_results_variant ON ab_test_results(test_id, variant_id);
 
 -- Federated Trace Analytics
-CREATE TABLE IF NOT EXISTS federated_insights (
+CREATE TABLE IF NOT EXISTS federated_trace_insights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     instance_id UUID NOT NULL,
     category VARCHAR(50) NOT NULL,
@@ -351,7 +337,7 @@ CREATE TABLE IF NOT EXISTS federated_insights (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_federated_insights_instance ON federated_insights(instance_id);
+CREATE INDEX idx_federated_trace_insights_instance ON federated_trace_insights(instance_id);
 
 CREATE TABLE IF NOT EXISTS privacy_budgets (
     instance_id UUID PRIMARY KEY,

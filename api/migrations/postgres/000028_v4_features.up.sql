@@ -223,7 +223,7 @@ CREATE INDEX idx_handoffs_status ON handoffs(status);
 CREATE INDEX idx_handoffs_agents ON handoffs(from_agent, to_agent);
 
 -- Trace Annotations (Feature 7: Annotations)
-CREATE TABLE IF NOT EXISTS trace_annotations (
+CREATE TABLE IF NOT EXISTS trace_review_annotations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     trace_id VARCHAR(64) NOT NULL,
@@ -237,15 +237,15 @@ CREATE TABLE IF NOT EXISTS trace_annotations (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT valid_annotation_type CHECK (annotation_type IN ('comment', 'issue', 'suggestion', 'question', 'highlight'))
 );
-CREATE INDEX idx_trace_annotations_project ON trace_annotations(project_id);
-CREATE INDEX idx_trace_annotations_trace ON trace_annotations(trace_id);
-CREATE INDEX idx_trace_annotations_user ON trace_annotations(user_id);
-CREATE TRIGGER update_trace_annotations_updated_at BEFORE UPDATE ON trace_annotations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE INDEX idx_trace_review_annotations_project ON trace_review_annotations(project_id);
+CREATE INDEX idx_trace_review_annotations_trace ON trace_review_annotations(trace_id);
+CREATE INDEX idx_trace_review_annotations_user ON trace_review_annotations(user_id);
+CREATE TRIGGER update_trace_review_annotations_updated_at BEFORE UPDATE ON trace_review_annotations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Annotation Replies (Feature 7: Annotations)
 CREATE TABLE IF NOT EXISTS annotation_replies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    annotation_id UUID NOT NULL REFERENCES trace_annotations(id) ON DELETE CASCADE,
+    annotation_id UUID NOT NULL REFERENCES trace_review_annotations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL,
     content TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()

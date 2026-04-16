@@ -9,7 +9,7 @@ DROP TABLE IF EXISTS training_exports;
 DROP TABLE IF EXISTS training_datasets;
 DROP TABLE IF EXISTS package_ratings;
 DROP TABLE IF EXISTS marketplace_packages;
-DROP TABLE IF EXISTS webhook_deliveries;
+DROP TABLE IF EXISTS webhook_rule_deliveries;
 DROP TABLE IF EXISTS webhook_rules;
 DROP TABLE IF EXISTS sandbox_policies;
 DROP TABLE IF EXISTS sandbox_reviews;

@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS sso_sessions (
 CREATE INDEX idx_sso_sessions_user ON sso_sessions(user_id);
 CREATE INDEX idx_sso_sessions_org ON sso_sessions(organization_id);
 CREATE INDEX idx_sso_sessions_external ON sso_sessions(external_id);
-CREATE INDEX idx_sso_sessions_expires ON sso_sessions(expires_at) WHERE expires_at > NOW();
+CREATE INDEX idx_sso_sessions_expires ON sso_sessions(expires_at);
 
 -- SSO State table (for OAuth/SAML state parameter)
 CREATE TABLE IF NOT EXISTS sso_states (

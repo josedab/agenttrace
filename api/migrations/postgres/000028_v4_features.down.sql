@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS synthetic_items;
 DROP TABLE IF EXISTS synthetic_datasets;
 DROP TABLE IF EXISTS carbon_configs;
 DROP TABLE IF EXISTS annotation_replies;
-DROP TABLE IF EXISTS trace_annotations;
+DROP TABLE IF EXISTS trace_review_annotations;
 DROP TABLE IF EXISTS handoffs;
 DROP TABLE IF EXISTS metric_alerts;
 DROP TABLE IF EXISTS metric_dashboards;

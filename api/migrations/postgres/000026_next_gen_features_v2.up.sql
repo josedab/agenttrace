@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS webhook_rules (
 );
 CREATE INDEX idx_webhook_rules_project ON webhook_rules(project_id);
 
-CREATE TABLE IF NOT EXISTS webhook_deliveries (
+CREATE TABLE IF NOT EXISTS webhook_rule_deliveries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     rule_id UUID NOT NULL REFERENCES webhook_rules(id) ON DELETE CASCADE,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -103,8 +103,8 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT valid_delivery_status CHECK (status IN ('pending', 'success', 'failed', 'retrying'))
 );
-CREATE INDEX idx_webhook_deliveries_rule ON webhook_deliveries(rule_id);
-CREATE INDEX idx_webhook_deliveries_status ON webhook_deliveries(status);
+CREATE INDEX idx_webhook_rule_deliveries_rule ON webhook_rule_deliveries(rule_id);
+CREATE INDEX idx_webhook_rule_deliveries_status ON webhook_rule_deliveries(status);
 
 -- Marketplace (Feature 9)
 CREATE TABLE IF NOT EXISTS marketplace_packages (
