@@ -49,15 +49,15 @@ func (r *GuardrailRepository) SaveRule(ctx context.Context, rule *domain.GuardRu
 }
 
 // GetRuleByID retrieves a guard rule by ID
-func (r *GuardrailRepository) GetRuleByID(ctx context.Context, id uuid.UUID) (*domain.GuardRule, error) {
+func (r *GuardrailRepository) GetRuleByID(ctx context.Context, projectID, id uuid.UUID) (*domain.GuardRule, error) {
 	query := `
 		SELECT id, project_id, name, description, type, config, action, enabled, created_at
 		FROM guard_rules
-		WHERE id = $1
+		WHERE project_id = $1 AND id = $2
 	`
 
 	var rule domain.GuardRule
-	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
+	err := r.db.Pool.QueryRow(ctx, query, projectID, id).Scan(
 		&rule.ID,
 		&rule.ProjectID,
 		&rule.Name,
@@ -82,12 +82,13 @@ func (r *GuardrailRepository) GetRuleByID(ctx context.Context, id uuid.UUID) (*d
 func (r *GuardrailRepository) UpdateRule(ctx context.Context, rule *domain.GuardRule) error {
 	query := `
 		UPDATE guard_rules
-		SET name = $2, description = $3, type = $4, config = $5, action = $6, enabled = $7
-		WHERE id = $1
+		SET name = $3, description = $4, type = $5, config = $6, action = $7, enabled = $8
+		WHERE id = $1 AND project_id = $2
 	`
 
 	result, err := r.db.Pool.Exec(ctx, query,
 		rule.ID,
+		rule.ProjectID,
 		rule.Name,
 		rule.Description,
 		rule.Type,
@@ -107,8 +108,13 @@ func (r *GuardrailRepository) UpdateRule(ctx context.Context, rule *domain.Guard
 }
 
 // DeleteRule deletes a guard rule
-func (r *GuardrailRepository) DeleteRule(ctx context.Context, id uuid.UUID) error {
-	result, err := r.db.Pool.Exec(ctx, "DELETE FROM guard_rules WHERE id = $1", id)
+func (r *GuardrailRepository) DeleteRule(ctx context.Context, projectID, id uuid.UUID) error {
+	result, err := r.db.Pool.Exec(
+		ctx,
+		"DELETE FROM guard_rules WHERE project_id = $1 AND id = $2",
+		projectID,
+		id,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to delete guard rule: %w", err)
 	}

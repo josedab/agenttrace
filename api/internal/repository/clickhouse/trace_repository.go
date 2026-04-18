@@ -2,6 +2,8 @@ package clickhouse
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/database"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 )
 
 // TraceRepository handles trace data operations in ClickHouse
@@ -166,8 +169,9 @@ func (r *TraceRepository) GetByID(ctx context.Context, projectID uuid.UUID, trac
 		SELECT
 			id, project_id, name, user_id, session_id, release, version,
 			tags, metadata, public, bookmarked, start_time, end_time, duration_ms,
-			input, output, level, status_message, total_cost, input_cost,
-			output_cost, total_tokens, input_tokens, output_tokens,
+			input, output, toString(level) AS level, status_message,
+			toFloat64(total_cost) AS total_cost, toFloat64(input_cost) AS input_cost,
+			toFloat64(output_cost) AS output_cost, total_tokens, input_tokens, output_tokens,
 			git_commit_sha, git_branch, git_repo_url, created_at, updated_at
 		FROM traces FINAL
 		WHERE project_id = ? AND id = ?
@@ -212,6 +216,9 @@ func (r *TraceRepository) GetByID(ctx context.Context, projectID uuid.UUID, trac
 			zap.String("project_id", projectID.String()),
 			zap.Error(err),
 		)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperrors.NotFound("trace")
+		}
 		return nil, err
 	}
 
@@ -304,7 +311,7 @@ func (r *TraceRepository) List(ctx context.Context, filter *domain.TraceFilter, 
 	// column-name fragments above, with user values passed as parameterized args.
 	// Get total count
 	countQuery := fmt.Sprintf("SELECT count() FROM traces FINAL WHERE %s", whereClause)
-	var totalCount int64
+	var totalCount uint64
 	row := r.db.QueryRow(ctx, countQuery, args...)
 	if err := row.Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count traces: %w", err)
@@ -315,8 +322,9 @@ func (r *TraceRepository) List(ctx context.Context, filter *domain.TraceFilter, 
 		SELECT
 			id, project_id, name, user_id, session_id, release, version,
 			tags, metadata, public, bookmarked, start_time, end_time, duration_ms,
-			input, output, level, status_message, total_cost, input_cost,
-			output_cost, total_tokens, input_tokens, output_tokens,
+			input, output, toString(level) AS level, status_message,
+			toFloat64(total_cost) AS total_cost, toFloat64(input_cost) AS input_cost,
+			toFloat64(output_cost) AS output_cost, total_tokens, input_tokens, output_tokens,
 			git_commit_sha, git_branch, git_repo_url, created_at, updated_at
 		FROM traces FINAL
 		WHERE %s
@@ -338,7 +346,7 @@ func (r *TraceRepository) List(ctx context.Context, filter *domain.TraceFilter, 
 
 	return &domain.TraceList{
 		Traces:     traces,
-		TotalCount: totalCount,
+		TotalCount: int64(totalCount),
 		HasMore:    hasMore,
 	}, nil
 }
@@ -405,8 +413,9 @@ func (r *TraceRepository) GetBySessionID(ctx context.Context, projectID uuid.UUI
 		SELECT
 			id, project_id, name, user_id, session_id, release, version,
 			tags, metadata, public, bookmarked, start_time, end_time, duration_ms,
-			input, output, level, status_message, total_cost, input_cost,
-			output_cost, total_tokens, input_tokens, output_tokens,
+			input, output, toString(level) AS level, status_message,
+			toFloat64(total_cost) AS total_cost, toFloat64(input_cost) AS input_cost,
+			toFloat64(output_cost) AS output_cost, total_tokens, input_tokens, output_tokens,
 			git_commit_sha, git_branch, git_repo_url, created_at, updated_at
 		FROM traces FINAL
 		WHERE project_id = ? AND session_id = ?
@@ -429,13 +438,13 @@ func (r *TraceRepository) CountBeforeCutoff(ctx context.Context, projectID uuid.
 		WHERE project_id = ? AND created_at < ?
 	`
 
-	var count int64
+	var count uint64
 	row := r.db.QueryRow(ctx, query, projectID, cutoff)
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count traces: %w", err)
 	}
 
-	return count, nil
+	return int64(count), nil
 }
 
 // DeleteBeforeCutoff deletes traces created before the cutoff date for a project

@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,51 @@ import (
 type ObservationRepository struct {
 	db     *database.ClickHouseDB
 	logger *zap.Logger
+}
+
+type observationScanner interface {
+	Scan(dest ...any) error
+}
+
+func observationScanTargets(obs *domain.Observation) []any {
+	return []any{
+		&obs.ID,
+		&obs.TraceID,
+		&obs.ProjectID,
+		&obs.ParentObservationID,
+		&obs.Type,
+		&obs.Name,
+		&obs.Level,
+		&obs.StatusMessage,
+		&obs.Metadata,
+		&obs.StartTime,
+		&obs.EndTime,
+		&obs.CompletionStartTime,
+		&obs.DurationMs,
+		&obs.TimeToFirstTokenMs,
+		&obs.Input,
+		&obs.Output,
+		&obs.Model,
+		&obs.ModelParameters,
+		&obs.UsageDetails.InputTokens,
+		&obs.UsageDetails.OutputTokens,
+		&obs.UsageDetails.TotalTokens,
+		&obs.UsageDetails.CacheReadTokens,
+		&obs.UsageDetails.CacheCreationTokens,
+		&obs.CostDetails.InputCost,
+		&obs.CostDetails.OutputCost,
+		&obs.CostDetails.TotalCost,
+		&obs.PromptID,
+		&obs.PromptVersion,
+		&obs.PromptName,
+		&obs.Version,
+		&obs.CreatedAt,
+		&obs.UpdatedAt,
+	}
+}
+
+func scanObservation(scanner observationScanner, obs *domain.Observation) error {
+	return scanner.Scan(observationScanTargets(obs)...)
 }
 
 // NewObservationRepository creates a new observation repository
@@ -74,7 +120,7 @@ func (r *ObservationRepository) Create(ctx context.Context, obs *domain.Observat
 		obs.CostDetails.InputCost,
 		obs.CostDetails.OutputCost,
 		obs.CostDetails.TotalCost,
-		obs.PromptID,
+		nullableUUID(obs.PromptID),
 		obs.PromptVersion,
 		obs.PromptName,
 		obs.Version,
@@ -139,7 +185,7 @@ func (r *ObservationRepository) CreateBatch(ctx context.Context, observations []
 			obs.CostDetails.InputCost,
 			obs.CostDetails.OutputCost,
 			obs.CostDetails.TotalCost,
-			obs.PromptID,
+			nullableUUID(obs.PromptID),
 			obs.PromptVersion,
 			obs.PromptName,
 			obs.Version,
@@ -157,13 +203,14 @@ func (r *ObservationRepository) CreateBatch(ctx context.Context, observations []
 func (r *ObservationRepository) GetByID(ctx context.Context, projectID uuid.UUID, observationID string) (*domain.Observation, error) {
 	query := `
 		SELECT
-			id, trace_id, project_id, parent_observation_id, type, name,
-			level, status_message, metadata, start_time, end_time,
+			id, trace_id, project_id, parent_observation_id, toString(type) AS type, name,
+			toString(level) AS level, status_message, metadata, start_time, end_time,
 			completion_start_time, duration_ms, time_to_first_token_ms,
 			input, output, model, model_parameters,
 			usage_input_tokens, usage_output_tokens, usage_total_tokens,
 			usage_cache_read_tokens, usage_cache_creation_tokens,
-			input_cost, output_cost, total_cost,
+			toFloat64(input_cost) AS input_cost, toFloat64(output_cost) AS output_cost,
+			toFloat64(total_cost) AS total_cost,
 			prompt_id, prompt_version, prompt_name, version,
 			created_at, updated_at
 		FROM observations FINAL
@@ -173,40 +220,7 @@ func (r *ObservationRepository) GetByID(ctx context.Context, projectID uuid.UUID
 
 	var obs domain.Observation
 	row := r.db.QueryRow(ctx, query, projectID, observationID)
-	err := row.Scan(
-		&obs.ID,
-		&obs.TraceID,
-		&obs.ProjectID,
-		&obs.ParentObservationID,
-		&obs.Type,
-		&obs.Name,
-		&obs.Level,
-		&obs.StatusMessage,
-		&obs.Metadata,
-		&obs.StartTime,
-		&obs.EndTime,
-		&obs.CompletionStartTime,
-		&obs.DurationMs,
-		&obs.TimeToFirstTokenMs,
-		&obs.Input,
-		&obs.Output,
-		&obs.Model,
-		&obs.ModelParameters,
-		&obs.UsageDetails.InputTokens,
-		&obs.UsageDetails.OutputTokens,
-		&obs.UsageDetails.TotalTokens,
-		&obs.UsageDetails.CacheReadTokens,
-		&obs.UsageDetails.CacheCreationTokens,
-		&obs.CostDetails.InputCost,
-		&obs.CostDetails.OutputCost,
-		&obs.CostDetails.TotalCost,
-		&obs.PromptID,
-		&obs.PromptVersion,
-		&obs.PromptName,
-		&obs.Version,
-		&obs.CreatedAt,
-		&obs.UpdatedAt,
-	)
+	err := scanObservation(row, &obs)
 	if err != nil {
 		return nil, err
 	}
@@ -218,13 +232,14 @@ func (r *ObservationRepository) GetByID(ctx context.Context, projectID uuid.UUID
 func (r *ObservationRepository) GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.Observation, error) {
 	query := `
 		SELECT
-			id, trace_id, project_id, parent_observation_id, type, name,
-			level, status_message, metadata, start_time, end_time,
+			id, trace_id, project_id, parent_observation_id, toString(type) AS type, name,
+			toString(level) AS level, status_message, metadata, start_time, end_time,
 			completion_start_time, duration_ms, time_to_first_token_ms,
 			input, output, model, model_parameters,
 			usage_input_tokens, usage_output_tokens, usage_total_tokens,
 			usage_cache_read_tokens, usage_cache_creation_tokens,
-			input_cost, output_cost, total_cost,
+			toFloat64(input_cost) AS input_cost, toFloat64(output_cost) AS output_cost,
+			toFloat64(total_cost) AS total_cost,
 			prompt_id, prompt_version, prompt_name, version,
 			created_at, updated_at
 		FROM observations FINAL
@@ -232,12 +247,7 @@ func (r *ObservationRepository) GetByTraceID(ctx context.Context, projectID uuid
 		ORDER BY start_time ASC
 	`
 
-	var observations []domain.Observation
-	if err := r.db.Select(ctx, &observations, query, projectID, traceID); err != nil {
-		return nil, err
-	}
-
-	return observations, nil
+	return r.queryObservations(ctx, query, projectID, traceID)
 }
 
 // List retrieves observations with filtering
@@ -287,12 +297,12 @@ func (r *ObservationRepository) List(ctx context.Context, filter *domain.Observa
 
 	whereClause := strings.Join(conditions, " AND ")
 
-// SAFETY: whereClause is built from hardcoded column fragments above.
-// User values are passed separately via parameterized args.
+	// SAFETY: whereClause is built from hardcoded column fragments above.
+	// User values are passed separately via parameterized args.
 
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM observations FINAL WHERE %s", whereClause)
-	var totalCount int64
+	var totalCount uint64
 	row := r.db.QueryRow(ctx, countQuery, args...)
 	if err := row.Scan(&totalCount); err != nil {
 		return nil, 0, err
@@ -301,13 +311,14 @@ func (r *ObservationRepository) List(ctx context.Context, filter *domain.Observa
 	// Get observations
 	query := fmt.Sprintf(`
 		SELECT
-			id, trace_id, project_id, parent_observation_id, type, name,
-			level, status_message, metadata, start_time, end_time,
+			id, trace_id, project_id, parent_observation_id, toString(type) AS type, name,
+			toString(level) AS level, status_message, metadata, start_time, end_time,
 			completion_start_time, duration_ms, time_to_first_token_ms,
 			input, output, model, model_parameters,
 			usage_input_tokens, usage_output_tokens, usage_total_tokens,
 			usage_cache_read_tokens, usage_cache_creation_tokens,
-			input_cost, output_cost, total_cost,
+			toFloat64(input_cost) AS input_cost, toFloat64(output_cost) AS output_cost,
+			toFloat64(total_cost) AS total_cost,
 			prompt_id, prompt_version, prompt_name, version,
 			created_at, updated_at
 		FROM observations FINAL
@@ -318,12 +329,12 @@ func (r *ObservationRepository) List(ctx context.Context, filter *domain.Observa
 
 	args = append(args, limit, offset)
 
-	var observations []domain.Observation
-	if err := r.db.Select(ctx, &observations, query, args...); err != nil {
+	observations, err := r.queryObservations(ctx, query, args...)
+	if err != nil {
 		return nil, 0, err
 	}
 
-	return observations, totalCount, nil
+	return observations, int64(totalCount), nil
 }
 
 // Update updates an observation
@@ -354,13 +365,14 @@ func (r *ObservationRepository) UpdateCosts(ctx context.Context, projectID uuid.
 func (r *ObservationRepository) GetGenerationsWithoutCost(ctx context.Context, projectID uuid.UUID, limit int) ([]domain.Observation, error) {
 	query := `
 		SELECT
-			id, trace_id, project_id, parent_observation_id, type, name,
-			level, status_message, metadata, start_time, end_time,
+			id, trace_id, project_id, parent_observation_id, toString(type) AS type, name,
+			toString(level) AS level, status_message, metadata, start_time, end_time,
 			completion_start_time, duration_ms, time_to_first_token_ms,
 			input, output, model, model_parameters,
 			usage_input_tokens, usage_output_tokens, usage_total_tokens,
 			usage_cache_read_tokens, usage_cache_creation_tokens,
-			input_cost, output_cost, total_cost,
+			toFloat64(input_cost) AS input_cost, toFloat64(output_cost) AS output_cost,
+			toFloat64(total_cost) AS total_cost,
 			prompt_id, prompt_version, prompt_name, version,
 			created_at, updated_at
 		FROM observations FINAL
@@ -373,12 +385,27 @@ func (r *ObservationRepository) GetGenerationsWithoutCost(ctx context.Context, p
 		LIMIT ?
 	`
 
-	var observations []domain.Observation
-	if err := r.db.Select(ctx, &observations, query, projectID, limit); err != nil {
+	return r.queryObservations(ctx, query, projectID, limit)
+}
+
+func (r *ObservationRepository) queryObservations(ctx context.Context, query string, args ...any) ([]domain.Observation, error) {
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
 		return nil, err
 	}
+	observations := make([]domain.Observation, 0)
+	for rows.Next() {
+		var obs domain.Observation
+		if err := scanObservation(rows, &obs); err != nil {
+			return nil, errors.Join(err, rows.Close())
+		}
+		observations = append(observations, obs)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Join(err, rows.Close())
+	}
 
-	return observations, nil
+	return observations, rows.Close()
 }
 
 // GetTree retrieves observations as a tree structure
@@ -403,13 +430,13 @@ func (r *ObservationRepository) CountBeforeCutoff(ctx context.Context, projectID
 		WHERE project_id = ? AND created_at < ?
 	`
 
-	var count int64
+	var count uint64
 	row := r.db.QueryRow(ctx, query, projectID, cutoff)
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count observations: %w", err)
 	}
 
-	return count, nil
+	return int64(count), nil
 }
 
 // DeleteBeforeCutoff deletes observations created before the cutoff date for a project
@@ -452,13 +479,13 @@ func (r *ObservationRepository) CountOrphans(ctx context.Context) (int64, error)
 		)
 	`
 
-	var count int64
+	var count uint64
 	row := r.db.QueryRow(ctx, query)
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count orphan observations: %w", err)
 	}
 
-	return count, nil
+	return int64(count), nil
 }
 
 // DeleteOrphans deletes observations that don't have a corresponding trace

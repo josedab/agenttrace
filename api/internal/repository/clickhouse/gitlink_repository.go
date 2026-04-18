@@ -52,7 +52,7 @@ func (r *GitLinkRepository) Create(ctx context.Context, gitLink *domain.GitLink)
 		gitLink.Additions,
 		gitLink.Deletions,
 		string(gitLink.LinkType),
-		gitLink.CIRunID,
+		nullableUUID(gitLink.CIRunID),
 		gitLink.CreatedAt,
 	)
 }
@@ -64,7 +64,7 @@ func (r *GitLinkRepository) GetByID(ctx context.Context, projectID, gitLinkID uu
 			id, project_id, trace_id, commit_sha, parent_sha, branch, tag,
 			repo_url, commit_message, commit_author, commit_author_email,
 			commit_timestamp, files_added, files_modified, files_deleted,
-			files_changed_count, additions, deletions, link_type, ci_run_id, created_at
+			files_changed_count, additions, deletions, toString(link_type) AS link_type, ci_run_id, created_at
 		FROM git_links FINAL
 		WHERE project_id = ? AND id = ?
 		LIMIT 1
@@ -109,7 +109,7 @@ func (r *GitLinkRepository) GetByCommitSha(ctx context.Context, projectID uuid.U
 			id, project_id, trace_id, commit_sha, parent_sha, branch, tag,
 			repo_url, commit_message, commit_author, commit_author_email,
 			commit_timestamp, files_added, files_modified, files_deleted,
-			files_changed_count, additions, deletions, link_type, ci_run_id, created_at
+			files_changed_count, additions, deletions, toString(link_type) AS link_type, ci_run_id, created_at
 		FROM git_links FINAL
 		WHERE project_id = ? AND commit_sha = ?
 		ORDER BY created_at DESC
@@ -130,7 +130,7 @@ func (r *GitLinkRepository) GetByTraceID(ctx context.Context, projectID uuid.UUI
 			id, project_id, trace_id, commit_sha, parent_sha, branch, tag,
 			repo_url, commit_message, commit_author, commit_author_email,
 			commit_timestamp, files_added, files_modified, files_deleted,
-			files_changed_count, additions, deletions, link_type, ci_run_id, created_at
+			files_changed_count, additions, deletions, toString(link_type) AS link_type, ci_run_id, created_at
 		FROM git_links FINAL
 		WHERE project_id = ? AND trace_id = ?
 		ORDER BY commit_timestamp DESC
@@ -193,7 +193,7 @@ func (r *GitLinkRepository) List(ctx context.Context, filter *domain.GitLinkFilt
 
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM git_links FINAL WHERE %s", whereClause)
-	var totalCount int64
+	var totalCount uint64
 	row := r.db.QueryRow(ctx, countQuery, args...)
 	if err := row.Scan(&totalCount); err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func (r *GitLinkRepository) List(ctx context.Context, filter *domain.GitLinkFilt
 			id, project_id, trace_id, commit_sha, parent_sha, branch, tag,
 			repo_url, commit_message, commit_author, commit_author_email,
 			commit_timestamp, files_added, files_modified, files_deleted,
-			files_changed_count, additions, deletions, link_type, ci_run_id, created_at
+			files_changed_count, additions, deletions, toString(link_type) AS link_type, ci_run_id, created_at
 		FROM git_links FINAL
 		WHERE %s
 		ORDER BY commit_timestamp DESC
@@ -218,11 +218,17 @@ func (r *GitLinkRepository) List(ctx context.Context, filter *domain.GitLinkFilt
 	if err := r.db.Select(ctx, &gitLinks, query, args...); err != nil {
 		return nil, err
 	}
+	seen := offset + len(gitLinks)
+	hasMore := false
+	if seen >= 0 {
+		seenCount := uint64(seen) // #nosec G115 -- seen is checked as non-negative.
+		hasMore = seenCount < totalCount
+	}
 
 	return &domain.GitLinkList{
 		GitLinks:   gitLinks,
-		TotalCount: totalCount,
-		HasMore:    int64(offset+len(gitLinks)) < totalCount,
+		TotalCount: int64(totalCount),
+		HasMore:    hasMore,
 	}, nil
 }
 
@@ -235,7 +241,7 @@ func (r *GitLinkRepository) GetTimeline(ctx context.Context, projectID uuid.UUID
 			any(commit_author) AS commit_author,
 			any(commit_timestamp) AS commit_time,
 			any(branch) AS branch,
-			count(DISTINCT trace_id) AS trace_count,
+			toInt64(count(DISTINCT trace_id)) AS trace_count,
 			groupArray(DISTINCT trace_id) AS trace_ids
 		FROM git_links FINAL
 		WHERE project_id = ? AND branch = ?

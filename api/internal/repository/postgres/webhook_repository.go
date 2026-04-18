@@ -424,9 +424,9 @@ func (r *WebhookRepository) CreateDelivery(ctx context.Context, delivery *domain
 	query := `
 		INSERT INTO webhook_deliveries (
 			id, webhook_id, event_type, payload, status_code, response,
-			success, error, duration_ms, retry_count, created_at
+			success, error, duration_ms, retry_count, delivery_key, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	_, err := r.db.Pool.Exec(ctx, query,
@@ -440,6 +440,7 @@ func (r *WebhookRepository) CreateDelivery(ctx context.Context, delivery *domain
 		delivery.Error,
 		delivery.Duration,
 		delivery.RetryCount,
+		delivery.DeliveryKey,
 		delivery.CreatedAt,
 	)
 	if err != nil {
@@ -447,6 +448,89 @@ func (r *WebhookRepository) CreateDelivery(ctx context.Context, delivery *domain
 	}
 
 	return nil
+}
+
+// ClaimDelivery atomically reserves a digest delivery key across API instances.
+// An expired claim can be reclaimed; an active claim returns false.
+func (r *WebhookRepository) ClaimDelivery(
+	ctx context.Context,
+	webhookID uuid.UUID,
+	deliveryKey string,
+	claimedAt, expiresAt time.Time,
+) (bool, error) {
+	var claimed bool
+	err := r.db.Pool.QueryRow(ctx, `
+		INSERT INTO team_digest_delivery_claims (
+			webhook_id, delivery_key, claimed_at, expires_at
+		) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (webhook_id, delivery_key)
+		DO UPDATE SET
+			claimed_at = EXCLUDED.claimed_at,
+			expires_at = EXCLUDED.expires_at
+		WHERE team_digest_delivery_claims.expires_at <= EXCLUDED.claimed_at
+		RETURNING TRUE
+	`, webhookID, deliveryKey, claimedAt, expiresAt).Scan(&claimed)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to claim webhook delivery: %w", err)
+	}
+	return claimed, nil
+}
+
+// FindRecentDelivery returns the most recent delivery recorded for a delivery
+// key, which lets callers suppress an immediate duplicate send.
+func (r *WebhookRepository) FindRecentDelivery(
+	ctx context.Context,
+	webhookID uuid.UUID,
+	deliveryKey string,
+	since time.Time,
+) (*domain.WebhookDelivery, error) {
+	if deliveryKey == "" {
+		return nil, nil
+	}
+
+	var delivery domain.WebhookDelivery
+	var response, deliveryError *string
+	var statusCode *int
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT id, webhook_id, event_type, payload, status_code, response,
+			success, error, duration_ms, retry_count, delivery_key, created_at
+		FROM webhook_deliveries
+		WHERE webhook_id = $1 AND delivery_key = $2 AND created_at >= $3
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, webhookID, deliveryKey, since).Scan(
+		&delivery.ID,
+		&delivery.WebhookID,
+		&delivery.EventType,
+		&delivery.Payload,
+		&statusCode,
+		&response,
+		&delivery.Success,
+		&deliveryError,
+		&delivery.Duration,
+		&delivery.RetryCount,
+		&delivery.DeliveryKey,
+		&delivery.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find recent delivery: %w", err)
+	}
+	if statusCode != nil {
+		delivery.StatusCode = *statusCode
+	}
+	if response != nil {
+		delivery.Response = *response
+	}
+	if deliveryError != nil {
+		delivery.Error = *deliveryError
+	}
+	return &delivery, nil
 }
 
 // ListDeliveries retrieves deliveries for a webhook

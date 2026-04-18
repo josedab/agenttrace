@@ -55,8 +55,8 @@ func (r *ScoreRepository) Create(ctx context.Context, score *domain.Score) error
 		score.Value,
 		score.StringValue,
 		score.Comment,
-		score.ConfigID,
-		score.AuthorUserID,
+		nullableUUID(score.ConfigID),
+		nullableUUID(score.AuthorUserID),
 		score.CreatedAt,
 		score.UpdatedAt,
 	)
@@ -99,8 +99,8 @@ func (r *ScoreRepository) CreateBatch(ctx context.Context, scores []*domain.Scor
 			score.Value,
 			score.StringValue,
 			score.Comment,
-			score.ConfigID,
-			score.AuthorUserID,
+			nullableUUID(score.ConfigID),
+			nullableUUID(score.AuthorUserID),
 			score.CreatedAt,
 			score.UpdatedAt,
 		); err != nil {
@@ -115,8 +115,8 @@ func (r *ScoreRepository) CreateBatch(ctx context.Context, scores []*domain.Scor
 func (r *ScoreRepository) GetByID(ctx context.Context, projectID uuid.UUID, scoreID string) (*domain.Score, error) {
 	query := `
 		SELECT
-			id, project_id, trace_id, observation_id, name, source,
-			data_type, value, string_value, comment, config_id,
+			id, project_id, trace_id, observation_id, name, toString(source) AS source,
+			toString(data_type) AS data_type, value, string_value, comment, config_id,
 			author_user_id, created_at, updated_at
 		FROM scores FINAL
 		WHERE project_id = ? AND id = ?
@@ -152,8 +152,8 @@ func (r *ScoreRepository) GetByID(ctx context.Context, projectID uuid.UUID, scor
 func (r *ScoreRepository) GetByTraceID(ctx context.Context, projectID uuid.UUID, traceID string) ([]domain.Score, error) {
 	query := `
 		SELECT
-			id, project_id, trace_id, observation_id, name, source,
-			data_type, value, string_value, comment, config_id,
+			id, project_id, trace_id, observation_id, name, toString(source) AS source,
+			toString(data_type) AS data_type, value, string_value, comment, config_id,
 			author_user_id, created_at, updated_at
 		FROM scores FINAL
 		WHERE project_id = ? AND trace_id = ?
@@ -172,8 +172,8 @@ func (r *ScoreRepository) GetByTraceID(ctx context.Context, projectID uuid.UUID,
 func (r *ScoreRepository) GetByObservationID(ctx context.Context, projectID uuid.UUID, observationID string) ([]domain.Score, error) {
 	query := `
 		SELECT
-			id, project_id, trace_id, observation_id, name, source,
-			data_type, value, string_value, comment, config_id,
+			id, project_id, trace_id, observation_id, name, toString(source) AS source,
+			toString(data_type) AS data_type, value, string_value, comment, config_id,
 			author_user_id, created_at, updated_at
 		FROM scores FINAL
 		WHERE project_id = ? AND observation_id = ?
@@ -235,12 +235,12 @@ func (r *ScoreRepository) List(ctx context.Context, filter *domain.ScoreFilter, 
 
 	whereClause := strings.Join(conditions, " AND ")
 
-// SAFETY: whereClause is built from hardcoded column fragments above.
-// User values are passed separately via parameterized args.
+	// SAFETY: whereClause is built from hardcoded column fragments above.
+	// User values are passed separately via parameterized args.
 
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM scores FINAL WHERE %s", whereClause)
-	var totalCount int64
+	var totalCount uint64
 	row := r.db.QueryRow(ctx, countQuery, args...)
 	if err := row.Scan(&totalCount); err != nil {
 		return nil, err
@@ -249,8 +249,8 @@ func (r *ScoreRepository) List(ctx context.Context, filter *domain.ScoreFilter, 
 	// Get scores
 	query := fmt.Sprintf(`
 		SELECT
-			id, project_id, trace_id, observation_id, name, source,
-			data_type, value, string_value, comment, config_id,
+			id, project_id, trace_id, observation_id, name, toString(source) AS source,
+			toString(data_type) AS data_type, value, string_value, comment, config_id,
 			author_user_id, created_at, updated_at
 		FROM scores FINAL
 		WHERE %s
@@ -264,11 +264,17 @@ func (r *ScoreRepository) List(ctx context.Context, filter *domain.ScoreFilter, 
 	if err := r.db.Select(ctx, &scores, query, args...); err != nil {
 		return nil, err
 	}
+	seen := offset + len(scores)
+	hasMore := false
+	if seen >= 0 {
+		seenCount := uint64(seen) // #nosec G115 -- seen is checked as non-negative.
+		hasMore = seenCount < totalCount
+	}
 
 	return &domain.ScoreList{
 		Scores:     scores,
-		TotalCount: totalCount,
-		HasMore:    int64(offset+len(scores)) < totalCount,
+		TotalCount: int64(totalCount),
+		HasMore:    hasMore,
 	}, nil
 }
 
@@ -355,13 +361,13 @@ func (r *ScoreRepository) CountBeforeCutoff(ctx context.Context, projectID uuid.
 		WHERE project_id = ? AND created_at < ?
 	`
 
-	var count int64
+	var count uint64
 	row := r.db.QueryRow(ctx, query, projectID, cutoff)
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count scores: %w", err)
 	}
 
-	return count, nil
+	return int64(count), nil
 }
 
 // DeleteBeforeCutoff deletes scores created before the cutoff date for a project
@@ -404,13 +410,13 @@ func (r *ScoreRepository) CountOrphans(ctx context.Context) (int64, error) {
 		)
 	`
 
-	var count int64
+	var count uint64
 	row := r.db.QueryRow(ctx, query)
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count orphan scores: %w", err)
 	}
 
-	return count, nil
+	return int64(count), nil
 }
 
 // DeleteOrphans deletes scores that don't have a corresponding trace

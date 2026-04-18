@@ -48,7 +48,7 @@ func (r *CheckpointRepository) Create(ctx context.Context, checkpoint *domain.Ch
 		checkpoint.StoragePath,
 		checkpoint.TotalFiles,
 		checkpoint.TotalSizeBytes,
-		checkpoint.RestoredFrom,
+		nullableUUID(checkpoint.RestoredFrom),
 		checkpoint.RestoredAt,
 		checkpoint.CreatedAt,
 	)
@@ -59,7 +59,7 @@ func (r *CheckpointRepository) GetByID(ctx context.Context, projectID, checkpoin
 	query := `
 		SELECT
 			id, project_id, trace_id, observation_id, name, description,
-			checkpoint_type, git_commit_sha, git_branch, git_repo_url,
+			toString(checkpoint_type) AS checkpoint_type, git_commit_sha, git_branch, git_repo_url,
 			files_snapshot, files_changed, storage_path, total_files,
 			total_size_bytes, restored_from, restored_at, created_at
 		FROM checkpoints FINAL
@@ -101,7 +101,7 @@ func (r *CheckpointRepository) GetByTraceID(ctx context.Context, projectID uuid.
 	query := `
 		SELECT
 			id, project_id, trace_id, observation_id, name, description,
-			checkpoint_type, git_commit_sha, git_branch, git_repo_url,
+			toString(checkpoint_type) AS checkpoint_type, git_commit_sha, git_branch, git_repo_url,
 			files_snapshot, files_changed, storage_path, total_files,
 			total_size_bytes, restored_from, restored_at, created_at
 		FROM checkpoints FINAL
@@ -156,7 +156,7 @@ func (r *CheckpointRepository) List(ctx context.Context, filter *domain.Checkpoi
 
 	// Get count
 	countQuery := fmt.Sprintf("SELECT count() FROM checkpoints FINAL WHERE %s", whereClause)
-	var totalCount int64
+	var totalCount uint64
 	row := r.db.QueryRow(ctx, countQuery, args...)
 	if err := row.Scan(&totalCount); err != nil {
 		return nil, err
@@ -166,7 +166,7 @@ func (r *CheckpointRepository) List(ctx context.Context, filter *domain.Checkpoi
 	query := fmt.Sprintf(`
 		SELECT
 			id, project_id, trace_id, observation_id, name, description,
-			checkpoint_type, git_commit_sha, git_branch, git_repo_url,
+			toString(checkpoint_type) AS checkpoint_type, git_commit_sha, git_branch, git_repo_url,
 			files_snapshot, files_changed, storage_path, total_files,
 			total_size_bytes, restored_from, restored_at, created_at
 		FROM checkpoints FINAL
@@ -181,10 +181,16 @@ func (r *CheckpointRepository) List(ctx context.Context, filter *domain.Checkpoi
 	if err := r.db.Select(ctx, &checkpoints, query, args...); err != nil {
 		return nil, err
 	}
+	seen := offset + len(checkpoints)
+	hasMore := false
+	if seen >= 0 {
+		seenCount := uint64(seen) // #nosec G115 -- seen is checked as non-negative.
+		hasMore = seenCount < totalCount
+	}
 
 	return &domain.CheckpointList{
 		Checkpoints: checkpoints,
-		TotalCount:  totalCount,
-		HasMore:     int64(offset+len(checkpoints)) < totalCount,
+		TotalCount:  int64(totalCount),
+		HasMore:     hasMore,
 	}, nil
 }

@@ -96,8 +96,8 @@ func (r *SessionRepository) List(ctx context.Context, filter *domain.SessionFilt
 
 	whereClause := strings.Join(conditions, " AND ")
 
-// SAFETY: whereClause is built from hardcoded column fragments above.
-// User values are passed separately via parameterized args.
+	// SAFETY: whereClause is built from hardcoded column fragments above.
+	// User values are passed separately via parameterized args.
 
 	// Get total count of distinct sessions
 	countQuery := fmt.Sprintf(`
@@ -106,9 +106,13 @@ func (r *SessionRepository) List(ctx context.Context, filter *domain.SessionFilt
 		WHERE %s
 	`, whereClause)
 
-	var totalCount int64
+	var totalCountValue uint64
 	row := r.db.QueryRow(ctx, countQuery, args...)
-	if err := row.Scan(&totalCount); err != nil {
+	if err := row.Scan(&totalCountValue); err != nil {
+		return nil, fmt.Errorf("failed to count sessions: %w", err)
+	}
+	totalCount, err := uint64ToInt64(totalCountValue)
+	if err != nil {
 		return nil, fmt.Errorf("failed to count sessions: %w", err)
 	}
 
@@ -142,7 +146,7 @@ func (r *SessionRepository) List(ctx context.Context, filter *domain.SessionFilt
 	}
 	defer rows.Close()
 
-	var sessions []domain.Session
+	sessions := make([]domain.Session, 0)
 	for rows.Next() {
 		var session domain.Session
 		if err := rows.Scan(

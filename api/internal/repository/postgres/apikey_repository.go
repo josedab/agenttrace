@@ -214,23 +214,3 @@ func (r *APIKeyRepository) CountByProjectID(ctx context.Context, projectID uuid.
 
 	return count, nil
 }
-
-// GetProjectIDByPublicKey retrieves the project ID for a public key
-func (r *APIKeyRepository) GetProjectIDByPublicKey(ctx context.Context, publicKey string) (*uuid.UUID, error) {
-	query := `
-		SELECT project_id
-		FROM api_keys
-		WHERE public_key = $1 AND (expires_at IS NULL OR expires_at > NOW())
-	`
-
-	var projectID uuid.UUID
-	err := r.db.Pool.QueryRow(ctx, query, publicKey).Scan(&projectID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperrors.NotFound("API key")
-		}
-		return nil, fmt.Errorf("failed to get project ID: %w", err)
-	}
-
-	return &projectID, nil
-}

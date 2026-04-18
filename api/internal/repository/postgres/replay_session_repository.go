@@ -60,18 +60,22 @@ func (r *ReplaySessionRepository) Save(ctx context.Context, session *domain.Agen
 	return nil
 }
 
-func (r *ReplaySessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.AgentReplaySession, error) {
+// GetByID retrieves a replay session within a project.
+func (r *ReplaySessionRepository) GetByID(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+) (*domain.AgentReplaySession, error) {
 	query := `
 		SELECT id, project_id, trace_id, name, description, status, recording_fidelity,
 			total_events, total_duration_ms, files_tracked, checkpoint_count,
 			parent_session_id, branch_point, is_public, share_url,
 			created_at, updated_at, created_by, ended_at
 		FROM replay_sessions
-		WHERE id = $1
+		WHERE project_id = $1 AND id = $2
 	`
 
 	var s domain.AgentReplaySession
-	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
+	err := r.db.Pool.QueryRow(ctx, query, projectID, id).Scan(
 		&s.ID, &s.ProjectID, &s.TraceID, &s.Name, &s.Description,
 		&s.Status, &s.RecordingFidelity,
 		&s.TotalEvents, &s.TotalDurationMs, &s.FilesTracked, &s.CheckpointCount,
@@ -86,6 +90,47 @@ func (r *ReplaySessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*d
 	}
 
 	return &s, nil
+}
+
+// Update persists a project-scoped replay session.
+func (r *ReplaySessionRepository) Update(
+	ctx context.Context,
+	session *domain.AgentReplaySession,
+) error {
+	query := `
+		UPDATE replay_sessions
+		SET name = $3, description = $4, status = $5, recording_fidelity = $6,
+			total_events = $7, total_duration_ms = $8, files_tracked = $9,
+			checkpoint_count = $10, parent_session_id = $11, branch_point = $12,
+			is_public = $13, share_url = $14, updated_at = $15, ended_at = $16
+		WHERE project_id = $1 AND id = $2
+	`
+
+	result, err := r.db.Pool.Exec(ctx, query,
+		session.ProjectID,
+		session.ID,
+		session.Name,
+		session.Description,
+		session.Status,
+		session.RecordingFidelity,
+		session.TotalEvents,
+		session.TotalDurationMs,
+		session.FilesTracked,
+		session.CheckpointCount,
+		session.ParentSessionID,
+		session.BranchPoint,
+		session.IsPublic,
+		session.ShareURL,
+		session.UpdatedAt,
+		session.EndedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update replay session: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return apperrors.NotFound("replay session")
+	}
+	return nil
 }
 
 func (r *ReplaySessionRepository) List(ctx context.Context, projectID uuid.UUID, limit int) ([]domain.AgentReplaySession, error) {

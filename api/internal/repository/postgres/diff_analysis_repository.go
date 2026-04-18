@@ -71,19 +71,19 @@ func (r *DiffAnalysisRepository) Save(ctx context.Context, analysis *domain.Diff
 }
 
 // GetByID retrieves a diff analysis by ID
-func (r *DiffAnalysisRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.DiffAnalysis, error) {
+func (r *DiffAnalysisRepository) GetByID(ctx context.Context, projectID, id uuid.UUID) (*domain.DiffAnalysis, error) {
 	query := `
 		SELECT id, project_id, trace_id, status,
 		       files_added, files_modified, files_deleted, lines_added, lines_removed,
 		       overall_score, dimension_scores, findings, file_analyses,
 		       agent_name, git_commit_sha, git_branch, created_at, completed_at
-		FROM diff_analyses WHERE id = $1
+		FROM diff_analyses WHERE project_id = $1 AND id = $2
 	`
 
 	var analysis domain.DiffAnalysis
 	var findingsJSON, fileAnalysesJSON, dimensionScoresJSON []byte
 
-	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
+	err := r.db.Pool.QueryRow(ctx, query, projectID, id).Scan(
 		&analysis.ID, &analysis.ProjectID, &analysis.TraceID, &analysis.Status,
 		&analysis.FilesAdded, &analysis.FilesModified, &analysis.FilesDeleted,
 		&analysis.LinesAdded, &analysis.LinesRemoved,
@@ -103,17 +103,17 @@ func (r *DiffAnalysisRepository) GetByID(ctx context.Context, id uuid.UUID) (*do
 }
 
 // GetByTraceID retrieves analyses for a trace
-func (r *DiffAnalysisRepository) GetByTraceID(ctx context.Context, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error) {
+func (r *DiffAnalysisRepository) GetByTraceID(ctx context.Context, projectID, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error) {
 	query := `
 		SELECT id, trace_id, status, overall_score,
 		       COALESCE(jsonb_array_length(findings::jsonb), 0) as finding_count,
 		       files_added + files_modified + files_deleted as files_changed,
 		       created_at
-		FROM diff_analyses WHERE trace_id = $1
+		FROM diff_analyses WHERE project_id = $1 AND trace_id = $2
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.db.Pool.Query(ctx, query, traceID)
+	rows, err := r.db.Pool.Query(ctx, query, projectID, traceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list diff analyses: %w", err)
 	}
