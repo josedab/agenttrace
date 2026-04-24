@@ -154,6 +154,27 @@ func (s *QueryService) UpdateTrace(ctx context.Context, projectID uuid.UUID, tra
 	if input.Tags != nil {
 		trace.Tags = input.Tags
 	}
+	if input.Metadata != nil {
+		metadata, err := marshalTraceValue(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode trace metadata: %w", err)
+		}
+		trace.Metadata = metadata
+	}
+	if input.Input != nil {
+		inputJSON, err := marshalTraceValue(input.Input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode trace input: %w", err)
+		}
+		trace.Input = inputJSON
+	}
+	if input.Output != nil {
+		outputJSON, err := marshalTraceValue(input.Output)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode trace output: %w", err)
+		}
+		trace.Output = outputJSON
+	}
 	if input.Public != nil {
 		trace.Public = *input.Public
 	}
@@ -288,7 +309,7 @@ func (s *QueryService) GetGenerationStats(ctx context.Context, projectID uuid.UU
 
 // GenerationStats represents aggregated generation statistics
 type GenerationStats struct {
-	TotalCount int64                 `json:"totalCount"`
+	TotalCount int64                  `json:"totalCount"`
 	ByModel    map[string]*ModelStats `json:"byModel"`
 }
 

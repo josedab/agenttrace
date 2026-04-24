@@ -438,7 +438,8 @@ func (s *ReplayService) GetTimelineForTrace(
 
 // GenerateReproductionScript generates an executable script from a trace
 func (s *ReplayService) GenerateReproductionScript(ctx context.Context, projectID uuid.UUID, traceID uuid.UUID, input *domain.ReproductionInput) (*domain.ReproductionScript, error) {
-	timeline, err := s.GetTimelineForTrace(ctx, projectID, traceID.String())
+	storedTraceID := strings.ReplaceAll(traceID.String(), "-", "")
+	timeline, err := s.GetTimelineForTrace(ctx, projectID, storedTraceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get timeline: %w", err)
 	}

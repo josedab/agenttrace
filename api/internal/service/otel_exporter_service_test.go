@@ -14,7 +14,7 @@ import (
 
 func TestOTelExporterService_CreateExporter(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	t.Run("creates exporter with valid input", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestOTelExporterService_CreateExporter(t *testing.T) {
 
 func TestOTelExporterService_DefaultExporterConfig(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	tests := []struct {
@@ -92,7 +92,7 @@ func TestOTelExporterService_DefaultExporterConfig(t *testing.T) {
 
 func TestOTelExporterService_ConvertTraceToOTel(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	now := time.Now()
@@ -132,7 +132,7 @@ func TestOTelExporterService_ConvertTraceToOTel(t *testing.T) {
 
 func TestOTelExporterService_QueueSpansForExport(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	t.Run("skips disabled exporter", func(t *testing.T) {
@@ -165,7 +165,7 @@ func TestOTelExporterService_QueueSpansForExport(t *testing.T) {
 
 func TestOTelExporterService_GetHTTPClient_TLSErrors(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	t.Run("returns error for invalid cert file", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestOTelExporterService_HexToBytes(t *testing.T) {
 
 func TestOTelExporterService_BatchErrorTracking(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	exporterID := uuid.New()
@@ -242,7 +242,7 @@ func TestOTelExporterService_BatchErrorTracking(t *testing.T) {
 
 func TestOTelExporterService_ConvertAttributesToProto(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelExporterService(logger)
+	svc := NewOTelExporterService(logger, AllowAllOutbound())
 	defer svc.Stop()
 
 	t.Run("converts various types", func(t *testing.T) {

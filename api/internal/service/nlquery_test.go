@@ -1,6 +1,8 @@
 package service
 
 import (
+	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,7 +13,17 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 )
+
+type countingRoundTripper struct {
+	calls atomic.Int64
+}
+
+func (t *countingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	t.calls.Add(1)
+	return nil, nil
+}
 
 func newTestNLQueryService() *NLQueryService {
 	logger, _ := zap.NewDevelopment()
@@ -143,6 +155,25 @@ func TestNLQueryService_ParseQuery_NoAPIKey(t *testing.T) {
 	_, err := svc.parseQuery(ctx, "show me errors")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key not configured")
+}
+
+func TestNLQueryService_BlocksExternalModelInNoEgressMode(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Eval.APIKey = "external-key"
+	transport := &countingRoundTripper{}
+	svc := NewNLQueryService(
+		cfg,
+		nil,
+		zap.NewNop(),
+		NewEgressPolicy(true, true),
+	)
+	svc.httpClient.Transport = transport
+
+	_, err := svc.callOpenAI(t.Context(), "system", "user")
+
+	require.Error(t, err)
+	assert.True(t, apperrors.IsUnprocessable(err))
+	assert.Zero(t, transport.calls.Load())
 }
 
 func TestNLQueryService_QueryTraces_FallbackOnParseFailure(t *testing.T) {

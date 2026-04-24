@@ -328,7 +328,7 @@ func TestAdapterService_GetTemplates(t *testing.T) {
 	ctx := context.Background()
 
 	templates := svc.GetTemplates(ctx)
-	assert.Len(t, templates, 4)
+	assert.Len(t, templates, 6)
 
 	frameworks := make(map[domain.AdapterFramework]bool)
 	for _, tmpl := range templates {
@@ -344,4 +344,6 @@ func TestAdapterService_GetTemplates(t *testing.T) {
 	assert.True(t, frameworks[domain.AdapterFrameworkCrewAI])
 	assert.True(t, frameworks[domain.AdapterFrameworkAutoGen])
 	assert.True(t, frameworks[domain.AdapterFrameworkLangGraph])
+	assert.True(t, frameworks[domain.AdapterFrameworkOpenAIAgents])
+	assert.True(t, frameworks[domain.AdapterFrameworkMCP])
 }

@@ -10,28 +10,91 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 )
 
-// ReplaySessionService handles agent replay session logic
+// ReplaySessionRepository defines persistent replay session operations.
+type ReplaySessionRepository interface {
+	Save(ctx context.Context, session *domain.AgentReplaySession) error
+	Update(ctx context.Context, session *domain.AgentReplaySession) error
+	GetByID(
+		ctx context.Context,
+		projectID, id uuid.UUID,
+	) (*domain.AgentReplaySession, error)
+	List(
+		ctx context.Context,
+		projectID uuid.UUID,
+		limit int,
+	) ([]domain.AgentReplaySession, error)
+	SaveEvent(ctx context.Context, event *domain.AgentReplayTimelineEvent) error
+	ListEvents(
+		ctx context.Context,
+		sessionID uuid.UUID,
+	) ([]domain.AgentReplayTimelineEvent, error)
+}
+
+// ReplaySessionService persists replay sessions and derives their timelines from real trace data.
 type ReplaySessionService struct {
-	logger *zap.Logger
+	logger           *zap.Logger
+	repository       ReplaySessionRepository
+	traceRepository  ReplayPlanTraceRepository
+	timelineProvider ReplayTimelineProvider
+	clock            func() time.Time
 }
 
-// NewReplaySessionService creates a new replay session service
-func NewReplaySessionService(logger *zap.Logger) *ReplaySessionService {
-	return &ReplaySessionService{logger: logger}
+// NewReplaySessionService creates a repository-backed replay session service.
+func NewReplaySessionService(
+	logger *zap.Logger,
+	repository ReplaySessionRepository,
+	traceRepository ReplayPlanTraceRepository,
+	timelineProvider ReplayTimelineProvider,
+) *ReplaySessionService {
+	return &ReplaySessionService{
+		logger:           logger,
+		repository:       repository,
+		traceRepository:  traceRepository,
+		timelineProvider: timelineProvider,
+		clock:            time.Now,
+	}
 }
 
-// CreateSession creates a new replay session from a trace
+// CreateSession creates a replay session from an authorized trace.
 func (s *ReplaySessionService) CreateSession(
 	ctx context.Context,
 	projectID uuid.UUID,
 	userID uuid.UUID,
 	input *domain.AgentReplaySessionInput,
 ) (*domain.AgentReplaySession, error) {
-	fidelity := domain.AgentReplayFidelityStandard
-	if input.RecordingFidelity != "" {
-		fidelity = input.RecordingFidelity
+	if input == nil {
+		return nil, apperrors.Validation("replay session input is required")
+	}
+	traceID := input.TraceID.String()
+	if _, err := s.traceRepository.GetByID(ctx, projectID, traceID); err != nil {
+		return nil, err
+	}
+
+	fidelity := input.RecordingFidelity
+	if fidelity == "" {
+		fidelity = domain.AgentReplayFidelityStandard
+	}
+	if fidelity != domain.AgentReplayFidelityFull &&
+		fidelity != domain.AgentReplayFidelityStandard &&
+		fidelity != domain.AgentReplayFidelityMinimal {
+		return nil, apperrors.Validation("invalid recording fidelity")
+	}
+
+	timeline, err := s.timelineProvider.GetTimelineForTrace(ctx, projectID, traceID)
+	if err != nil {
+		return nil, fmt.Errorf("build replay session timeline: %w", err)
+	}
+
+	now := s.clock().UTC()
+	status := domain.AgentReplayRecording
+	var endedAt *time.Time
+	if timeline.Summary.TotalEvents > 0 {
+		status = domain.AgentReplayCompleted
+		ended := now
+		endedAt = &ended
 	}
 
 	session := &domain.AgentReplaySession{
@@ -40,386 +103,344 @@ func (s *ReplaySessionService) CreateSession(
 		TraceID:           input.TraceID,
 		Name:              input.Name,
 		Description:       input.Description,
-		Status:            domain.AgentReplayRecording,
+		Status:            status,
 		RecordingFidelity: fidelity,
+		TotalEvents:       timeline.Summary.TotalEvents,
+		TotalDurationMs:   timeline.Duration,
+		FilesTracked:      timeline.Summary.FileOperations,
+		CheckpointCount:   timeline.Summary.Checkpoints,
 		IsPublic:          false,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
+		CreatedAt:         now,
+		UpdatedAt:         now,
 		CreatedBy:         userID,
+		EndedAt:           endedAt,
+	}
+	if err := s.repository.Save(ctx, session); err != nil {
+		return nil, fmt.Errorf("persist replay session: %w", err)
 	}
 
 	s.logger.Info("created replay session",
 		zap.String("sessionId", session.ID.String()),
 		zap.String("traceId", input.TraceID.String()),
+		zap.String("projectId", projectID.String()),
 	)
 	return session, nil
 }
 
-// RecordEvent records a new event in a replay session
+// RecordEvent records a single event in a project-scoped replay session.
 func (s *ReplaySessionService) RecordEvent(
 	ctx context.Context,
-	sessionID uuid.UUID,
+	projectID, sessionID uuid.UUID,
 	eventType domain.ReplayEventType,
 	data map[string]interface{},
 	durationMs int64,
 ) (*domain.AgentReplayTimelineEvent, error) {
-	event := &domain.AgentReplayTimelineEvent{
-		ID:         uuid.New(),
-		SessionID:  sessionID,
+	events, err := s.RecordEvents(ctx, projectID, sessionID, []domain.AgentReplayRecordEventInput{{
 		Type:       eventType,
-		Timestamp:  time.Now(),
 		Data:       data,
 		DurationMs: durationMs,
+	}})
+	if err != nil {
+		return nil, err
 	}
-	return event, nil
+	return &events[0], nil
 }
 
-// CompleteSession marks a replay session as completed
-func (s *ReplaySessionService) CompleteSession(ctx context.Context, sessionID uuid.UUID) error {
-	s.logger.Info("completed replay session", zap.String("sessionId", sessionID.String()))
+// CompleteSession marks a replay session as completed.
+func (s *ReplaySessionService) CompleteSession(
+	ctx context.Context,
+	projectID, sessionID uuid.UUID,
+) error {
+	session, err := s.repository.GetByID(ctx, projectID, sessionID)
+	if err != nil {
+		return err
+	}
+	if session.Status == domain.AgentReplayFailed {
+		return apperrors.Conflict("failed replay sessions cannot be completed")
+	}
+
+	now := s.clock().UTC()
+	session.Status = domain.AgentReplayCompleted
+	session.EndedAt = &now
+	session.UpdatedAt = now
+	if err := s.repository.Update(ctx, session); err != nil {
+		return fmt.Errorf("complete replay session: %w", err)
+	}
 	return nil
 }
 
-// GetTimeline returns the full replay timeline for a session
+// GetTimeline returns persisted events, or derives them from the source trace when none were recorded.
 func (s *ReplaySessionService) GetTimeline(
 	ctx context.Context,
-	sessionID uuid.UUID,
+	projectID, sessionID uuid.UUID,
 ) (*domain.AgentReplayFullTimeline, error) {
-	session := &domain.AgentReplaySession{
-		ID:        sessionID,
-		Status:    domain.AgentReplayCompleted,
-		CreatedAt: time.Now().Add(-1 * time.Hour),
+	session, err := s.repository.GetByID(ctx, projectID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	events, err := s.repository.ListEvents(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("list replay session events: %w", err)
+	}
+	if len(events) == 0 {
+		timeline, err := s.timelineProvider.GetTimelineForTrace(
+			ctx,
+			projectID,
+			session.TraceID.String(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("build replay timeline: %w", err)
+		}
+		events = replayEventsToSessionEvents(sessionID, timeline.Events)
 	}
 
 	return &domain.AgentReplayFullTimeline{
 		Session:    *session,
-		Events:     []domain.AgentReplayTimelineEvent{},
-		Branches:   []domain.AgentReplayBranch{},
-		Milestones: []domain.AgentReplayMilestone{},
+		Events:     events,
+		Branches:   replayBranches(*session),
+		Milestones: s.DetectMilestones(events),
 	}, nil
 }
 
-// BranchSession creates a new session branching from an existing one
+// BranchSession creates a persisted branch at a valid event index.
 func (s *ReplaySessionService) BranchSession(
 	ctx context.Context,
 	projectID uuid.UUID,
 	userID uuid.UUID,
 	req *domain.AgentReplayBranchRequest,
 ) (*domain.AgentReplaySession, error) {
-	branch := &domain.AgentReplaySession{
-		ID:              uuid.New(),
-		ProjectID:       projectID,
-		Name:            req.Name,
-		Status:          domain.AgentReplayRecording,
-		ParentSessionID: &req.SessionID,
-		BranchPoint:     req.EventIndex,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-		CreatedBy:       userID,
+	if req == nil {
+		return nil, apperrors.Validation("branch request is required")
+	}
+	parent, err := s.repository.GetByID(ctx, projectID, req.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	timeline, err := s.GetTimeline(ctx, projectID, req.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	if req.EventIndex < 0 || req.EventIndex >= len(timeline.Events) {
+		return nil, apperrors.Validation("branch event index is out of range")
 	}
 
-	s.logger.Info("branched replay session",
-		zap.String("parentId", req.SessionID.String()),
-		zap.String("branchId", branch.ID.String()),
-		zap.Int("branchPoint", req.EventIndex),
-	)
+	now := s.clock().UTC()
+	branch := &domain.AgentReplaySession{
+		ID:                uuid.New(),
+		ProjectID:         projectID,
+		TraceID:           parent.TraceID,
+		Name:              req.Name,
+		Status:            domain.AgentReplayCompleted,
+		RecordingFidelity: parent.RecordingFidelity,
+		TotalEvents:       req.EventIndex + 1,
+		TotalDurationMs:   timeline.Events[req.EventIndex].Timestamp.Sub(parent.CreatedAt).Milliseconds(),
+		ParentSessionID:   &parent.ID,
+		BranchPoint:       req.EventIndex,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		CreatedBy:         userID,
+		EndedAt:           &now,
+	}
+	if branch.TotalDurationMs < 0 {
+		branch.TotalDurationMs = 0
+	}
+	if err := s.repository.Save(ctx, branch); err != nil {
+		return nil, fmt.Errorf("persist replay branch: %w", err)
+	}
 	return branch, nil
 }
 
-// GetPlaybackState returns the current playback state
+// GetPlaybackState derives playback bounds from the real timeline.
 func (s *ReplaySessionService) GetPlaybackState(
 	ctx context.Context,
-	sessionID uuid.UUID,
+	projectID, sessionID uuid.UUID,
 ) (*domain.AgentReplayPlaybackState, error) {
+	timeline, err := s.GetTimeline(ctx, projectID, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	return &domain.AgentReplayPlaybackState{
-		SessionID:    sessionID,
-		CurrentIndex: 0,
-		TotalEvents:  0,
-		IsPlaying:    false,
-		Speed:        1.0,
+		SessionID:   sessionID,
+		TotalEvents: len(timeline.Events),
+		IsPlaying:   false,
+		Speed:       1,
+		TotalMs:     timeline.Session.TotalDurationMs,
 	}, nil
 }
 
-// ShareSession generates a public share URL
-func (s *ReplaySessionService) ShareSession(ctx context.Context, sessionID uuid.UUID) (string, error) {
-	shareURL := fmt.Sprintf("/replay/%s/shared", sessionID.String())
-	s.logger.Info("shared replay session", zap.String("sessionId", sessionID.String()))
-	return shareURL, nil
+// ShareSession is retained for compatibility; secure token sharing is owned by ShareLinkService.
+func (s *ReplaySessionService) ShareSession(
+	ctx context.Context,
+	projectID, sessionID uuid.UUID,
+) (string, error) {
+	if _, err := s.repository.GetByID(ctx, projectID, sessionID); err != nil {
+		return "", err
+	}
+	return "", apperrors.Unprocessable(
+		"legacy replay sharing is disabled; create a redacted share link instead",
+	)
 }
 
-// DetectMilestones identifies important moments in a replay
-func (s *ReplaySessionService) DetectMilestones(events []domain.AgentReplayTimelineEvent) []domain.AgentReplayMilestone {
-	var milestones []domain.AgentReplayMilestone
-
+// DetectMilestones identifies checkpoints and errors in a replay.
+func (s *ReplaySessionService) DetectMilestones(
+	events []domain.AgentReplayTimelineEvent,
+) []domain.AgentReplayMilestone {
+	milestones := make([]domain.AgentReplayMilestone, 0)
 	for _, event := range events {
 		switch event.Type {
 		case domain.ReplayEventCheckpoint:
 			milestones = append(milestones, domain.AgentReplayMilestone{
-				EventIndex: event.Index, Label: "Checkpoint", Type: "checkpoint",
+				EventIndex: event.Index,
+				Label:      "Checkpoint",
+				Type:       "checkpoint",
 			})
 		case domain.ReplayEventError:
 			milestones = append(milestones, domain.AgentReplayMilestone{
-				EventIndex: event.Index, Label: "Error", Type: "error",
+				EventIndex: event.Index,
+				Label:      "Error",
+				Type:       "error",
 			})
 		}
 	}
-
 	sort.Slice(milestones, func(i, j int) bool {
 		return milestones[i].EventIndex < milestones[j].EventIndex
 	})
 	return milestones
 }
 
-// ListSessions lists replay sessions for a project
+// ListSessions lists persisted replay sessions for one project.
 func (s *ReplaySessionService) ListSessions(
 	ctx context.Context,
 	filter domain.AgentReplaySessionFilter,
 ) (*domain.AgentReplaySessionList, error) {
+	sessions, err := s.repository.List(ctx, filter.ProjectID, 100)
+	if err != nil {
+		return nil, fmt.Errorf("list replay sessions: %w", err)
+	}
+
+	filtered := make([]domain.AgentReplaySession, 0, len(sessions))
+	for _, session := range sessions {
+		if filter.TraceID != nil && session.TraceID != *filter.TraceID {
+			continue
+		}
+		if filter.Status != nil && session.Status != *filter.Status {
+			continue
+		}
+		if filter.IsPublic != nil && session.IsPublic != *filter.IsPublic {
+			continue
+		}
+		filtered = append(filtered, session)
+	}
+
 	return &domain.AgentReplaySessionList{
-		Sessions:   []domain.AgentReplaySession{},
-		TotalCount: 0,
+		Sessions:   filtered,
+		TotalCount: int64(len(filtered)),
 		HasMore:    false,
 	}, nil
 }
 
-// GetSession returns a specific replay session
+// GetSession retrieves a session only within the authorized project.
 func (s *ReplaySessionService) GetSession(
 	ctx context.Context,
-	sessionID uuid.UUID,
+	projectID, sessionID uuid.UUID,
 ) (*domain.AgentReplaySession, error) {
-	return nil, fmt.Errorf("replay session not found: %s", sessionID.String())
+	return s.repository.GetByID(ctx, projectID, sessionID)
 }
 
-// RecordEvents records a batch of events in a replay session
+// RecordEvents appends persisted replay events with stable indexes.
 func (s *ReplaySessionService) RecordEvents(
 	ctx context.Context,
-	sessionID uuid.UUID,
+	projectID, sessionID uuid.UUID,
 	inputs []domain.AgentReplayRecordEventInput,
 ) ([]domain.AgentReplayTimelineEvent, error) {
 	if len(inputs) == 0 {
-		return nil, fmt.Errorf("no events to record")
+		return nil, apperrors.Validation("at least one event is required")
+	}
+	session, err := s.repository.GetByID(ctx, projectID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repository.ListEvents(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("list existing replay events: %w", err)
 	}
 
+	now := s.clock().UTC()
 	events := make([]domain.AgentReplayTimelineEvent, 0, len(inputs))
-	for i, input := range inputs {
+	for index, input := range inputs {
 		event := domain.AgentReplayTimelineEvent{
 			ID:         uuid.New(),
 			SessionID:  sessionID,
-			Index:      i,
+			Index:      len(existing) + index,
 			Type:       input.Type,
-			Timestamp:  time.Now(),
+			Timestamp:  now.Add(time.Duration(index) * time.Nanosecond),
 			Data:       input.Data,
 			Input:      input.Input,
 			Output:     input.Output,
 			DurationMs: input.DurationMs,
 			FileDelta:  input.FileDelta,
 		}
+		if event.Data == nil {
+			event.Data = map[string]interface{}{}
+		}
+		if err := s.repository.SaveEvent(ctx, &event); err != nil {
+			return nil, fmt.Errorf("persist replay event: %w", err)
+		}
 		events = append(events, event)
 	}
 
-	s.logger.Info("recorded replay events",
-		zap.String("sessionId", sessionID.String()),
-		zap.Int("eventCount", len(events)),
-	)
+	session.Status = domain.AgentReplayRecording
+	session.TotalEvents = len(existing) + len(events)
+	session.UpdatedAt = now
+	session.EndedAt = nil
+	if err := s.repository.Update(ctx, session); err != nil {
+		return nil, fmt.Errorf("update replay session event count: %w", err)
+	}
 	return events, nil
 }
 
-// ControlPlayback handles playback control commands
+// ControlPlayback validates playback commands against the real timeline.
 func (s *ReplaySessionService) ControlPlayback(
 	ctx context.Context,
-	sessionID uuid.UUID,
-	cmd *domain.ReplayControlCommand,
+	projectID, sessionID uuid.UUID,
+	command *domain.ReplayControlCommand,
 ) (*domain.AgentReplayPlaybackState, error) {
-	if cmd == nil {
-		return nil, fmt.Errorf("control command is required")
+	if command == nil {
+		return nil, apperrors.Validation("control command is required")
+	}
+	state, err := s.GetPlaybackState(ctx, projectID, sessionID)
+	if err != nil {
+		return nil, err
 	}
 
-	state := &domain.AgentReplayPlaybackState{
-		SessionID: sessionID,
-		Speed:     1.0,
-	}
-
-	switch cmd.Action {
+	switch command.Action {
 	case "play":
 		state.IsPlaying = true
 	case "pause":
 		state.IsPlaying = false
 	case "seek":
-		if cmd.EventIndex != nil {
-			state.CurrentIndex = *cmd.EventIndex
+		if command.EventIndex == nil ||
+			*command.EventIndex < 0 ||
+			*command.EventIndex >= state.TotalEvents {
+			return nil, apperrors.Validation("seek event index is out of range")
 		}
+		state.CurrentIndex = *command.EventIndex
 	case "speed":
-		if cmd.Speed > 0 && cmd.Speed <= 16 {
-			state.Speed = cmd.Speed
+		if command.Speed < 0.5 || command.Speed > 16 {
+			return nil, apperrors.Validation("speed must be between 0.5 and 16")
 		}
+		state.Speed = command.Speed
 	case "step_forward":
-		state.IsPlaying = false
-		state.CurrentIndex++
-	case "step_backward":
-		state.IsPlaying = false
-		if state.CurrentIndex > 0 {
-			state.CurrentIndex--
-		}
-	default:
-		return nil, fmt.Errorf("unknown control action: %s", cmd.Action)
-	}
-
-	s.logger.Debug("playback control",
-		zap.String("sessionId", sessionID.String()),
-		zap.String("action", cmd.Action),
-	)
-	return state, nil
-}
-
-// BuildUnifiedTimeline creates a unified timeline merging all event types
-func (s *ReplaySessionService) BuildUnifiedTimeline(ctx context.Context, sessionID uuid.UUID) ([]domain.UnifiedTimelineEvent, error) {
-	s.logger.Info("building unified timeline", zap.String("sessionId", sessionID.String()))
-
-	events := []domain.UnifiedTimelineEvent{
-		{
-			ID:         uuid.New(),
-			SessionID:  sessionID,
-			EventType:  "llm_call",
-			Category:   "agent_action",
-			Title:      "Initial prompt processing",
-			StartTime:  time.Now().Add(-10 * time.Minute),
-			DurationMs: 2500,
-			Depth:      0,
-			Model:      "gpt-4",
-			CostUSD:    0.03,
-			TokensUsed: 1500,
-			Status:     "success",
-		},
-		{
-			ID:         uuid.New(),
-			SessionID:  sessionID,
-			EventType:  "file_edit",
-			Category:   "agent_action",
-			Title:      "Edit src/main.py",
-			StartTime:  time.Now().Add(-9 * time.Minute),
-			DurationMs: 100,
-			Depth:      1,
-			Status:     "success",
-			FileDelta: &domain.UnifiedFileDelta{
-				FilePath:     "src/main.py",
-				ChangeType:   "edit",
-				LinesAdded:   15,
-				LinesRemoved: 3,
-			},
-		},
-		{
-			ID:          uuid.New(),
-			SessionID:   sessionID,
-			EventType:   "terminal_cmd",
-			Category:    "agent_action",
-			Title:       "Run tests",
-			Description: "pytest src/tests/",
-			StartTime:   time.Now().Add(-8 * time.Minute),
-			DurationMs:  5000,
-			Depth:       1,
-			Status:      "success",
-		},
-		{
-			ID:          uuid.New(),
-			SessionID:   sessionID,
-			EventType:   "decision_point",
-			Category:    "agent_action",
-			Title:       "Chose refactoring approach",
-			Description: "Selected incremental refactoring over full rewrite",
-			StartTime:   time.Now().Add(-7 * time.Minute),
-			DurationMs:  1800,
-			Depth:       0,
-			Model:       "gpt-4",
-			CostUSD:     0.02,
-			TokensUsed:  800,
-			Status:      "success",
-		},
-	}
-
-	return events, nil
-}
-
-// GetReplaySnapshot returns the state at a specific event index
-func (s *ReplaySessionService) GetReplaySnapshot(ctx context.Context, sessionID uuid.UUID, eventIndex int) (*domain.ReplaySnapshot, error) {
-	s.logger.Info("getting replay snapshot",
-		zap.String("sessionId", sessionID.String()),
-		zap.Int("eventIndex", eventIndex),
-	)
-
-	snapshot := &domain.ReplaySnapshot{
-		EventIndex:  eventIndex,
-		Timestamp:   time.Now(),
-		FileStates:  map[string]string{},
-		ActiveModel: "gpt-4",
-		TotalCost:   0.05,
-		TotalTokens: 2300,
-		ElapsedMs:   int64(eventIndex) * 2500,
-		EventCounts: map[string]int{
-			"llm_call":       1,
-			"file_edit":      1,
-			"terminal_cmd":   1,
-			"decision_point": 1,
-		},
-	}
-
-	return snapshot, nil
-}
-
-// AddAnnotation adds an annotation to a replay event
-func (s *ReplaySessionService) AddAnnotation(ctx context.Context, sessionID uuid.UUID, input *domain.ReplayAnnotationInput) (*domain.ReplayAnnotation, error) {
-	if input.Content == "" {
-		return nil, fmt.Errorf("annotation content is required")
-	}
-
-	annotation := &domain.ReplayAnnotation{
-		ID:        uuid.New(),
-		Content:   input.Content,
-		EventID:   input.EventID,
-		Timestamp: time.Now(),
-	}
-
-	s.logger.Info("added replay annotation",
-		zap.String("annotationId", annotation.ID.String()),
-		zap.String("eventId", input.EventID.String()),
-	)
-
-	return annotation, nil
-}
-
-// GetFileStateAt reconstructs the file system state at a given event index
-func (s *ReplaySessionService) GetFileStateAt(
-	ctx context.Context,
-	sessionID uuid.UUID,
-	eventIndex int,
-) (*domain.ReplayFileStateSnapshot, error) {
-	timeline, err := s.GetTimeline(ctx, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get timeline: %w", err)
-	}
-
-	files := make(map[string]string)
-	maxIdx := eventIndex
-	if maxIdx >= len(timeline.Events) {
-		maxIdx = len(timeline.Events) - 1
-	}
-
-	// Reconstruct file state by replaying file deltas up to the target index
-	for i := 0; i <= maxIdx; i++ {
-		event := timeline.Events[i]
-		if event.FileDelta != nil {
-			switch event.FileDelta.Operation {
-			case "create", "write":
-				files[event.FileDelta.Path] = event.FileDelta.After
-			case "delete":
-				delete(files, event.FileDelta.Path)
+		if state.TotalEvents > 0 {
+			state.CurrentIndex = 1
+			if state.CurrentIndex >= state.TotalEvents {
+				state.CurrentIndex = state.TotalEvents - 1
 			}
 		}
+	case "step_backward":
+		state.CurrentIndex = 0
+	default:
+		return nil, apperrors.Validation("unknown playback action")
 	}
-
-	return &domain.ReplayFileStateSnapshot{
-		SessionID:  sessionID,
-		EventIndex: eventIndex,
-		Files:      files,
-		Timestamp:  time.Now(),
-	}, nil
+	return state, nil
 }

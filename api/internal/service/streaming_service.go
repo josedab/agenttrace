@@ -34,10 +34,15 @@ type TraceStreamSubscriber struct {
 type StreamingService struct {
 	logger        *zap.Logger
 	realtime      *RealtimeService
-	streams       map[uuid.UUID]*TraceStream
-	interventions map[uuid.UUID][]domain.InterventionRequest
+	streams       map[streamKey]*TraceStream
+	interventions map[streamKey][]domain.InterventionRequest
 	mu            sync.RWMutex
 	maxActivities int
+}
+
+type streamKey struct {
+	ProjectID uuid.UUID
+	TraceID   uuid.UUID
 }
 
 // NewStreamingService creates a new streaming service
@@ -45,8 +50,8 @@ func NewStreamingService(logger *zap.Logger, realtime *RealtimeService) *Streami
 	return &StreamingService{
 		logger:        logger,
 		realtime:      realtime,
-		streams:       make(map[uuid.UUID]*TraceStream),
-		interventions: make(map[uuid.UUID][]domain.InterventionRequest),
+		streams:       make(map[streamKey]*TraceStream),
+		interventions: make(map[streamKey][]domain.InterventionRequest),
 		maxActivities: 1000,
 	}
 }
@@ -56,7 +61,8 @@ func (s *StreamingService) GetOrCreateStream(traceID, projectID uuid.UUID) *Trac
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if stream, ok := s.streams[traceID]; ok {
+	key := streamKey{ProjectID: projectID, TraceID: traceID}
+	if stream, ok := s.streams[key]; ok {
 		return stream
 	}
 
@@ -68,7 +74,7 @@ func (s *StreamingService) GetOrCreateStream(traceID, projectID uuid.UUID) *Trac
 		Subscribers: make(map[string]*TraceStreamSubscriber),
 		startedAt:   time.Now(),
 	}
-	s.streams[traceID] = stream
+	s.streams[key] = stream
 	return stream
 }
 
@@ -90,16 +96,16 @@ func (s *StreamingService) SubscribeToTrace(ctx context.Context, traceID, projec
 
 	go func() {
 		<-ctx.Done()
-		s.UnsubscribeFromTrace(traceID, sub.ID)
+		s.UnsubscribeFromTrace(traceID, projectID, sub.ID)
 	}()
 
 	return sub
 }
 
 // UnsubscribeFromTrace removes a subscriber from a trace stream
-func (s *StreamingService) UnsubscribeFromTrace(traceID uuid.UUID, subscriberID string) {
+func (s *StreamingService) UnsubscribeFromTrace(traceID, projectID uuid.UUID, subscriberID string) {
 	s.mu.RLock()
-	stream, ok := s.streams[traceID]
+	stream, ok := s.streams[streamKey{ProjectID: projectID, TraceID: traceID}]
 	s.mu.RUnlock()
 
 	if !ok {
@@ -118,7 +124,10 @@ func (s *StreamingService) UnsubscribeFromTrace(traceID uuid.UUID, subscriberID 
 // PublishActivity publishes an activity to a trace stream
 func (s *StreamingService) PublishActivity(ctx context.Context, activity domain.StreamActivity) {
 	s.mu.RLock()
-	stream, ok := s.streams[activity.TraceID]
+	stream, ok := s.streams[streamKey{
+		ProjectID: activity.ProjectID,
+		TraceID:   activity.TraceID,
+	}]
 	s.mu.RUnlock()
 
 	if !ok {
@@ -154,9 +163,9 @@ func (s *StreamingService) PublishActivity(ctx context.Context, activity domain.
 }
 
 // GetLiveMetrics returns current live metrics for a trace
-func (s *StreamingService) GetLiveMetrics(traceID uuid.UUID) *domain.LiveMetrics {
+func (s *StreamingService) GetLiveMetrics(traceID, projectID uuid.UUID) *domain.LiveMetrics {
 	s.mu.RLock()
-	stream, ok := s.streams[traceID]
+	stream, ok := s.streams[streamKey{ProjectID: projectID, TraceID: traceID}]
 	s.mu.RUnlock()
 
 	if !ok {
@@ -180,9 +189,9 @@ func (s *StreamingService) GetLiveMetrics(traceID uuid.UUID) *domain.LiveMetrics
 }
 
 // GetRecentActivities returns recent activities for a trace
-func (s *StreamingService) GetRecentActivities(traceID uuid.UUID, limit int) []domain.StreamActivity {
+func (s *StreamingService) GetRecentActivities(traceID, projectID uuid.UUID, limit int) []domain.StreamActivity {
 	s.mu.RLock()
-	stream, ok := s.streams[traceID]
+	stream, ok := s.streams[streamKey{ProjectID: projectID, TraceID: traceID}]
 	s.mu.RUnlock()
 
 	if !ok {
@@ -205,13 +214,15 @@ func (s *StreamingService) GetRecentActivities(traceID uuid.UUID, limit int) []d
 // RequestIntervention sends an intervention request to a running agent
 func (s *StreamingService) RequestIntervention(ctx context.Context, req domain.InterventionRequest) error {
 	s.mu.Lock()
-	s.interventions[req.TraceID] = append(s.interventions[req.TraceID], req)
+	key := streamKey{ProjectID: req.ProjectID, TraceID: req.TraceID}
+	s.interventions[key] = append(s.interventions[key], req)
 	s.mu.Unlock()
 
 	// Publish intervention as an activity
 	activity := domain.StreamActivity{
 		ID:          req.ID.String(),
 		TraceID:     req.TraceID,
+		ProjectID:   req.ProjectID,
 		Type:        domain.StreamEventIntervention,
 		Title:       "Intervention: " + string(req.Action),
 		Description: req.Message,
@@ -231,11 +242,11 @@ func (s *StreamingService) RequestIntervention(ctx context.Context, req domain.I
 }
 
 // GetPendingInterventions returns pending interventions for a trace
-func (s *StreamingService) GetPendingInterventions(traceID uuid.UUID) []domain.InterventionRequest {
+func (s *StreamingService) GetPendingInterventions(traceID, projectID uuid.UUID) []domain.InterventionRequest {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	interventions := s.interventions[traceID]
+	interventions := s.interventions[streamKey{ProjectID: projectID, TraceID: traceID}]
 	var pending []domain.InterventionRequest
 	for _, i := range interventions {
 		if i.Status == "pending" {
@@ -246,11 +257,12 @@ func (s *StreamingService) GetPendingInterventions(traceID uuid.UUID) []domain.I
 }
 
 // AcknowledgeIntervention marks an intervention as acknowledged
-func (s *StreamingService) AcknowledgeIntervention(traceID, interventionID uuid.UUID) error {
+func (s *StreamingService) AcknowledgeIntervention(traceID, projectID, interventionID uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	interventions := s.interventions[traceID]
+	key := streamKey{ProjectID: projectID, TraceID: traceID}
+	interventions := s.interventions[key]
 	for i := range interventions {
 		if interventions[i].ID == interventionID {
 			interventions[i].Status = "acknowledged"
@@ -265,7 +277,7 @@ func (s *StreamingService) GetActiveStreams(projectID uuid.UUID) []domain.LiveMe
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []domain.LiveMetrics
+	result := make([]domain.LiveMetrics, 0)
 	for _, stream := range s.streams {
 		if stream.ProjectID == projectID {
 			stream.mu.RLock()
@@ -279,11 +291,12 @@ func (s *StreamingService) GetActiveStreams(projectID uuid.UUID) []domain.LiveMe
 }
 
 // CleanupStream removes a completed trace stream
-func (s *StreamingService) CleanupStream(traceID uuid.UUID) {
+func (s *StreamingService) CleanupStream(traceID, projectID uuid.UUID) {
 	s.mu.Lock()
-	stream, ok := s.streams[traceID]
+	key := streamKey{ProjectID: projectID, TraceID: traceID}
+	stream, ok := s.streams[key]
 	if ok {
-		delete(s.streams, traceID)
+		delete(s.streams, key)
 	}
 	s.mu.Unlock()
 

@@ -46,8 +46,7 @@ type AuthServiceInterface interface {
 	Logout(ctx context.Context, refreshToken string) error
 	LogoutWithContext(ctx context.Context, refreshToken string, userID uuid.UUID, userEmail string) error
 	ValidateJWT(ctx context.Context, tokenString string) (*domain.JWTClaims, error)
-	ValidateAPIKey(ctx context.Context, publicKey, secretKey string) (*uuid.UUID, error)
-	ValidateAPIKeyPublicOnly(ctx context.Context, publicKey string) (*uuid.UUID, error)
+	AuthenticateAPIKey(ctx context.Context, credential string) (*domain.APIKeyContext, error)
 	CreateAPIKey(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID) (*domain.APIKeyCreateResult, error)
 	CreateAPIKeyWithContext(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID, userEmail string) (*domain.APIKeyCreateResult, error)
 	DeleteAPIKey(ctx context.Context, id uuid.UUID) error

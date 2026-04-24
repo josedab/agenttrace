@@ -17,8 +17,8 @@ import (
 // DiffAnalysisRepository interface for the service
 type DiffAnalysisRepository interface {
 	Save(ctx context.Context, analysis *domain.DiffAnalysis) error
-	GetByID(ctx context.Context, id uuid.UUID) (*domain.DiffAnalysis, error)
-	GetByTraceID(ctx context.Context, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error)
+	GetByID(ctx context.Context, projectID, id uuid.UUID) (*domain.DiffAnalysis, error)
+	GetByTraceID(ctx context.Context, projectID, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error)
 	List(ctx context.Context, filter *domain.DiffAnalysisFilter, limit, offset int) ([]domain.DiffAnalysisSummary, int64, error)
 	GetQualityTrend(ctx context.Context, projectID uuid.UUID, since time.Time) (*domain.QualityTrend, error)
 }
@@ -92,13 +92,13 @@ func (s *DiffIntelligenceService) AnalyzeDiff(ctx context.Context, projectID uui
 }
 
 // GetAnalysis retrieves a specific analysis
-func (s *DiffIntelligenceService) GetAnalysis(ctx context.Context, id uuid.UUID) (*domain.DiffAnalysis, error) {
-	return s.repo.GetByID(ctx, id)
+func (s *DiffIntelligenceService) GetAnalysis(ctx context.Context, projectID, id uuid.UUID) (*domain.DiffAnalysis, error) {
+	return s.repo.GetByID(ctx, projectID, id)
 }
 
 // GetTraceAnalyses retrieves analyses for a trace
-func (s *DiffIntelligenceService) GetTraceAnalyses(ctx context.Context, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error) {
-	return s.repo.GetByTraceID(ctx, traceID)
+func (s *DiffIntelligenceService) GetTraceAnalyses(ctx context.Context, projectID, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error) {
+	return s.repo.GetByTraceID(ctx, projectID, traceID)
 }
 
 // ListAnalyses retrieves analyses with filtering

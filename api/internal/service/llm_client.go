@@ -20,6 +20,7 @@ type LLMClient struct {
 	apiKey     string
 	baseURL    string
 	model      string
+	guard      OutboundGuard
 }
 
 // LLMRequest represents a chat completion request
@@ -49,8 +50,14 @@ type LLMResponse struct {
 	} `json:"usage"`
 }
 
-// NewLLMClient creates a new LLM client
-func NewLLMClient(logger *zap.Logger) *LLMClient {
+// NewLLMClient creates a new LLM client.
+// The optional outbound guard rejects provider calls in no-egress mode; the
+// client then falls back to its local response instead of leaving the network.
+func NewLLMClient(logger *zap.Logger, guards ...OutboundGuard) *LLMClient {
+	var guard OutboundGuard
+	if len(guards) > 0 {
+		guard = guards[0]
+	}
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	baseURL := os.Getenv("LLM_BASE_URL")
 	model := os.Getenv("LLM_MODEL")
@@ -68,11 +75,17 @@ func NewLLMClient(logger *zap.Logger) *LLMClient {
 		apiKey:     apiKey,
 		baseURL:    baseURL,
 		model:      model,
+		guard:      guard,
 	}
 }
 
-// IsConfigured returns whether the LLM client has an API key
+// IsConfigured returns whether an external provider call is possible.
+// No-egress mode reports the provider as unconfigured so callers keep using the
+// deterministic local fallback.
 func (c *LLMClient) IsConfigured() bool {
+	if RequireOutbound(c.guard, EgressExternalModel) != nil {
+		return false
+	}
 	return c.apiKey != ""
 }
 

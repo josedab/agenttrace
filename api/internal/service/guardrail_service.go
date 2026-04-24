@@ -15,9 +15,9 @@ import (
 // GuardrailRepository defines repository operations for guard rules and violations
 type GuardrailRepository interface {
 	SaveRule(ctx context.Context, rule *domain.GuardRule) error
-	GetRuleByID(ctx context.Context, id uuid.UUID) (*domain.GuardRule, error)
+	GetRuleByID(ctx context.Context, projectID, id uuid.UUID) (*domain.GuardRule, error)
 	UpdateRule(ctx context.Context, rule *domain.GuardRule) error
-	DeleteRule(ctx context.Context, id uuid.UUID) error
+	DeleteRule(ctx context.Context, projectID, id uuid.UUID) error
 	ListRules(ctx context.Context, projectID uuid.UUID) ([]domain.GuardRule, error)
 	ListEnabledRules(ctx context.Context, projectID uuid.UUID) ([]domain.GuardRule, error)
 	SaveViolation(ctx context.Context, violation *domain.GuardViolation) error
@@ -77,8 +77,8 @@ func (s *GuardrailService) CreateRule(ctx context.Context, projectID uuid.UUID, 
 }
 
 // UpdateRule updates an existing guard rule
-func (s *GuardrailService) UpdateRule(ctx context.Context, ruleID uuid.UUID, input *domain.GuardRuleInput) (*domain.GuardRule, error) {
-	rule, err := s.guardrailRepo.GetRuleByID(ctx, ruleID)
+func (s *GuardrailService) UpdateRule(ctx context.Context, projectID, ruleID uuid.UUID, input *domain.GuardRuleInput) (*domain.GuardRule, error) {
+	rule, err := s.guardrailRepo.GetRuleByID(ctx, projectID, ruleID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get guard rule: %w", err)
 	}
@@ -100,8 +100,8 @@ func (s *GuardrailService) UpdateRule(ctx context.Context, ruleID uuid.UUID, inp
 }
 
 // DeleteRule deletes a guard rule
-func (s *GuardrailService) DeleteRule(ctx context.Context, ruleID uuid.UUID) error {
-	if err := s.guardrailRepo.DeleteRule(ctx, ruleID); err != nil {
+func (s *GuardrailService) DeleteRule(ctx context.Context, projectID, ruleID uuid.UUID) error {
+	if err := s.guardrailRepo.DeleteRule(ctx, projectID, ruleID); err != nil {
 		return fmt.Errorf("failed to delete guard rule: %w", err)
 	}
 	return nil

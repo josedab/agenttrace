@@ -23,6 +23,7 @@ type NLQueryService struct {
 	queryService *QueryService
 	logger       *zap.Logger
 	httpClient   *http.Client
+	guard        OutboundGuard
 }
 
 // NewNLQueryService creates a new natural language query service
@@ -30,11 +31,20 @@ func NewNLQueryService(
 	cfg *config.Config,
 	queryService *QueryService,
 	logger *zap.Logger,
+	guards ...OutboundGuard,
 ) *NLQueryService {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	var guard OutboundGuard
+	if len(guards) > 0 {
+		guard = guards[0]
+	}
 	return &NLQueryService{
 		config:       cfg,
 		queryService: queryService,
 		logger:       logger,
+		guard:        guard,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -48,38 +58,38 @@ type NLQueryRequest struct {
 
 // NLQueryResponse represents the response from a natural language query
 type NLQueryResponse struct {
-	Query           string            `json:"query"`
-	InterpretedAs   string            `json:"interpretedAs"`
+	Query           string              `json:"query"`
+	InterpretedAs   string              `json:"interpretedAs"`
 	Filter          *domain.TraceFilter `json:"filter"`
-	Traces          *domain.TraceList `json:"traces,omitempty"`
-	Suggestions     []string          `json:"suggestions,omitempty"`
-	ExecutionTimeMs int64             `json:"executionTimeMs"`
+	Traces          *domain.TraceList   `json:"traces,omitempty"`
+	Suggestions     []string            `json:"suggestions,omitempty"`
+	ExecutionTimeMs int64               `json:"executionTimeMs"`
 }
 
 // ParsedQuery represents the LLM's interpretation of a natural language query
 type ParsedQuery struct {
-	Interpretation string             `json:"interpretation"`
-	Filter         ParsedFilter       `json:"filter"`
-	Suggestions    []string           `json:"suggestions"`
+	Interpretation string       `json:"interpretation"`
+	Filter         ParsedFilter `json:"filter"`
+	Suggestions    []string     `json:"suggestions"`
 }
 
 // ParsedFilter represents filter parameters extracted by the LLM
 type ParsedFilter struct {
-	Name        *string `json:"name,omitempty"`
-	UserID      *string `json:"userId,omitempty"`
-	SessionID   *string `json:"sessionId,omitempty"`
+	Name        *string  `json:"name,omitempty"`
+	UserID      *string  `json:"userId,omitempty"`
+	SessionID   *string  `json:"sessionId,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
-	Level       *string `json:"level,omitempty"`
-	HasError    *bool   `json:"hasError,omitempty"`
+	Level       *string  `json:"level,omitempty"`
+	HasError    *bool    `json:"hasError,omitempty"`
 	MinCost     *float64 `json:"minCost,omitempty"`
 	MaxCost     *float64 `json:"maxCost,omitempty"`
 	MinDuration *float64 `json:"minDurationMs,omitempty"`
 	MaxDuration *float64 `json:"maxDurationMs,omitempty"`
-	FromTime    *string `json:"fromTime,omitempty"`
-	ToTime      *string `json:"toTime,omitempty"`
-	Search      *string `json:"search,omitempty"`
-	GitBranch   *string `json:"gitBranch,omitempty"`
-	GitCommit   *string `json:"gitCommitSha,omitempty"`
+	FromTime    *string  `json:"fromTime,omitempty"`
+	ToTime      *string  `json:"toTime,omitempty"`
+	Search      *string  `json:"search,omitempty"`
+	GitBranch   *string  `json:"gitBranch,omitempty"`
+	GitCommit   *string  `json:"gitCommitSha,omitempty"`
 }
 
 // QueryTraces processes a natural language query and returns matching traces
@@ -205,6 +215,9 @@ Example output:
 
 // callOpenAI makes a call to the OpenAI API
 func (s *NLQueryService) callOpenAI(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	if err := RequireOutbound(s.guard, EgressExternalModel); err != nil {
+		return "", err
+	}
 	url := "https://api.openai.com/v1/chat/completions"
 
 	requestBody := map[string]interface{}{
@@ -213,8 +226,8 @@ func (s *NLQueryService) callOpenAI(ctx context.Context, systemPrompt, userPromp
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"temperature": 0.1,
-		"max_tokens": 1000,
+		"temperature":     0.1,
+		"max_tokens":      1000,
 		"response_format": map[string]string{"type": "json_object"},
 	}
 
@@ -268,18 +281,18 @@ func (s *NLQueryService) callOpenAI(ctx context.Context, systemPrompt, userPromp
 // convertFilter converts a ParsedFilter to a domain.TraceFilter
 func (s *NLQueryService) convertFilter(parsed ParsedFilter, projectID uuid.UUID) *domain.TraceFilter {
 	filter := &domain.TraceFilter{
-		ProjectID: projectID,
-		Name:      parsed.Name,
-		UserID:    parsed.UserID,
-		SessionID: parsed.SessionID,
-		Tags:      parsed.Tags,
-		HasError:  parsed.HasError,
-		MinCost:   parsed.MinCost,
-		MaxCost:   parsed.MaxCost,
-		MinDuration: parsed.MinDuration,
-		MaxDuration: parsed.MaxDuration,
-		Search:    parsed.Search,
-		GitBranch: parsed.GitBranch,
+		ProjectID:    projectID,
+		Name:         parsed.Name,
+		UserID:       parsed.UserID,
+		SessionID:    parsed.SessionID,
+		Tags:         parsed.Tags,
+		HasError:     parsed.HasError,
+		MinCost:      parsed.MinCost,
+		MaxCost:      parsed.MaxCost,
+		MinDuration:  parsed.MinDuration,
+		MaxDuration:  parsed.MaxDuration,
+		Search:       parsed.Search,
+		GitBranch:    parsed.GitBranch,
 		GitCommitSha: parsed.GitCommit,
 	}
 

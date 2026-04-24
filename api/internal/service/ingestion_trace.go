@@ -44,13 +44,27 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 	}
 
 	// Marshal metadata
-	var metadata string
+	metadata := "{}"
 	if input.Metadata != nil {
 		metadataBytes, err := json.Marshal(input.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 		}
 		metadata = string(metadataBytes)
+	}
+
+	inputJSON, err := marshalTraceValue(input.Input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal trace input: %w", err)
+	}
+	outputJSON, err := marshalTraceValue(input.Output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal trace output: %w", err)
+	}
+
+	level := input.Level
+	if level == "" {
+		level = domain.LevelDefault
 	}
 
 	// Set timestamps
@@ -62,23 +76,27 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 	}
 
 	trace := &domain.Trace{
-		ID:           traceID,
-		ProjectID:    projectID,
-		Name:         input.Name,
-		UserID:       input.UserID,
-		SessionID:    input.SessionID,
-		Metadata:     metadata,
-		Tags:         input.Tags,
-		Release:      input.Release,
-		Version:      input.Version,
-		Public:       input.Public,
-		StartTime:    startTime,
-		EndTime:      input.EndTime,
-		GitCommitSha: input.GitCommitSha,
-		GitBranch:    input.GitBranch,
-		GitRepoURL:   input.GitRepoURL,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:            traceID,
+		ProjectID:     projectID,
+		Name:          input.Name,
+		UserID:        input.UserID,
+		SessionID:     input.SessionID,
+		Metadata:      metadata,
+		Tags:          input.Tags,
+		Release:       input.Release,
+		Version:       input.Version,
+		Public:        input.Public,
+		Input:         inputJSON,
+		Output:        outputJSON,
+		Level:         level,
+		StatusMessage: input.StatusMessage,
+		StartTime:     startTime,
+		EndTime:       input.EndTime,
+		GitCommitSha:  input.GitCommitSha,
+		GitBranch:     input.GitBranch,
+		GitRepoURL:    input.GitRepoURL,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := s.traceRepo.Create(ctx, trace); err != nil {
@@ -123,6 +141,17 @@ func (s *IngestionService) IngestTrace(ctx context.Context, projectID uuid.UUID,
 	}
 
 	return trace, nil
+}
+
+func marshalTraceValue(value any) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // UpdateTrace updates an existing trace with new field values.

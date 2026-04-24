@@ -24,16 +24,16 @@ func (m *MockDiffAnalysisRepository) Save(ctx context.Context, analysis *domain.
 	return args.Error(0)
 }
 
-func (m *MockDiffAnalysisRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.DiffAnalysis, error) {
-	args := m.Called(ctx, id)
+func (m *MockDiffAnalysisRepository) GetByID(ctx context.Context, projectID, id uuid.UUID) (*domain.DiffAnalysis, error) {
+	args := m.Called(ctx, projectID, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.DiffAnalysis), args.Error(1)
 }
 
-func (m *MockDiffAnalysisRepository) GetByTraceID(ctx context.Context, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error) {
-	args := m.Called(ctx, traceID)
+func (m *MockDiffAnalysisRepository) GetByTraceID(ctx context.Context, projectID, traceID uuid.UUID) ([]domain.DiffAnalysisSummary, error) {
+	args := m.Called(ctx, projectID, traceID)
 	return args.Get(0).([]domain.DiffAnalysisSummary), args.Error(1)
 }
 

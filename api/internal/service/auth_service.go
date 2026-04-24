@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -41,7 +43,6 @@ type APIKeyRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]domain.APIKey, error)
 	UpdateLastUsed(ctx context.Context, id uuid.UUID) error
-	GetProjectIDByPublicKey(ctx context.Context, publicKey string) (*uuid.UUID, error)
 }
 
 // OrgRepository defines organization repository operations
@@ -59,6 +60,7 @@ type OrgRepository interface {
 
 // ProjectRepository defines project repository operations
 type ProjectRepository interface {
+	Create(ctx context.Context, project *domain.Project) error
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Project, error)
 	GetUserRoleForProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.OrgRole, error)
 }
@@ -146,31 +148,9 @@ func (s *AuthService) Register(ctx context.Context, input *domain.RegisterInput)
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Create default organization
-	org := &domain.Organization{
-		ID:        uuid.New(),
-		Name:      input.Name + "'s Organization",
-		Slug:      domain.GenerateSlug(input.Name + "'s Organization"),
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	if err := s.orgRepo.Create(ctx, org); err != nil {
-		return nil, fmt.Errorf("failed to create organization: %w", err)
-	}
-
-	// Add user as owner
-	member := &domain.OrganizationMember{
-		ID:             uuid.New(),
-		OrganizationID: org.ID,
-		UserID:         user.ID,
-		Role:           domain.OrgRoleOwner,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
-
-	if err := s.orgRepo.AddMember(ctx, member); err != nil {
-		return nil, fmt.Errorf("failed to add member: %w", err)
+	org, err := s.createDefaultOrganizationAndProject(ctx, user.ID, input.Name, now)
+	if err != nil {
+		return nil, err
 	}
 
 	// Generate tokens
@@ -189,7 +169,7 @@ func (s *AuthService) Register(ctx context.Context, input *domain.RegisterInput)
 		ID:           uuid.New(),
 		SessionToken: refreshToken,
 		UserID:       user.ID,
-		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.RefreshExpiry) * time.Hour),
+		ExpiresAt:    time.Now().Add(s.cfg.JWT.RefreshExpiry),
 		CreatedAt:    now,
 	}
 
@@ -285,7 +265,7 @@ func (s *AuthService) LoginWithContext(ctx context.Context, input *domain.LoginI
 		ID:           uuid.New(),
 		SessionToken: refreshToken,
 		UserID:       user.ID,
-		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.RefreshExpiry) * time.Hour),
+		ExpiresAt:    time.Now().Add(s.cfg.JWT.RefreshExpiry),
 		CreatedAt:    now,
 	}
 
@@ -322,8 +302,17 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
-	// Check if refresh token session has expired
-	if session.ExpiresAt.Before(time.Now()) {
+	// Cap persisted sessions to the configured lifetime. This also invalidates
+	// sessions created by older versions that stored an overflowed expiration.
+	effectiveExpiry := session.ExpiresAt
+	if !session.CreatedAt.IsZero() {
+		configuredExpiry := session.CreatedAt.Add(s.cfg.JWT.RefreshExpiry)
+		if configuredExpiry.Before(effectiveExpiry) {
+			effectiveExpiry = configuredExpiry
+		}
+	}
+
+	if !effectiveExpiry.After(time.Now()) {
 		// Clean up the expired session
 		if err := s.userRepo.DeleteSession(ctx, refreshToken); err != nil {
 			s.logger.Warn("failed to delete expired session during refresh",
@@ -360,7 +349,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		ID:           uuid.New(),
 		SessionToken: newRefreshToken,
 		UserID:       user.ID,
-		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.RefreshExpiry) * time.Hour),
+		ExpiresAt:    time.Now().Add(s.cfg.JWT.RefreshExpiry),
 		CreatedAt:    time.Now(),
 	}
 
@@ -430,8 +419,33 @@ func (s *AuthService) ValidateJWT(ctx context.Context, tokenString string) (*dom
 	return claims, nil
 }
 
-// ValidateAPIKey validates an API key and returns project info
-func (s *AuthService) ValidateAPIKey(ctx context.Context, publicKey, secretKey string) (*uuid.UUID, error) {
+// AuthenticateAPIKey validates a complete API credential and returns its authorization context.
+func (s *AuthService) AuthenticateAPIKey(ctx context.Context, credential string) (*domain.APIKeyContext, error) {
+	publicKey, secretKey, err := parseAPIKeyCredential(credential)
+	if err != nil {
+		return nil, err
+	}
+
+	apiKey, err := s.validateAPIKeyPair(ctx, publicKey, secretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var userID *uuid.UUID
+	if apiKey.CreatedBy != nil {
+		owner := *apiKey.CreatedBy
+		userID = &owner
+	}
+
+	return &domain.APIKeyContext{
+		APIKeyID:  apiKey.ID,
+		ProjectID: apiKey.ProjectID,
+		Scopes:    append([]string(nil), apiKey.Scopes...),
+		UserID:    userID,
+	}, nil
+}
+
+func (s *AuthService) validateAPIKeyPair(ctx context.Context, publicKey, secretKey string) (*domain.APIKey, error) {
 	apiKey, err := s.apiKeyRepo.GetByPublicKey(ctx, publicKey)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
@@ -457,20 +471,7 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, publicKey, secretKey s
 		_ = s.apiKeyRepo.UpdateLastUsed(ctx, apiKey.ID)
 	}()
 
-	return &apiKey.ProjectID, nil
-}
-
-// ValidateAPIKeyPublicOnly validates an API key by public key only (for read operations)
-func (s *AuthService) ValidateAPIKeyPublicOnly(ctx context.Context, publicKey string) (*uuid.UUID, error) {
-	projectID, err := s.apiKeyRepo.GetProjectIDByPublicKey(ctx, publicKey)
-	if err != nil {
-		if apperrors.IsNotFound(err) {
-			return nil, apperrors.Unauthorized("invalid API key")
-		}
-		return nil, fmt.Errorf("failed to get project ID: %w", err)
-	}
-
-	return projectID, nil
+	return apiKey, nil
 }
 
 // CreateAPIKey creates a new API key
@@ -480,6 +481,11 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, projectID uuid.UUID, inp
 
 // CreateAPIKeyWithContext creates a new API key with audit logging context
 func (s *AuthService) CreateAPIKeyWithContext(ctx context.Context, projectID uuid.UUID, input *domain.APIKeyInput, userID uuid.UUID, userEmail string) (*domain.APIKeyCreateResult, error) {
+	scopes, err := validateAPIKeyScopes(input.Scopes)
+	if err != nil {
+		return nil, err
+	}
+
 	// Generate keys
 	publicKey, secretKey, err := s.generateAPIKeyPair()
 	if err != nil {
@@ -487,7 +493,10 @@ func (s *AuthService) CreateAPIKeyWithContext(ctx context.Context, projectID uui
 	}
 
 	// Hash secret key
-	secretKeyHash := s.hashSecretKey(secretKey)
+	secretKeyHash, err := s.hashSecretKey(secretKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash API key: %w", err)
+	}
 
 	// Get preview (last 4 characters)
 	secretKeyPreview := secretKey[len(secretKey)-4:]
@@ -509,15 +518,11 @@ func (s *AuthService) CreateAPIKeyWithContext(ctx context.Context, projectID uui
 		PublicKey:        publicKey,
 		SecretKeyHash:    secretKeyHash,
 		SecretKeyPreview: secretKeyPreview,
-		Scopes:           input.Scopes,
+		Scopes:           scopes,
 		ExpiresAt:        expiresAt,
 		CreatedBy:        &userID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-	}
-
-	if len(apiKey.Scopes) == 0 {
-		apiKey.Scopes = domain.DefaultScopes()
 	}
 
 	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
@@ -545,9 +550,46 @@ func (s *AuthService) CreateAPIKeyWithContext(ctx context.Context, projectID uui
 	}, nil
 }
 
+func validateAPIKeyScopes(requested []string) ([]string, error) {
+	if len(requested) == 0 {
+		return domain.DefaultScopes(), nil
+	}
+
+	allowed := make(map[string]struct{}, len(domain.AllScopes()))
+	for _, scope := range domain.AllScopes() {
+		allowed[scope] = struct{}{}
+	}
+
+	scopes := make([]string, 0, len(requested))
+	seen := make(map[string]struct{}, len(requested))
+	for _, scope := range requested {
+		if _, ok := allowed[scope]; !ok {
+			return nil, apperrors.Validation(fmt.Sprintf("invalid API key scope %q", scope))
+		}
+		if _, duplicate := seen[scope]; duplicate {
+			continue
+		}
+		seen[scope] = struct{}{}
+		scopes = append(scopes, scope)
+	}
+	return scopes, nil
+}
+
 // DeleteAPIKey deletes an API key
 func (s *AuthService) DeleteAPIKey(ctx context.Context, id uuid.UUID) error {
 	return s.DeleteAPIKeyWithContext(ctx, id, uuid.Nil, "")
+}
+
+// DeleteAPIKeyForProject deletes an API key only when it belongs to the project.
+func (s *AuthService) DeleteAPIKeyForProject(ctx context.Context, id, projectID uuid.UUID) error {
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if apiKey.ProjectID != projectID {
+		return apperrors.Forbidden("API key does not belong to this project")
+	}
+	return s.DeleteAPIKey(ctx, id)
 }
 
 // DeleteAPIKeyWithContext deletes an API key with audit logging context
@@ -628,6 +670,59 @@ func (s *AuthService) hasRequiredRole(userRole, requiredRole domain.OrgRole) boo
 }
 
 // generateAccessToken generates a JWT access token
+func (s *AuthService) createDefaultOrganizationAndProject(
+	ctx context.Context,
+	userID uuid.UUID,
+	name string,
+	now time.Time,
+) (*domain.Organization, error) {
+	displayName := strings.TrimSpace(name)
+	organizationName := displayName + "'s Organization"
+	if displayName == "" {
+		organizationName = "My Organization"
+	}
+	org := &domain.Organization{
+		ID:        uuid.New(),
+		Name:      organizationName,
+		Slug:      fmt.Sprintf("%s-%s", domain.GenerateSlug(organizationName), userID.String()[:8]),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.orgRepo.Create(ctx, org); err != nil {
+		return nil, fmt.Errorf("failed to create organization: %w", err)
+	}
+
+	member := &domain.OrganizationMember{
+		ID:             uuid.New(),
+		OrganizationID: org.ID,
+		UserID:         userID,
+		Role:           domain.OrgRoleOwner,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := s.orgRepo.AddMember(ctx, member); err != nil {
+		return nil, fmt.Errorf("failed to add organization member: %w", err)
+	}
+
+	rateLimitPerMinute := 1000
+	project := &domain.Project{
+		ID:              uuid.New(),
+		OrganizationID:  org.ID,
+		Name:            "Default Project",
+		Slug:            "default-project",
+		Settings:        `{"systemProvisioned":true}`,
+		RetentionDays:   30,
+		RateLimitPerMin: &rateLimitPerMinute,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := s.projectRepo.Create(ctx, project); err != nil {
+		return nil, fmt.Errorf("failed to create default project: %w", err)
+	}
+
+	return org, nil
+}
+
 func (s *AuthService) generateAccessToken(user *domain.User) (string, error) {
 	claims := &domain.JWTClaims{
 		UserID: user.ID.String(),
@@ -655,32 +750,53 @@ func (s *AuthService) generateRefreshToken() (string, error) {
 
 // generateAPIKeyPair generates a public/secret key pair
 func (s *AuthService) generateAPIKeyPair() (publicKey, secretKey string, err error) {
-	// Public key: pk-xxxx
 	pubBytes := make([]byte, 16)
 	if _, err := rand.Read(pubBytes); err != nil {
 		return "", "", err
 	}
-	publicKey = "pk-" + hex.EncodeToString(pubBytes)
+	keyID := hex.EncodeToString(pubBytes)
+	publicKey = "pk-at-" + keyID
 
-	// Secret key: sk-xxxx
-	secBytes := make([]byte, 32)
+	secBytes := make([]byte, 16)
 	if _, err := rand.Read(secBytes); err != nil {
 		return "", "", err
 	}
-	secretKey = "sk-" + hex.EncodeToString(secBytes)
+	secretKey = "sk-at-" + keyID + "." + hex.EncodeToString(secBytes)
 
 	return publicKey, secretKey, nil
 }
 
+func parseAPIKeyCredential(credential string) (publicKey, secretKey string, err error) {
+	credential = strings.TrimSpace(credential)
+	if strings.HasPrefix(credential, "sk-at-") {
+		remainder := strings.TrimPrefix(credential, "sk-at-")
+		keyID, _, found := strings.Cut(remainder, ".")
+		if !found || len(keyID) != 32 {
+			return "", "", apperrors.Unauthorized("invalid API key")
+		}
+		if _, decodeErr := hex.DecodeString(keyID); decodeErr != nil {
+			return "", "", apperrors.Unauthorized("invalid API key")
+		}
+		return "pk-at-" + keyID, credential, nil
+	}
+
+	publicKey, secretKey, found := strings.Cut(credential, ":")
+	if found &&
+		(strings.HasPrefix(publicKey, "pk-") || strings.HasPrefix(publicKey, "pk_")) &&
+		(strings.HasPrefix(secretKey, "sk-") || strings.HasPrefix(secretKey, "sk_")) {
+		return publicKey, secretKey, nil
+	}
+
+	return "", "", apperrors.Unauthorized("invalid API key")
+}
+
 // hashSecretKey creates a bcrypt hash of the secret key
-func (s *AuthService) hashSecretKey(secretKey string) string {
+func (s *AuthService) hashSecretKey(secretKey string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(secretKey), bcrypt.DefaultCost)
 	if err != nil {
-		// This should never happen with valid input, but fall back to empty string
-		// which will fail verification
-		return ""
+		return "", err
 	}
-	return string(hash)
+	return string(hash), nil
 }
 
 // verifySecretKey verifies a secret key against its bcrypt hash
@@ -692,6 +808,14 @@ func (s *AuthService) verifySecretKey(secretKey, hash string) bool {
 // HandleOAuthCallback handles OAuth authentication callback
 func (s *AuthService) HandleOAuthCallback(ctx context.Context, input *domain.OAuthCallbackInput) (*domain.AuthResult, error) {
 	return s.HandleOAuthCallbackWithContext(ctx, input, "", "")
+}
+
+// ValidateOAuthCallbackSecret authenticates the trusted Auth.js server callback.
+func (s *AuthService) ValidateOAuthCallbackSecret(provided string) bool {
+	expected := s.cfg.OAuth.CallbackSecret
+	return expected != "" &&
+		len(provided) == len(expected) &&
+		subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
 }
 
 // HandleOAuthCallbackWithContext handles OAuth authentication callback with audit logging context
@@ -744,31 +868,8 @@ func (s *AuthService) HandleOAuthCallbackWithContext(ctx context.Context, input 
 				return nil, fmt.Errorf("failed to create user: %w", err)
 			}
 
-			// Create default organization
-			org := &domain.Organization{
-				ID:        uuid.New(),
-				Name:      input.Name + "'s Organization",
-				Slug:      domain.GenerateSlug(input.Name + "'s Organization"),
-				CreatedAt: now,
-				UpdatedAt: now,
-			}
-
-			if err := s.orgRepo.Create(ctx, org); err != nil {
-				return nil, fmt.Errorf("failed to create organization: %w", err)
-			}
-
-			// Add user as owner
-			member := &domain.OrganizationMember{
-				ID:             uuid.New(),
-				OrganizationID: org.ID,
-				UserID:         user.ID,
-				Role:           domain.OrgRoleOwner,
-				CreatedAt:      now,
-				UpdatedAt:      now,
-			}
-
-			if err := s.orgRepo.AddMember(ctx, member); err != nil {
-				return nil, fmt.Errorf("failed to add member: %w", err)
+			if _, err := s.createDefaultOrganizationAndProject(ctx, user.ID, input.Name, now); err != nil {
+				return nil, err
 			}
 		}
 
@@ -808,7 +909,7 @@ func (s *AuthService) HandleOAuthCallbackWithContext(ctx context.Context, input 
 		ID:           uuid.New(),
 		SessionToken: refreshToken,
 		UserID:       user.ID,
-		ExpiresAt:    time.Now().Add(time.Duration(s.cfg.JWT.RefreshExpiry) * time.Hour),
+		ExpiresAt:    time.Now().Add(s.cfg.JWT.RefreshExpiry),
 		CreatedAt:    now,
 	}
 

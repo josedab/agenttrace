@@ -73,8 +73,12 @@ func (s *ScoreService) Create(ctx context.Context, projectID uuid.UUID, input *d
 	}
 
 	now := time.Now()
+	scoreID := uuid.New()
+	if input.ID != nil {
+		scoreID = *input.ID
+	}
 	score := &domain.Score{
-		ID:            uuid.New(),
+		ID:            scoreID,
 		TraceID:       input.TraceID,
 		ProjectID:     projectID,
 		ObservationID: input.ObservationID,

@@ -31,11 +31,11 @@ type FullProjectRepository interface {
 
 // ProjectInput represents input for creating/updating a project
 type ProjectInput struct {
-	Name           string              `json:"name" validate:"required"`
-	Description    string              `json:"description,omitempty"`
-	Settings       *domain.ProjectSettings `json:"settings,omitempty"`
-	RetentionDays  *int                `json:"retentionDays,omitempty"`
-	RateLimitPerMin *int               `json:"rateLimitPerMin,omitempty"`
+	Name            string                  `json:"name" validate:"required"`
+	Description     string                  `json:"description,omitempty"`
+	Settings        *domain.ProjectSettings `json:"settings,omitempty"`
+	RetentionDays   *int                    `json:"retentionDays,omitempty"`
+	RateLimitPerMin *int                    `json:"rateLimitPerMin,omitempty"`
 }
 
 // ProjectService handles project operations
@@ -54,10 +54,13 @@ func NewProjectService(projectRepo FullProjectRepository, orgRepo OrgRepository)
 
 // Create creates a new project
 func (s *ProjectService) Create(ctx context.Context, orgID uuid.UUID, input *ProjectInput, userID uuid.UUID) (*domain.Project, error) {
-	// Verify organization exists
-	_, err := s.orgRepo.GetByID(ctx, orgID)
+	// Verify the caller belongs to the organization and can create projects.
+	member, err := s.orgRepo.GetMember(ctx, orgID, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.Forbidden("no access to organization")
+	}
+	if member.Role == domain.OrgRoleViewer {
+		return nil, apperrors.Forbidden("organization role cannot create projects")
 	}
 
 	slug := domain.GenerateSlug(input.Name)
@@ -75,9 +78,12 @@ func (s *ProjectService) Create(ctx context.Context, orgID uuid.UUID, input *Pro
 
 	now := time.Now()
 
-	var settings string
+	settings := "{}"
 	if input.Settings != nil {
-		settingsBytes, _ := json.Marshal(input.Settings)
+		settingsBytes, err := json.Marshal(input.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode project settings: %w", err)
+		}
 		settings = string(settingsBytes)
 	}
 
@@ -136,7 +142,10 @@ func (s *ProjectService) Update(ctx context.Context, id uuid.UUID, input *Projec
 		project.Description = input.Description
 	}
 	if input.Settings != nil {
-		settingsBytes, _ := json.Marshal(input.Settings)
+		settingsBytes, err := json.Marshal(input.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode project settings: %w", err)
+		}
 		project.Settings = string(settingsBytes)
 	}
 	if input.RetentionDays != nil {
@@ -165,9 +174,42 @@ func (s *ProjectService) ListByOrganization(ctx context.Context, orgID uuid.UUID
 	return s.projectRepo.ListByOrganizationID(ctx, orgID)
 }
 
+// ListByOrganizationForUser lists projects only for organization members.
+func (s *ProjectService) ListByOrganizationForUser(
+	ctx context.Context,
+	orgID, userID uuid.UUID,
+) ([]domain.Project, error) {
+	if _, err := s.orgRepo.GetMember(ctx, orgID, userID); err != nil {
+		return nil, apperrors.Forbidden("no access to organization")
+	}
+	return s.projectRepo.ListByOrganizationID(ctx, orgID)
+}
+
 // ListByUser retrieves projects accessible to a user
 func (s *ProjectService) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Project, error) {
-	return s.projectRepo.ListByUserID(ctx, userID)
+	projects, err := s.projectRepo.ListByUserID(ctx, userID)
+	if err != nil || len(projects) > 0 {
+		return projects, err
+	}
+
+	orgs, err := s.orgRepo.ListByUserID(ctx, userID)
+	if err != nil || len(orgs) == 0 {
+		return nil, err
+	}
+
+	_, createErr := s.Create(ctx, orgs[0].ID, &ProjectInput{
+		Name: "Default Project",
+	}, userID)
+	if createErr == nil {
+		return s.projectRepo.ListByUserID(ctx, userID)
+	}
+
+	// A concurrent request may have restored the invariant first.
+	projects, listErr := s.projectRepo.ListByUserID(ctx, userID)
+	if listErr == nil && len(projects) > 0 {
+		return projects, nil
+	}
+	return nil, createErr
 }
 
 // AddMember adds a member to a project

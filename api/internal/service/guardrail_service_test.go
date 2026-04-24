@@ -14,17 +14,24 @@ import (
 
 // mockGuardrailRepo is a minimal mock for GuardrailRepository used in guardrail tests.
 type mockGuardrailRepo struct {
-	rules      []domain.GuardRule
-	violations []domain.GuardViolation
-	err        error
+	rules         []domain.GuardRule
+	violations    []domain.GuardViolation
+	err           error
+	rule          *domain.GuardRule
+	getProject    uuid.UUID
+	deleteProject uuid.UUID
 }
 
 func (m *mockGuardrailRepo) SaveRule(_ context.Context, _ *domain.GuardRule) error { return nil }
-func (m *mockGuardrailRepo) GetRuleByID(_ context.Context, _ uuid.UUID) (*domain.GuardRule, error) {
-	return nil, nil
+func (m *mockGuardrailRepo) GetRuleByID(_ context.Context, projectID, _ uuid.UUID) (*domain.GuardRule, error) {
+	m.getProject = projectID
+	return m.rule, m.err
 }
 func (m *mockGuardrailRepo) UpdateRule(_ context.Context, _ *domain.GuardRule) error { return nil }
-func (m *mockGuardrailRepo) DeleteRule(_ context.Context, _ uuid.UUID) error        { return nil }
+func (m *mockGuardrailRepo) DeleteRule(_ context.Context, projectID, _ uuid.UUID) error {
+	m.deleteProject = projectID
+	return m.err
+}
 func (m *mockGuardrailRepo) ListRules(_ context.Context, _ uuid.UUID) ([]domain.GuardRule, error) {
 	return m.rules, m.err
 }
@@ -48,6 +55,27 @@ func (m *mockGuardrailRepo) ListViolations(_ context.Context, _ *domain.GuardVio
 
 func newGuardrailService(repo *mockGuardrailRepo) *GuardrailService {
 	return NewGuardrailService(zap.NewNop(), repo, nil)
+}
+
+func TestGuardrailServiceScopesMutationsToProject(t *testing.T) {
+	projectID := uuid.New()
+	ruleID := uuid.New()
+	repo := &mockGuardrailRepo{
+		rule: &domain.GuardRule{ID: ruleID, ProjectID: projectID},
+	}
+	svc := newGuardrailService(repo)
+
+	_, err := svc.UpdateRule(
+		context.Background(),
+		projectID,
+		ruleID,
+		&domain.GuardRuleInput{Name: "updated"},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, projectID, repo.getProject)
+
+	require.NoError(t, svc.DeleteRule(context.Background(), projectID, ruleID))
+	assert.Equal(t, projectID, repo.deleteProject)
 }
 
 func TestGuardrailService_Evaluate(t *testing.T) {

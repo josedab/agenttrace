@@ -15,17 +15,23 @@ import (
 // semantic convention mappings, and collector config generation
 type OTelCompatService struct {
 	logger *zap.Logger
+	guard  OutboundGuard
 }
 
-// NewOTelCompatService creates a new OTel compatibility service
-func NewOTelCompatService(logger *zap.Logger) *OTelCompatService {
+// NewOTelCompatService creates a new OTel compatibility service.
+// The outbound guard rejects destination creation in no-egress mode.
+func NewOTelCompatService(logger *zap.Logger, guard OutboundGuard) *OTelCompatService {
 	return &OTelCompatService{
 		logger: logger,
+		guard:  guard,
 	}
 }
 
 // CreateDestination creates a new OTel export destination
 func (s *OTelCompatService) CreateDestination(ctx context.Context, projectID uuid.UUID, input domain.OTelExportDestination) (*domain.OTelExportDestination, error) {
+	if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+		return nil, err
+	}
 	if input.Name == "" {
 		return nil, fmt.Errorf("destination name is required")
 	}

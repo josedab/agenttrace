@@ -49,6 +49,9 @@ func NewBenchmarkService(
 func (s *BenchmarkService) CreateBenchmark(ctx context.Context, input *domain.Benchmark) (*domain.Benchmark, error) {
 	input.ID = uuid.New()
 	input.CreatedAt = time.Now()
+	if input.EvaluatorIDs == nil {
+		input.EvaluatorIDs = []uuid.UUID{}
+	}
 
 	if err := s.benchmarkRepo.Save(ctx, input); err != nil {
 		return nil, fmt.Errorf("failed to save benchmark: %w", err)
@@ -370,4 +373,3 @@ jobs:
 func pow10(x float64) float64 {
 	return math.Pow(10, x)
 }
-

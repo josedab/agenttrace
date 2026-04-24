@@ -14,7 +14,7 @@ import (
 
 func TestOTelCompatCreateDestination(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelCompatService(logger)
+	svc := NewOTelCompatService(logger, AllowAllOutbound())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -50,7 +50,7 @@ func TestOTelCompatCreateDestination(t *testing.T) {
 
 func TestOTelCompatGetMappings(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelCompatService(logger)
+	svc := NewOTelCompatService(logger, AllowAllOutbound())
 
 	mappings, err := svc.GetMappings()
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestOTelCompatGetMappings(t *testing.T) {
 
 func TestOTelCompatGenerateCollectorConfig(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelCompatService(logger)
+	svc := NewOTelCompatService(logger, AllowAllOutbound())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -96,7 +96,7 @@ func TestOTelCompatGenerateCollectorConfig(t *testing.T) {
 
 func TestOTelCompatGetDashboard(t *testing.T) {
 	logger := zap.NewNop()
-	svc := NewOTelCompatService(logger)
+	svc := NewOTelCompatService(logger, AllowAllOutbound())
 	ctx := context.Background()
 	projectID := uuid.New()
 

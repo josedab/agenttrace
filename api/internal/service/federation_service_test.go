@@ -13,12 +13,12 @@ import (
 )
 
 func TestNewFederationService(t *testing.T) {
-	svc := NewFederationService(zap.NewNop())
+	svc := NewFederationService(zap.NewNop(), AllowAllOutbound())
 	assert.NotNil(t, svc)
 }
 
 func TestFederationService_PeerManagement(t *testing.T) {
-	svc := NewFederationService(zap.NewNop())
+	svc := NewFederationService(zap.NewNop(), AllowAllOutbound())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -52,7 +52,7 @@ func TestFederationService_PeerManagement(t *testing.T) {
 		peers := svc.ListPeers(ctx, projectID)
 		require.Len(t, peers, 1)
 
-		err := svc.RemovePeer(ctx, peers[0].ID)
+		err := svc.RemovePeer(ctx, projectID, peers[0].ID)
 		require.NoError(t, err)
 
 		peers = svc.ListPeers(ctx, projectID)
@@ -61,7 +61,7 @@ func TestFederationService_PeerManagement(t *testing.T) {
 }
 
 func TestFederationService_ExportDestinations(t *testing.T) {
-	svc := NewFederationService(zap.NewNop())
+	svc := NewFederationService(zap.NewNop(), AllowAllOutbound())
 	ctx := context.Background()
 	projectID := uuid.New()
 
@@ -108,7 +108,7 @@ func TestFederationService_ExportDestinations(t *testing.T) {
 }
 
 func TestFederationService_FederatedQuery(t *testing.T) {
-	svc := NewFederationService(zap.NewNop())
+	svc := NewFederationService(zap.NewNop(), AllowAllOutbound())
 	ctx := context.Background()
 	projectID := uuid.New()
 

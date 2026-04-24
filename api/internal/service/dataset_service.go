@@ -80,9 +80,12 @@ func (s *DatasetService) Create(ctx context.Context, projectID uuid.UUID, input 
 
 	now := time.Now()
 
-	var metadata string
+	metadata := "{}"
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode dataset metadata: %w", err)
+		}
 		metadata = string(metadataBytes)
 	}
 
@@ -157,7 +160,10 @@ func (s *DatasetService) Update(ctx context.Context, id uuid.UUID, input *domain
 		dataset.Description = input.Description
 	}
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode dataset metadata: %w", err)
+		}
 		dataset.Metadata = string(metadataBytes)
 	}
 
@@ -173,6 +179,17 @@ func (s *DatasetService) Update(ctx context.Context, id uuid.UUID, input *domain
 // Delete deletes a dataset
 func (s *DatasetService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.datasetRepo.Delete(ctx, id)
+}
+
+// DeleteForProject deletes a dataset only when it belongs to the project.
+func (s *DatasetService) DeleteForProject(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+) error {
+	if _, err := s.GetForProject(ctx, projectID, id); err != nil {
+		return err
+	}
+	return s.Delete(ctx, id)
 }
 
 // List retrieves datasets with filtering
@@ -216,9 +233,12 @@ func (s *DatasetService) AddItem(ctx context.Context, datasetID uuid.UUID, input
 		expectedOutputStr = &s
 	}
 
-	var metadata string
+	metadata := "{}"
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode dataset item metadata: %w", err)
+		}
 		metadata = string(metadataBytes)
 	}
 
@@ -291,7 +311,10 @@ func (s *DatasetService) UpdateItem(ctx context.Context, itemID uuid.UUID, input
 		item.ExpectedOutput = &s
 	}
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode dataset item metadata: %w", err)
+		}
 		item.Metadata = string(metadataBytes)
 	}
 	if input.Status != nil {
@@ -312,6 +335,21 @@ func (s *DatasetService) DeleteItem(ctx context.Context, itemID uuid.UUID) error
 	return s.datasetRepo.DeleteItem(ctx, itemID)
 }
 
+// DeleteItemForDataset deletes an item only when it belongs to the dataset.
+func (s *DatasetService) DeleteItemForDataset(
+	ctx context.Context,
+	datasetID, itemID uuid.UUID,
+) error {
+	item, err := s.datasetRepo.GetItemByID(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if item.DatasetID != datasetID {
+		return apperrors.NotFound("dataset item")
+	}
+	return s.DeleteItem(ctx, itemID)
+}
+
 // ListItems retrieves dataset items
 func (s *DatasetService) ListItems(ctx context.Context, filter *domain.DatasetItemFilter, limit, offset int) ([]domain.DatasetItem, int64, error) {
 	return s.datasetRepo.ListItems(ctx, filter, limit, offset)
@@ -327,9 +365,12 @@ func (s *DatasetService) CreateRun(ctx context.Context, datasetID uuid.UUID, inp
 
 	now := time.Now()
 
-	var metadata string
+	metadata := "{}"
 	if input.Metadata != nil {
-		metadataBytes, _ := json.Marshal(input.Metadata)
+		metadataBytes, err := json.Marshal(input.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode dataset run metadata: %w", err)
+		}
 		metadata = string(metadataBytes)
 	}
 
@@ -518,4 +559,125 @@ func (s *DatasetService) GetRunResults(ctx context.Context, projectID uuid.UUID,
 	}
 
 	return results, nil
+}
+
+// GetForProject retrieves a dataset only when it belongs to the project.
+func (s *DatasetService) GetForProject(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+) (*domain.Dataset, error) {
+	dataset, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if dataset.ProjectID != projectID {
+		return nil, apperrors.NotFound("dataset")
+	}
+	return dataset, nil
+}
+
+// UpdateForProject updates a dataset only when it belongs to the project.
+func (s *DatasetService) UpdateForProject(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+	input *domain.DatasetInput,
+) (*domain.Dataset, error) {
+	if _, err := s.GetForProject(ctx, projectID, id); err != nil {
+		return nil, err
+	}
+	return s.Update(ctx, id, input)
+}
+
+// UpdateItemForDataset updates an item only when it belongs to the dataset.
+func (s *DatasetService) UpdateItemForDataset(
+	ctx context.Context,
+	datasetID, itemID uuid.UUID,
+	input *domain.DatasetItemUpdateInput,
+) (*domain.DatasetItem, error) {
+	item, err := s.datasetRepo.GetItemByID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if item.DatasetID != datasetID {
+		return nil, apperrors.NotFound("dataset item")
+	}
+	return s.UpdateItem(ctx, itemID, input)
+}
+
+// GetRunForDataset retrieves a run only when it belongs to the dataset.
+func (s *DatasetService) GetRunForDataset(
+	ctx context.Context,
+	datasetID, id uuid.UUID,
+) (*domain.DatasetRun, error) {
+	run, err := s.GetRun(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if run.DatasetID != datasetID {
+		return nil, apperrors.NotFound("dataset run")
+	}
+	return run, nil
+}
+
+// AddRunItemForDataset links an item only when the run and item share the dataset.
+func (s *DatasetService) AddRunItemForDataset(
+	ctx context.Context,
+	datasetID, runID uuid.UUID,
+	input *domain.DatasetRunItemInput,
+) (*domain.DatasetRunItem, error) {
+	run, err := s.GetRunForDataset(ctx, datasetID, runID)
+	if err != nil {
+		return nil, err
+	}
+	itemID, err := uuid.Parse(input.DatasetItemID)
+	if err != nil {
+		return nil, apperrors.Validation("invalid dataset item ID")
+	}
+	item, err := s.datasetRepo.GetItemByID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if item.DatasetID != run.DatasetID {
+		return nil, apperrors.NotFound("dataset item")
+	}
+	return s.AddRunItem(ctx, runID, input)
+}
+
+// AddRunItemsBatchForDataset validates every item against the run's dataset.
+func (s *DatasetService) AddRunItemsBatchForDataset(
+	ctx context.Context,
+	datasetID, runID uuid.UUID,
+	inputs []*domain.DatasetRunItemInput,
+) ([]*domain.DatasetRunItem, error) {
+	run, err := s.GetRunForDataset(ctx, datasetID, runID)
+	if err != nil {
+		return nil, err
+	}
+	for _, input := range inputs {
+		itemID, err := uuid.Parse(input.DatasetItemID)
+		if err != nil {
+			return nil, apperrors.Validation(
+				fmt.Sprintf("invalid dataset item ID: %s", input.DatasetItemID),
+			)
+		}
+		item, err := s.datasetRepo.GetItemByID(ctx, itemID)
+		if err != nil || item.DatasetID != run.DatasetID {
+			return nil, apperrors.NotFound("dataset item")
+		}
+	}
+	return s.AddRunItemsBatch(ctx, runID, inputs)
+}
+
+// GetRunResultsForDataset scopes run results to the authenticated dataset.
+func (s *DatasetService) GetRunResultsForDataset(
+	ctx context.Context,
+	projectID, datasetID, runID uuid.UUID,
+) (*domain.DatasetRunResults, error) {
+	if _, err := s.GetForProject(ctx, projectID, datasetID); err != nil {
+		return nil, err
+	}
+	if _, err := s.GetRunForDataset(ctx, datasetID, runID); err != nil {
+		return nil, err
+	}
+	return s.GetRunResults(ctx, projectID, runID)
 }

@@ -62,12 +62,17 @@ func (s *PromptService) Create(ctx context.Context, projectID uuid.UUID, input *
 		promptType = input.Type
 	}
 
+	tags := input.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
 	prompt := &domain.Prompt{
 		ID:        uuid.New(),
 		ProjectID: projectID,
 		Name:      input.Name,
 		Type:      promptType,
-		Tags:      input.Tags,
+		Tags:      tags,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -85,12 +90,9 @@ func (s *PromptService) Create(ctx context.Context, projectID uuid.UUID, input *
 		initialMessage := "Initial version"
 		versionInput := &domain.PromptVersionInput{
 			Content:       input.Content,
+			Config:        input.Config,
+			Labels:        input.Labels,
 			CommitMessage: &initialMessage,
-		}
-
-		if input.Config != nil {
-			configJSON, _ := json.Marshal(input.Config)
-			versionInput.Config = string(configJSON)
 		}
 
 		version, err := s.CreateVersion(ctx, prompt.ID, versionInput, userID)
@@ -213,6 +215,17 @@ func (s *PromptService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.promptRepo.Delete(ctx, id)
 }
 
+// DeleteForProject deletes a prompt only when it belongs to the project.
+func (s *PromptService) DeleteForProject(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+) error {
+	if _, err := s.GetForProject(ctx, projectID, id); err != nil {
+		return err
+	}
+	return s.Delete(ctx, id)
+}
+
 // List retrieves prompts with filtering
 func (s *PromptService) List(ctx context.Context, filter *domain.PromptFilter, limit, offset int) (*domain.PromptList, error) {
 	return s.promptRepo.List(ctx, filter, limit, offset)
@@ -229,10 +242,18 @@ func (s *PromptService) CreateVersion(ctx context.Context, promptID uuid.UUID, i
 	now := time.Now()
 
 	// Convert config to string
-	var configStr string
+	configStr := "{}"
 	if input.Config != nil {
-		configBytes, _ := json.Marshal(input.Config)
+		configBytes, err := json.Marshal(input.Config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode prompt config: %w", err)
+		}
 		configStr = string(configBytes)
+	}
+
+	labels := input.Labels
+	if labels == nil {
+		labels = []string{}
 	}
 
 	// Handle optional commit message
@@ -241,13 +262,18 @@ func (s *PromptService) CreateVersion(ctx context.Context, promptID uuid.UUID, i
 		commitMessage = *input.CommitMessage
 	}
 
+	var createdBy *uuid.UUID
+	if userID != uuid.Nil {
+		createdBy = &userID
+	}
+
 	version := &domain.PromptVersion{
 		ID:            uuid.New(),
 		PromptID:      promptID,
 		Content:       input.Content,
 		Config:        configStr,
-		Labels:        input.Labels,
-		CreatedBy:     &userID,
+		Labels:        labels,
+		CreatedBy:     createdBy,
 		CommitMessage: commitMessage,
 		CreatedAt:     now,
 	}
@@ -367,6 +393,33 @@ func (s *PromptService) Compile(ctx context.Context, projectID uuid.UUID, name s
 	}, nil
 }
 
+// GetForProject retrieves a prompt only when it belongs to the project.
+func (s *PromptService) GetForProject(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+) (*domain.Prompt, error) {
+	prompt, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if prompt.ProjectID != projectID {
+		return nil, apperrors.NotFound("prompt")
+	}
+	return prompt, nil
+}
+
+// UpdateForProject updates a prompt only when it belongs to the project.
+func (s *PromptService) UpdateForProject(
+	ctx context.Context,
+	projectID, id uuid.UUID,
+	input *domain.PromptInput,
+) (*domain.Prompt, error) {
+	if _, err := s.GetForProject(ctx, projectID, id); err != nil {
+		return nil, err
+	}
+	return s.Update(ctx, id, input)
+}
+
 // CompileOptions represents options for prompt compilation
 type CompileOptions struct {
 	Version *int
@@ -375,8 +428,8 @@ type CompileOptions struct {
 
 // CompiledPrompt represents a compiled prompt ready for use
 type CompiledPrompt struct {
-	Prompt    *domain.Prompt         `json:"prompt"`
-	Version   int                    `json:"version"`
-	Compiled  string                 `json:"compiled"`
-	Variables map[string]string      `json:"variables"`
+	Prompt    *domain.Prompt    `json:"prompt"`
+	Version   int               `json:"version"`
+	Compiled  string            `json:"compiled"`
+	Variables map[string]string `json:"variables"`
 }

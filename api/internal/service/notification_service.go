@@ -7,8 +7,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -22,24 +24,128 @@ import (
 
 // NotificationService handles sending notifications via webhooks
 type NotificationService struct {
-	logger           *zap.Logger
-	httpClient       *http.Client
-	dashboardURL     string
-	cbRegistry       *circuitbreaker.Registry
+	logger       *zap.Logger
+	httpClient   *http.Client
+	dashboardURL string
+	cbRegistry   *circuitbreaker.Registry
+	egressPolicy OutboundGuard
 }
 
 // NewNotificationService creates a new notification service
-func NewNotificationService(logger *zap.Logger, dashboardURL string) *NotificationService {
+func NewNotificationService(
+	logger *zap.Logger,
+	dashboardURL string,
+	guards ...OutboundGuard,
+) *NotificationService {
 	registry := circuitbreaker.NewRegistry()
+	var policy OutboundGuard
+	if len(guards) > 0 {
+		policy = guards[0]
+	}
 
 	return &NotificationService{
-		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		logger:       logger,
+		httpClient:   newWebhookHTTPClient(),
 		dashboardURL: dashboardURL,
 		cbRegistry:   registry,
+		egressPolicy: policy,
 	}
+}
+
+func newWebhookHTTPClient() *http.Client {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				host, port, err := net.SplitHostPort(address)
+				if err != nil {
+					return nil, fmt.Errorf("parse webhook address: %w", err)
+				}
+				ips, err := resolvePublicIPs(ctx, host)
+				if err != nil {
+					return nil, err
+				}
+				var dialErrors []error
+				for _, ip := range ips {
+					conn, err := dialer.DialContext(
+						ctx,
+						network,
+						net.JoinHostPort(ip.String(), port),
+					)
+					if err == nil {
+						return conn, nil
+					}
+					dialErrors = append(dialErrors, err)
+				}
+				return nil, errors.Join(dialErrors...)
+			},
+		},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+// ValidateWebhookURL permits only public HTTPS destinations.
+func ValidateWebhookURL(ctx context.Context, rawURL string) error {
+	if err := ValidateWebhookDestination(rawURL); err != nil {
+		return err
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+	_, err = resolvePublicIPs(ctx, parsed.Hostname())
+	return err
+}
+
+// ValidateWebhookDestination applies the destination rules that need no name
+// resolution, so callers can reject an unusable webhook before any send starts.
+func ValidateWebhookDestination(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+	if parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil {
+		return errors.New("webhook URL must be public HTTPS without embedded credentials")
+	}
+	if ip := net.ParseIP(parsed.Hostname()); ip != nil && !isPublicIP(ip) {
+		return errors.New("webhook destination must use a public IP")
+	}
+	return nil
+}
+
+func resolvePublicIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		if !isPublicIP(ip) {
+			return nil, errors.New("webhook destination must use a public IP")
+		}
+		return []net.IP{ip}, nil
+	}
+
+	addresses, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve webhook host: %w", err)
+	}
+	if len(addresses) == 0 {
+		return nil, errors.New("webhook host has no IP addresses")
+	}
+	for _, ip := range addresses {
+		if !isPublicIP(ip) {
+			return nil, errors.New("webhook destination resolves to a non-public IP")
+		}
+	}
+	return addresses, nil
+}
+
+func isPublicIP(ip net.IP) bool {
+	return ip.IsGlobalUnicast() &&
+		!ip.IsPrivate() &&
+		!ip.IsLoopback() &&
+		!ip.IsLinkLocalUnicast() &&
+		!ip.IsLinkLocalMulticast() &&
+		!ip.IsUnspecified()
 }
 
 // getCircuitBreakerForHost returns a circuit breaker for the given webhook URL's host
@@ -78,6 +184,13 @@ func (s *NotificationService) SendNotification(
 	eventType domain.EventType,
 	data map[string]any,
 ) (*domain.WebhookDelivery, error) {
+	if err := RequireOutbound(s.egressPolicy, EgressWebhooks); err != nil {
+		return nil, err
+	}
+	if err := ValidateWebhookURL(ctx, webhook.URL); err != nil {
+		return nil, err
+	}
+
 	delivery := &domain.WebhookDelivery{
 		ID:         uuid.New(),
 		WebhookID:  webhook.ID,
@@ -153,9 +266,13 @@ func (s *NotificationService) SendNotification(
 		delivery.Duration = time.Since(start).Milliseconds()
 		delivery.StatusCode = resp.StatusCode
 
-		// Read response body
-		body, _ := io.ReadAll(resp.Body)
-		delivery.Response = string(body)
+		if _, copyErr := io.Copy(
+			io.Discard,
+			io.LimitReader(resp.Body, 64*1024),
+		); copyErr != nil {
+			return fmt.Errorf("read webhook response: %w", copyErr)
+		}
+		delivery.Response = ""
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			delivery.Success = true
@@ -164,7 +281,7 @@ func (s *NotificationService) SendNotification(
 
 		delivery.Success = false
 		delivery.Error = fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
-		return fmt.Errorf("webhook returned status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
 	})
 
 	// Check if the error was due to circuit breaker being open
@@ -223,6 +340,10 @@ func (s *NotificationService) buildSlackPayload(eventType domain.EventType, data
 		color = "#6f42c1" // purple
 		title = "Anomaly Detected"
 		text = s.formatAnomalyMessage(data)
+	case domain.EventTypeTeamDigest:
+		color = "#2563eb"
+		title = getString(data, "title", "Agent outcome digest")
+		text = getString(data, "markdown", getString(data, "summary", ""))
 	default:
 		color = "#6c757d" // gray
 		title = "AgentTrace Notification"
@@ -233,10 +354,10 @@ func (s *NotificationService) buildSlackPayload(eventType domain.EventType, data
 	msg := domain.SlackMessage{
 		Attachments: []domain.SlackAttachment{
 			{
-				Color:  color,
-				Title:  title,
-				Text:   text,
-				Footer: "AgentTrace",
+				Color:     color,
+				Title:     title,
+				Text:      text,
+				Footer:    "AgentTrace",
 				Timestamp: time.Now().Unix(),
 			},
 		},
@@ -297,6 +418,10 @@ func (s *NotificationService) buildDiscordPayload(eventType domain.EventType, da
 		color = 0x6f42c1 // purple
 		title = "Anomaly Detected"
 		description = s.formatAnomalyMessage(data)
+	case domain.EventTypeTeamDigest:
+		color = 0x2563eb
+		title = getString(data, "title", "Agent outcome digest")
+		description = getString(data, "markdown", getString(data, "summary", ""))
 	default:
 		color = 0x6c757d // gray
 		title = "AgentTrace Notification"
@@ -332,8 +457,8 @@ func (s *NotificationService) buildDiscordPayload(eventType domain.EventType, da
 	}
 
 	msg := domain.DiscordMessage{
-		Username:  "AgentTrace",
-		Embeds:    []domain.DiscordEmbed{embed},
+		Username: "AgentTrace",
+		Embeds:   []domain.DiscordEmbed{embed},
 	}
 
 	return json.Marshal(msg)
@@ -408,9 +533,9 @@ func (s *NotificationService) buildPagerDutyPayload(eventType domain.EventType, 
 		"routing_key":  "", // Will be set from webhook URL or config
 		"event_action": "trigger",
 		"payload": map[string]any{
-			"summary":  summary,
-			"severity": severity,
-			"source":   "agenttrace",
+			"summary":        summary,
+			"severity":       severity,
+			"source":         "agenttrace",
 			"custom_details": data,
 		},
 	}

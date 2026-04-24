@@ -53,6 +53,11 @@ func (s *CheckpointService) Create(ctx context.Context, projectID uuid.UUID, inp
 		description = *input.Description
 	}
 
+	filesChanged := input.FilesChanged
+	if filesChanged == nil {
+		filesChanged = []string{}
+	}
+
 	checkpoint := &domain.Checkpoint{
 		ID:             uuid.New(),
 		ProjectID:      projectID,
@@ -65,7 +70,7 @@ func (s *CheckpointService) Create(ctx context.Context, projectID uuid.UUID, inp
 		GitBranch:      input.GitBranch,
 		GitRepoURL:     input.GitRepoURL,
 		FilesSnapshot:  input.FilesSnapshot,
-		FilesChanged:   input.FilesChanged,
+		FilesChanged:   filesChanged,
 		TotalFiles:     input.TotalFiles,
 		TotalSizeBytes: input.TotalSizeBytes,
 		CreatedAt:      time.Now(),

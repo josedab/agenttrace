@@ -16,15 +16,19 @@ import (
 // WarehouseSyncService manages data warehouse sync operations
 type WarehouseSyncService struct {
 	logger      *zap.Logger
+	guard       OutboundGuard
 	mu          sync.RWMutex
 	connections map[uuid.UUID]*domain.WarehouseConnection
 	operations  map[uuid.UUID]*domain.SyncOperation
 }
 
-// NewWarehouseSyncService creates a new warehouse sync service
-func NewWarehouseSyncService(logger *zap.Logger) *WarehouseSyncService {
+// NewWarehouseSyncService creates a new warehouse sync service.
+// Warehouse connections and syncs move project data to an external warehouse, so
+// the outbound guard rejects creation, connection tests, and syncs in no-egress mode.
+func NewWarehouseSyncService(logger *zap.Logger, guard OutboundGuard) *WarehouseSyncService {
 	return &WarehouseSyncService{
 		logger:      logger,
+		guard:       guard,
 		connections: make(map[uuid.UUID]*domain.WarehouseConnection),
 		operations:  make(map[uuid.UUID]*domain.SyncOperation),
 	}
@@ -32,6 +36,9 @@ func NewWarehouseSyncService(logger *zap.Logger) *WarehouseSyncService {
 
 // CreateConnection creates a new warehouse connection
 func (s *WarehouseSyncService) CreateConnection(ctx context.Context, projectID uuid.UUID, input *domain.WarehouseConnectionInput) (*domain.WarehouseConnection, error) {
+	if err := RequireOutbound(s.guard, EgressWarehouseSync); err != nil {
+		return nil, err
+	}
 	if input.Name == "" {
 		return nil, fmt.Errorf("connection name is required")
 	}
@@ -82,12 +89,12 @@ func (s *WarehouseSyncService) CreateConnection(ctx context.Context, projectID u
 }
 
 // GetConnection retrieves a connection by ID
-func (s *WarehouseSyncService) GetConnection(ctx context.Context, id uuid.UUID) (*domain.WarehouseConnection, error) {
+func (s *WarehouseSyncService) GetConnection(ctx context.Context, projectID, id uuid.UUID) (*domain.WarehouseConnection, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	conn, exists := s.connections[id]
-	if !exists {
+	if !exists || conn.ProjectID != projectID {
 		return nil, fmt.Errorf("connection not found")
 	}
 	return conn, nil
@@ -113,11 +120,12 @@ func (s *WarehouseSyncService) ListConnections(ctx context.Context, projectID uu
 }
 
 // DeleteConnection deletes a warehouse connection
-func (s *WarehouseSyncService) DeleteConnection(ctx context.Context, id uuid.UUID) error {
+func (s *WarehouseSyncService) DeleteConnection(ctx context.Context, projectID, id uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.connections[id]; !exists {
+	connection, exists := s.connections[id]
+	if !exists || connection.ProjectID != projectID {
 		return fmt.Errorf("connection not found")
 	}
 	delete(s.connections, id)
@@ -125,10 +133,14 @@ func (s *WarehouseSyncService) DeleteConnection(ctx context.Context, id uuid.UUI
 }
 
 // TriggerSync triggers an immediate sync for a connection
-func (s *WarehouseSyncService) TriggerSync(ctx context.Context, connID uuid.UUID) (*domain.SyncOperation, error) {
+func (s *WarehouseSyncService) TriggerSync(ctx context.Context, projectID, connID uuid.UUID) (*domain.SyncOperation, error) {
+	if err := RequireOutbound(s.guard, EgressWarehouseSync); err != nil {
+		return nil, err
+	}
+
 	s.mu.Lock()
 	conn, exists := s.connections[connID]
-	if !exists {
+	if !exists || conn.ProjectID != projectID {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("connection not found")
 	}
@@ -173,10 +185,44 @@ func (s *WarehouseSyncService) TriggerSync(ctx context.Context, connID uuid.UUID
 	return op, nil
 }
 
+// TestConnection validates a project-owned connection before it is used for a sync.
+func (s *WarehouseSyncService) TestConnection(
+	ctx context.Context,
+	projectID, connID uuid.UUID,
+) (*domain.WarehouseConnectionTest, error) {
+	if err := RequireOutbound(s.guard, EgressWarehouseSync); err != nil {
+		return nil, err
+	}
+
+	conn, err := s.GetConnection(ctx, projectID, connID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateConfig(conn.Type, conn.Config); err != nil {
+		return &domain.WarehouseConnectionTest{
+			ConnectionID: conn.ID,
+			Reachable:    false,
+			Message:      err.Error(),
+			CheckedAt:    time.Now().UTC(),
+		}, nil
+	}
+	return &domain.WarehouseConnectionTest{
+		ConnectionID: conn.ID,
+		Reachable:    conn.Enabled,
+		Message:      "connection configuration is complete",
+		CheckedAt:    time.Now().UTC(),
+	}, nil
+}
+
 // GetSyncStatus returns the latest sync status for a connection
-func (s *WarehouseSyncService) GetSyncStatus(ctx context.Context, connID uuid.UUID) ([]domain.SyncOperation, error) {
+func (s *WarehouseSyncService) GetSyncStatus(ctx context.Context, projectID, connID uuid.UUID) ([]domain.SyncOperation, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	connection, exists := s.connections[connID]
+	if !exists || connection.ProjectID != projectID {
+		return nil, fmt.Errorf("connection not found")
+	}
 
 	var ops []domain.SyncOperation
 	for _, op := range s.operations {
@@ -193,12 +239,12 @@ func (s *WarehouseSyncService) GetSyncStatus(ctx context.Context, connID uuid.UU
 }
 
 // GetSchemaMapping returns default schema mapping for a connection
-func (s *WarehouseSyncService) GetSchemaMapping(ctx context.Context, connID uuid.UUID) ([]domain.SchemaMap, error) {
+func (s *WarehouseSyncService) GetSchemaMapping(ctx context.Context, projectID, connID uuid.UUID) ([]domain.SchemaMap, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	conn, exists := s.connections[connID]
-	if !exists {
+	if !exists || conn.ProjectID != projectID {
 		return nil, fmt.Errorf("connection not found")
 	}
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -207,6 +208,11 @@ type MockProjectRepository struct {
 	mock.Mock
 }
 
+func (m *MockProjectRepository) Create(ctx context.Context, project *domain.Project) error {
+	args := m.Called(ctx, project)
+	return args.Error(0)
+}
+
 func (m *MockProjectRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
@@ -229,8 +235,8 @@ func testConfig() *config.Config {
 		JWT: config.JWTConfig{
 			Secret:        "test-secret-key-for-testing-purposes-only",
 			Issuer:        "agenttrace-test",
-			AccessExpiry:  15,  // 15 minutes
-			RefreshExpiry: 168, // 1 week in hours
+			AccessExpiry:  15,
+			RefreshExpiry: 7 * 24 * time.Hour,
 		},
 	}
 }
@@ -246,7 +252,21 @@ func TestAuthService_Register(t *testing.T) {
 		userRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
 		orgRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Organization")).Return(nil)
 		orgRepo.On("AddMember", mock.Anything, mock.AnythingOfType("*domain.OrganizationMember")).Return(nil)
-		userRepo.On("CreateSession", mock.Anything, mock.AnythingOfType("*domain.UserSession")).Return(nil)
+		projectRepo.On("Create", mock.Anything, mock.MatchedBy(func(project *domain.Project) bool {
+			return project.Name == "Default Project" &&
+				project.Slug == "default-project" &&
+				project.Settings == `{"systemProvisioned":true}` &&
+				project.OrganizationID != uuid.Nil
+		})).Return(nil)
+		requestStartedAt := time.Now()
+		userRepo.On(
+			"CreateSession",
+			mock.Anything,
+			mock.MatchedBy(func(session *domain.UserSession) bool {
+				expectedExpiry := requestStartedAt.Add(7 * 24 * time.Hour)
+				return session.ExpiresAt.Sub(expectedExpiry).Abs() < time.Second
+			}),
+		).Return(nil)
 
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
@@ -265,6 +285,7 @@ func TestAuthService_Register(t *testing.T) {
 
 		userRepo.AssertExpectations(t)
 		orgRepo.AssertExpectations(t)
+		projectRepo.AssertExpectations(t)
 	})
 
 	t.Run("fails if email already exists", func(t *testing.T) {
@@ -540,7 +561,7 @@ func TestAuthService_ValidateJWT(t *testing.T) {
 	})
 }
 
-func TestAuthService_ValidateAPIKey(t *testing.T) {
+func TestAuthService_ValidateAPIKeyPair(t *testing.T) {
 	t.Run("validates valid API key pair", func(t *testing.T) {
 		userRepo := new(MockUserRepository)
 		apiKeyRepo := new(MockAPIKeyRepository)
@@ -551,7 +572,8 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 
 		// Generate a key pair for testing
 		secretKey := "sk-testsecretkey1234567890abcdef1234567890abcdef"
-		secretKeyHash := svc.hashSecretKey(secretKey)
+		secretKeyHash, err := svc.hashSecretKey(secretKey)
+		require.NoError(t, err)
 
 		projectID := uuid.New()
 		apiKey := &domain.APIKey{
@@ -565,11 +587,11 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 		apiKeyRepo.On("GetByPublicKey", mock.Anything, "pk-testpublickey12345678").Return(apiKey, nil)
 		apiKeyRepo.On("UpdateLastUsed", mock.Anything, apiKey.ID).Return(nil)
 
-		result, err := svc.ValidateAPIKey(context.Background(), "pk-testpublickey12345678", secretKey)
+		result, err := svc.validateAPIKeyPair(context.Background(), "pk-testpublickey12345678", secretKey)
 
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, projectID, *result)
+		assert.Equal(t, projectID, result.ProjectID)
 	})
 
 	t.Run("fails with invalid public key", func(t *testing.T) {
@@ -582,7 +604,7 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
-		result, err := svc.ValidateAPIKey(context.Background(), "pk-invalid", "sk-anything")
+		result, err := svc.validateAPIKeyPair(context.Background(), "pk-invalid", "sk-anything")
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -597,7 +619,8 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
-		correctSecretHash := svc.hashSecretKey("sk-correctkey")
+		correctSecretHash, err := svc.hashSecretKey("sk-correctkey")
+		require.NoError(t, err)
 		apiKey := &domain.APIKey{
 			ID:            uuid.New(),
 			ProjectID:     uuid.New(),
@@ -607,7 +630,7 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 
 		apiKeyRepo.On("GetByPublicKey", mock.Anything, "pk-test").Return(apiKey, nil)
 
-		result, err := svc.ValidateAPIKey(context.Background(), "pk-test", "sk-wrongkey")
+		result, err := svc.validateAPIKeyPair(context.Background(), "pk-test", "sk-wrongkey")
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -623,7 +646,8 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
 		secretKey := "sk-expiredsecret"
-		secretKeyHash := svc.hashSecretKey(secretKey)
+		secretKeyHash, err := svc.hashSecretKey(secretKey)
+		require.NoError(t, err)
 		expiredTime := time.Now().Add(-24 * time.Hour) // Expired yesterday
 
 		apiKey := &domain.APIKey{
@@ -636,7 +660,7 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 
 		apiKeyRepo.On("GetByPublicKey", mock.Anything, "pk-expired").Return(apiKey, nil)
 
-		result, err := svc.ValidateAPIKey(context.Background(), "pk-expired", secretKey)
+		result, err := svc.validateAPIKeyPair(context.Background(), "pk-expired", secretKey)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -644,40 +668,113 @@ func TestAuthService_ValidateAPIKey(t *testing.T) {
 	})
 }
 
-func TestAuthService_ValidateAPIKeyPublicOnly(t *testing.T) {
-	t.Run("validates by public key only", func(t *testing.T) {
+func TestAuthService_AuthenticateAPIKey(t *testing.T) {
+	t.Run("validates canonical secret credential", func(t *testing.T) {
 		userRepo := new(MockUserRepository)
 		apiKeyRepo := new(MockAPIKeyRepository)
 		orgRepo := new(MockOrgRepository)
 		projectRepo := new(MockProjectRepository)
-
-		projectID := uuid.New()
-		apiKeyRepo.On("GetProjectIDByPublicKey", mock.Anything, "pk-readonly").Return(&projectID, nil)
-
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
-		result, err := svc.ValidateAPIKeyPublicOnly(context.Background(), "pk-readonly")
+		keyID := "0123456789abcdef0123456789abcdef"
+		credential := "sk-at-" + keyID + ".secret"
+		secretKeyHash, err := svc.hashSecretKey(credential)
+		require.NoError(t, err)
+		apiKey := &domain.APIKey{
+			ID:            uuid.New(),
+			ProjectID:     uuid.New(),
+			PublicKey:     "pk-at-" + keyID,
+			SecretKeyHash: secretKeyHash,
+			Scopes:        []string{"traces:read"},
+		}
+		apiKeyRepo.On("GetByPublicKey", mock.Anything, apiKey.PublicKey).Return(apiKey, nil)
+		apiKeyRepo.On("UpdateLastUsed", mock.Anything, apiKey.ID).Return(nil)
+
+		result, err := svc.AuthenticateAPIKey(context.Background(), credential)
 
 		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, projectID, *result)
+		assert.Equal(t, apiKey.ID, result.APIKeyID)
+		assert.Equal(t, apiKey.ProjectID, result.ProjectID)
+		assert.Equal(t, apiKey.Scopes, result.Scopes)
 	})
 
-	t.Run("fails with invalid public key", func(t *testing.T) {
-		userRepo := new(MockUserRepository)
-		apiKeyRepo := new(MockAPIKeyRepository)
-		orgRepo := new(MockOrgRepository)
-		projectRepo := new(MockProjectRepository)
+	t.Run("rejects public identifier without secret", func(t *testing.T) {
+		svc := NewAuthService(
+			testConfig(),
+			new(MockUserRepository),
+			new(MockAPIKeyRepository),
+			new(MockOrgRepository),
+			new(MockProjectRepository),
+		)
 
-		apiKeyRepo.On("GetProjectIDByPublicKey", mock.Anything, "pk-notfound").Return(nil, apperrors.NotFound("not found"))
-
-		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
-
-		result, err := svc.ValidateAPIKeyPublicOnly(context.Background(), "pk-notfound")
+		result, err := svc.AuthenticateAPIKey(
+			context.Background(),
+			"pk-at-0123456789abcdef0123456789abcdef",
+		)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.True(t, apperrors.IsUnauthorized(err))
+	})
+
+	t.Run("populates UserID from owning creator", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		apiKeyRepo := new(MockAPIKeyRepository)
+		orgRepo := new(MockOrgRepository)
+		projectRepo := new(MockProjectRepository)
+		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
+
+		keyID := "0123456789abcdef0123456789abcdef"
+		credential := "sk-at-" + keyID + ".secret"
+		secretKeyHash, err := svc.hashSecretKey(credential)
+		require.NoError(t, err)
+		owner := uuid.New()
+		apiKey := &domain.APIKey{
+			ID:            uuid.New(),
+			ProjectID:     uuid.New(),
+			PublicKey:     "pk-at-" + keyID,
+			SecretKeyHash: secretKeyHash,
+			Scopes:        []string{"traces:read"},
+			CreatedBy:     &owner,
+		}
+		apiKeyRepo.On("GetByPublicKey", mock.Anything, apiKey.PublicKey).Return(apiKey, nil)
+		apiKeyRepo.On("UpdateLastUsed", mock.Anything, apiKey.ID).Return(nil)
+
+		result, err := svc.AuthenticateAPIKey(context.Background(), credential)
+
+		require.NoError(t, err)
+		require.NotNil(t, result.UserID)
+		assert.Equal(t, owner, *result.UserID)
+		// The returned pointer must be a copy so callers cannot mutate the key.
+		assert.NotSame(t, apiKey.CreatedBy, result.UserID)
+	})
+
+	t.Run("leaves UserID nil for unowned legacy key", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		apiKeyRepo := new(MockAPIKeyRepository)
+		orgRepo := new(MockOrgRepository)
+		projectRepo := new(MockProjectRepository)
+		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
+
+		keyID := "abcdef0123456789abcdef0123456789"
+		credential := "sk-at-" + keyID + ".secret"
+		secretKeyHash, err := svc.hashSecretKey(credential)
+		require.NoError(t, err)
+		apiKey := &domain.APIKey{
+			ID:            uuid.New(),
+			ProjectID:     uuid.New(),
+			PublicKey:     "pk-at-" + keyID,
+			SecretKeyHash: secretKeyHash,
+			Scopes:        []string{"traces:read"},
+			CreatedBy:     nil,
+		}
+		apiKeyRepo.On("GetByPublicKey", mock.Anything, apiKey.PublicKey).Return(apiKey, nil)
+		apiKeyRepo.On("UpdateLastUsed", mock.Anything, apiKey.ID).Return(nil)
+
+		result, err := svc.AuthenticateAPIKey(context.Background(), credential)
+
+		require.NoError(t, err)
+		assert.Nil(t, result.UserID)
 	})
 }
 
@@ -702,8 +799,12 @@ func TestAuthService_CreateAPIKey(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.NotNil(t, result.APIKey)
 		assert.NotEmpty(t, result.SecretKey)
-		assert.True(t, len(result.APIKey.PublicKey) > 3 && result.APIKey.PublicKey[:3] == "pk-")
-		assert.True(t, len(result.SecretKey) > 3 && result.SecretKey[:3] == "sk-")
+		assert.True(t, strings.HasPrefix(result.APIKey.PublicKey, "pk-at-"))
+		assert.True(t, strings.HasPrefix(result.SecretKey, "sk-at-"))
+		parsedPublicKey, parsedSecretKey, parseErr := parseAPIKeyCredential(result.SecretKey)
+		require.NoError(t, parseErr)
+		assert.Equal(t, result.APIKey.PublicKey, parsedPublicKey)
+		assert.Equal(t, result.SecretKey, parsedSecretKey)
 		assert.Equal(t, "Test Key", result.APIKey.Name)
 		assert.Equal(t, projectID, result.APIKey.ProjectID)
 	})
@@ -720,7 +821,7 @@ func TestAuthService_CreateAPIKey(t *testing.T) {
 
 		projectID := uuid.New()
 		userID := uuid.New()
-		customScopes := []string{"read:traces", "write:traces"}
+		customScopes := []string{"traces:read", "traces:write"}
 		result, err := svc.CreateAPIKey(context.Background(), projectID, &domain.APIKeyInput{
 			Name:   "Limited Key",
 			Scopes: customScopes,
@@ -729,6 +830,27 @@ func TestAuthService_CreateAPIKey(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, customScopes, result.APIKey.Scopes)
+	})
+
+	t.Run("rejects unknown scopes", func(t *testing.T) {
+		svc := NewAuthService(
+			testConfig(),
+			new(MockUserRepository),
+			new(MockAPIKeyRepository),
+			new(MockOrgRepository),
+			new(MockProjectRepository),
+		)
+
+		result, err := svc.CreateAPIKey(
+			context.Background(),
+			uuid.New(),
+			&domain.APIKeyInput{Name: "Invalid", Scopes: []string{"everything:*"}},
+			uuid.New(),
+		)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.True(t, apperrors.IsValidation(err))
 	})
 
 	t.Run("creates API key with expiration", func(t *testing.T) {
@@ -922,20 +1044,42 @@ func TestAuthService_APIKeyGeneration(t *testing.T) {
 		publicKey, secretKey, err := svc.generateAPIKeyPair()
 
 		require.NoError(t, err)
-		assert.True(t, len(publicKey) > 3 && publicKey[:3] == "pk-")
-		assert.True(t, len(secretKey) > 3 && secretKey[:3] == "sk-")
-		assert.Len(t, publicKey, 35) // pk- + 32 hex chars
-		assert.Len(t, secretKey, 67) // sk- + 64 hex chars
+		assert.True(t, strings.HasPrefix(publicKey, "pk-at-"))
+		assert.True(t, strings.HasPrefix(secretKey, "sk-at-"))
+		assert.Len(t, publicKey, 38)
+		assert.Len(t, secretKey, 71)
 	})
 
 	t.Run("hash and verify secret key", func(t *testing.T) {
 		secretKey := "sk-testsecret1234567890"
-		hash := svc.hashSecretKey(secretKey)
+		hash, err := svc.hashSecretKey(secretKey)
+		require.NoError(t, err)
 
 		assert.NotEqual(t, secretKey, hash)
 		assert.True(t, svc.verifySecretKey(secretKey, hash))
 		assert.False(t, svc.verifySecretKey("wrong-key", hash))
 	})
+
+	t.Run("rejects secrets longer than bcrypt supports", func(t *testing.T) {
+		_, err := svc.hashSecretKey(strings.Repeat("x", 73))
+		require.Error(t, err)
+	})
+}
+
+func TestAuthService_ValidateOAuthCallbackSecret(t *testing.T) {
+	cfg := testConfig()
+	cfg.OAuth.CallbackSecret = "trusted-callback-secret"
+	svc := NewAuthService(
+		cfg,
+		new(MockUserRepository),
+		new(MockAPIKeyRepository),
+		new(MockOrgRepository),
+		new(MockProjectRepository),
+	)
+
+	assert.True(t, svc.ValidateOAuthCallbackSecret("trusted-callback-secret"))
+	assert.False(t, svc.ValidateOAuthCallbackSecret("wrong-secret"))
+	assert.False(t, svc.ValidateOAuthCallbackSecret(""))
 }
 
 func TestAuthService_RefreshToken_ExpiredSession(t *testing.T) {
@@ -959,6 +1103,44 @@ func TestAuthService_RefreshToken_ExpiredSession(t *testing.T) {
 		svc := NewAuthService(testConfig(), userRepo, apiKeyRepo, orgRepo, projectRepo)
 
 		result, err := svc.RefreshToken(context.Background(), "expired-refresh-token")
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.True(t, apperrors.IsUnauthorized(err))
+	})
+
+	t.Run("caps legacy overflowed expiration", func(t *testing.T) {
+		userRepo := new(MockUserRepository)
+		session := &domain.UserSession{
+			ID:           uuid.New(),
+			SessionToken: "overflowed-refresh-token",
+			UserID:       uuid.New(),
+			CreatedAt:    time.Now().Add(-8 * 24 * time.Hour),
+			ExpiresAt:    time.Now().Add(100 * 365 * 24 * time.Hour),
+		}
+		userRepo.On(
+			"GetSessionByToken",
+			mock.Anything,
+			"overflowed-refresh-token",
+		).Return(session, nil)
+		userRepo.On(
+			"DeleteSession",
+			mock.Anything,
+			"overflowed-refresh-token",
+		).Return(nil)
+
+		svc := NewAuthService(
+			testConfig(),
+			userRepo,
+			new(MockAPIKeyRepository),
+			new(MockOrgRepository),
+			new(MockProjectRepository),
+		)
+
+		result, err := svc.RefreshToken(
+			context.Background(),
+			"overflowed-refresh-token",
+		)
 
 		require.Error(t, err)
 		assert.Nil(t, result)

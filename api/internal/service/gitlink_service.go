@@ -76,6 +76,19 @@ func (s *GitLinkService) Create(ctx context.Context, projectID uuid.UUID, input 
 
 	filesChangedCount := uint32(len(input.FilesAdded) + len(input.FilesModified) + len(input.FilesDeleted))
 
+	filesAdded := input.FilesAdded
+	if filesAdded == nil {
+		filesAdded = []string{}
+	}
+	filesModified := input.FilesModified
+	if filesModified == nil {
+		filesModified = []string{}
+	}
+	filesDeleted := input.FilesDeleted
+	if filesDeleted == nil {
+		filesDeleted = []string{}
+	}
+
 	gitLink := &domain.GitLink{
 		ID:                uuid.New(),
 		ProjectID:         projectID,
@@ -89,9 +102,9 @@ func (s *GitLinkService) Create(ctx context.Context, projectID uuid.UUID, input 
 		CommitAuthor:      commitAuthor,
 		CommitAuthorEmail: commitAuthorEmail,
 		CommitTimestamp:   commitTimestamp,
-		FilesAdded:        input.FilesAdded,
-		FilesModified:     input.FilesModified,
-		FilesDeleted:      input.FilesDeleted,
+		FilesAdded:        filesAdded,
+		FilesModified:     filesModified,
+		FilesDeleted:      filesDeleted,
 		FilesChangedCount: filesChangedCount,
 		Additions:         additions,
 		Deletions:         deletions,

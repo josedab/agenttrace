@@ -38,6 +38,7 @@ type OTelExporterService struct {
 	logger     *zap.Logger
 	httpClient *http.Client
 	cbRegistry *circuitbreaker.Registry
+	guard      OutboundGuard
 
 	// gRPC connection management
 	grpcMu    sync.RWMutex
@@ -58,14 +59,16 @@ type exportBatch struct {
 	lastSend time.Time
 }
 
-// NewOTelExporterService creates a new OTLP exporter service
-func NewOTelExporterService(logger *zap.Logger) *OTelExporterService {
+// NewOTelExporterService creates a new OTLP exporter service.
+// The outbound guard rejects exporter creation and delivery in no-egress mode.
+func NewOTelExporterService(logger *zap.Logger, guard OutboundGuard) *OTelExporterService {
 	registry := circuitbreaker.NewRegistry()
 
 	svc := &OTelExporterService{
 		logger:     logger,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		cbRegistry: registry,
+		guard:      guard,
 		grpcConns:  make(map[string]*grpc.ClientConn),
 		batches:    make(map[uuid.UUID]*exportBatch),
 		stopCh:     make(chan struct{}),
@@ -117,6 +120,9 @@ func (s *OTelExporterService) CreateExporter(
 	userID uuid.UUID,
 	input *domain.OTelExporterInput,
 ) (*domain.OTelExporter, error) {
+	if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+		return nil, err
+	}
 	if input.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
@@ -473,6 +479,9 @@ func (s *OTelExporterService) QueueSpansForExport(
 	exporter *domain.OTelExporter,
 	spans []*domain.OTelSpan,
 ) error {
+	if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+		return err
+	}
 	if !exporter.Enabled {
 		return nil
 	}
@@ -536,6 +545,13 @@ func (s *OTelExporterService) processBatches() {
 
 // sendBatch sends a batch of spans to the exporter
 func (s *OTelExporterService) sendBatch(exporter *domain.OTelExporter, batch *exportBatch) {
+	if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+		s.logger.Warn("OTLP export skipped by privacy no-egress mode",
+			zap.String("exporterId", exporter.ID.String()),
+		)
+		return
+	}
+
 	batch.mu.Lock()
 	if len(batch.spans) == 0 {
 		batch.mu.Unlock()
@@ -1051,6 +1067,10 @@ func (s *OTelExporterService) getHTTPClient(exporter *domain.OTelExporter) (*htt
 
 // TestExporter tests the connection to an exporter
 func (s *OTelExporterService) TestExporter(ctx context.Context, exporter *domain.OTelExporter) error {
+	if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+		return err
+	}
+
 	// Create a test span
 	testSpan := &domain.OTelSpan{
 		TraceID:           "00000000000000000000000000000001",

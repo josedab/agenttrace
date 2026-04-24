@@ -10,23 +10,31 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 )
 
 // OTelBridgeService manages the OpenTelemetry-native trace bridge
 type OTelBridgeService struct {
 	logger    *zap.Logger
 	ingestion *IngestionService
+	guard     OutboundGuard
 	mu        sync.RWMutex
 	configs   map[uuid.UUID]*domain.OTelBridgeConfig
 	dests     map[uuid.UUID]*domain.ExportDestinationRef
 	stats     map[uuid.UUID]*domain.OTelBridgeStats
 }
 
-// NewOTelBridgeService creates a new OTel bridge service
-func NewOTelBridgeService(logger *zap.Logger, ingestion *IngestionService) *OTelBridgeService {
+// NewOTelBridgeService creates a new OTel bridge service.
+// The outbound guard rejects export destination creation in no-egress mode.
+func NewOTelBridgeService(
+	logger *zap.Logger,
+	ingestion *IngestionService,
+	guard OutboundGuard,
+) *OTelBridgeService {
 	return &OTelBridgeService{
 		logger:    logger,
 		ingestion: ingestion,
+		guard:     guard,
 		configs:   make(map[uuid.UUID]*domain.OTelBridgeConfig),
 		dests:     make(map[uuid.UUID]*domain.ExportDestinationRef),
 		stats:     make(map[uuid.UUID]*domain.OTelBridgeStats),
@@ -65,6 +73,12 @@ func (s *OTelBridgeService) GetConfig(ctx context.Context, projectID uuid.UUID) 
 
 // UpdateConfig updates the bridge configuration for a project
 func (s *OTelBridgeService) UpdateConfig(ctx context.Context, projectID uuid.UUID, input *domain.OTelBridgeConfigInput) (*domain.OTelBridgeConfig, error) {
+	if input.ExportEnabled != nil && *input.ExportEnabled {
+		if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+			return nil, err
+		}
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -113,6 +127,9 @@ func (s *OTelBridgeService) ListDestinations(ctx context.Context, projectID uuid
 
 // AddDestination adds an export destination to a project's bridge config
 func (s *OTelBridgeService) AddDestination(ctx context.Context, projectID uuid.UUID, input *domain.OTelDestinationInput) (*domain.ExportDestinationRef, error) {
+	if err := RequireOutbound(s.guard, EgressOTelExport); err != nil {
+		return nil, err
+	}
 	if input.Name == "" {
 		return nil, fmt.Errorf("destination name is required")
 	}
@@ -160,28 +177,36 @@ func (s *OTelBridgeService) AddDestination(ctx context.Context, projectID uuid.U
 }
 
 // RemoveDestination removes an export destination
-func (s *OTelBridgeService) RemoveDestination(ctx context.Context, destID uuid.UUID) error {
+func (s *OTelBridgeService) RemoveDestination(
+	ctx context.Context,
+	projectID, destID uuid.UUID,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.dests[destID]; !ok {
-		return fmt.Errorf("export destination not found: %s", destID)
+	cfg, ok := s.configs[projectID]
+	if !ok {
+		return apperrors.NotFound("OTel export destination")
 	}
 
-	// Remove from all configs
-	for _, cfg := range s.configs {
-		for i, d := range cfg.ExportDestinations {
-			if d.ID == destID {
-				cfg.ExportDestinations = append(cfg.ExportDestinations[:i], cfg.ExportDestinations[i+1:]...)
-				cfg.UpdatedAt = time.Now()
-				break
-			}
+	for index, destination := range cfg.ExportDestinations {
+		if destination.ID != destID {
+			continue
 		}
+		cfg.ExportDestinations = append(
+			cfg.ExportDestinations[:index],
+			cfg.ExportDestinations[index+1:]...,
+		)
+		cfg.UpdatedAt = time.Now()
+		delete(s.dests, destID)
+		s.logger.Info(
+			"removed OTel export destination",
+			zap.String("id", destID.String()),
+			zap.String("projectId", projectID.String()),
+		)
+		return nil
 	}
-
-	delete(s.dests, destID)
-	s.logger.Info("removed OTel export destination", zap.String("id", destID.String()))
-	return nil
+	return apperrors.NotFound("OTel export destination")
 }
 
 // ImportSpans imports OpenTelemetry spans and returns the count imported
