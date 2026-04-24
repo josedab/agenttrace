@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,13 +22,11 @@ type EvalMarketplaceService struct {
 
 // NewEvalMarketplaceService creates a new eval marketplace service
 func NewEvalMarketplaceService(logger *zap.Logger, dataset *DatasetService) *EvalMarketplaceService {
-	svc := &EvalMarketplaceService{
+	return &EvalMarketplaceService{
 		logger:   logger,
 		dataset:  dataset,
 		listings: make(map[uuid.UUID]*domain.EvalDatasetListing),
 	}
-	svc.seedDefaults()
-	return svc
 }
 
 // ListDatasets searches and filters marketplace datasets
@@ -78,23 +77,23 @@ func (s *EvalMarketplaceService) PublishDataset(ctx context.Context, projectID, 
 
 	now := time.Now()
 	listing := &domain.EvalDatasetListing{
-		ID:          uuid.New(),
-		Name:        input.Name,
-		Description: input.Description,
-		Author:      "user-" + authorID.String()[:8],
-		AuthorID:    authorID,
-		Category:    input.Category,
-		TaskType:    input.TaskType,
-		SampleCount: 0,
-		ScoringRubric: input.ScoringRubric,
+		ID:             uuid.New(),
+		Name:           input.Name,
+		Description:    input.Description,
+		Author:         "user-" + authorID.String()[:8],
+		AuthorID:       authorID,
+		Category:       input.Category,
+		TaskType:       input.TaskType,
+		SampleCount:    0,
+		ScoringRubric:  input.ScoringRubric,
 		BaselineScores: []domain.BaselineScore{},
-		Tags:        input.Tags,
-		Downloads:   0,
-		Rating:      0,
-		RatingCount: 0,
-		IsVerified:  false,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Tags:           input.Tags,
+		Downloads:      0,
+		Rating:         0,
+		RatingCount:    0,
+		IsVerified:     false,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	s.listings[listing.ID] = listing
@@ -156,18 +155,30 @@ func (s *EvalMarketplaceService) RateDataset(ctx context.Context, datasetID, use
 	return nil
 }
 
-// ListCategories returns the fixed list of marketplace categories
+// ListCategories derives categories from published compatibility listings.
 func (s *EvalMarketplaceService) ListCategories(ctx context.Context) ([]domain.MarketplaceCategory, error) {
-	return []domain.MarketplaceCategory{
-		{Name: "Code Generation", Description: "Datasets for evaluating code generation quality", Count: 15, Icon: "code"},
-		{Name: "Question Answering", Description: "Datasets for evaluating QA capabilities", Count: 12, Icon: "help-circle"},
-		{Name: "Summarization", Description: "Datasets for evaluating text summarization", Count: 8, Icon: "file-text"},
-		{Name: "Classification", Description: "Datasets for evaluating classification tasks", Count: 10, Icon: "tag"},
-		{Name: "Reasoning", Description: "Datasets for evaluating logical reasoning", Count: 6, Icon: "brain"},
-		{Name: "Tool Use", Description: "Datasets for evaluating tool and API usage", Count: 9, Icon: "wrench"},
-		{Name: "Safety", Description: "Datasets for evaluating model safety and alignment", Count: 5, Icon: "shield"},
-		{Name: "Multi-turn", Description: "Datasets for evaluating multi-turn conversations", Count: 7, Icon: "message-circle"},
-	}, nil
+	counts := make(map[string]int)
+	for _, listing := range s.listings {
+		if listing.Category != "" {
+			counts[listing.Category]++
+		}
+	}
+	names := make([]string, 0, len(counts))
+	for name := range counts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	categories := make([]domain.MarketplaceCategory, 0, len(names))
+	for _, name := range names {
+		categories = append(categories, domain.MarketplaceCategory{
+			Name:        name,
+			Description: "Published evaluation datasets",
+			Count:       counts[name],
+			Icon:        "package",
+		})
+	}
+	return categories, nil
 }
 
 func (s *EvalMarketplaceService) matchesSearch(listing *domain.EvalDatasetListing, query string, search *domain.EvalMarketplaceSearch) bool {
@@ -197,103 +208,4 @@ func (s *EvalMarketplaceService) matchesSearch(listing *domain.EvalDatasetListin
 		return false
 	}
 	return true
-}
-
-func (s *EvalMarketplaceService) seedDefaults() {
-	baseTime := time.Date(2024, 6, 1, 10, 0, 0, 0, time.UTC)
-
-	defaults := []domain.EvalDatasetListing{
-		{
-			ID:          uuid.New(),
-			Name:        "HumanEval-Plus",
-			Description: "Extended version of HumanEval with additional test cases for Python code generation",
-			Author:      "agenttrace-team",
-			AuthorID:    uuid.New(),
-			Category:    "Code Generation",
-			TaskType:    "coding",
-			SampleCount: 164,
-			ScoringRubric: domain.ScoringRubric{
-				Criteria: []domain.RubricCriterion{
-					{Name: "Correctness", Description: "Code passes all test cases", Weight: 0.7, MaxPoints: 100},
-					{Name: "Efficiency", Description: "Code runs within time limits", Weight: 0.3, MaxPoints: 100},
-				},
-				MaxScore:     100,
-				PassingScore: 70,
-			},
-			BaselineScores: []domain.BaselineScore{
-				{Model: "gpt-4", Score: 87.1, EvaluatedAt: baseTime, SampleSize: 164},
-				{Model: "claude-3-opus", Score: 84.9, EvaluatedAt: baseTime, SampleSize: 164},
-			},
-			Tags:        []string{"python", "code-generation", "function-completion"},
-			Downloads:   1250,
-			Rating:      4.7,
-			RatingCount: 89,
-			IsVerified:  true,
-			CreatedAt:   baseTime,
-			UpdatedAt:   baseTime.Add(30 * 24 * time.Hour),
-		},
-		{
-			ID:          uuid.New(),
-			Name:        "AgentBench-QA",
-			Description: "Multi-domain question answering benchmark for AI agents",
-			Author:      "benchmark-lab",
-			AuthorID:    uuid.New(),
-			Category:    "Question Answering",
-			TaskType:    "qa",
-			SampleCount: 500,
-			ScoringRubric: domain.ScoringRubric{
-				Criteria: []domain.RubricCriterion{
-					{Name: "Accuracy", Description: "Answer is factually correct", Weight: 0.5, MaxPoints: 100},
-					{Name: "Completeness", Description: "Answer covers all aspects", Weight: 0.3, MaxPoints: 100},
-					{Name: "Relevance", Description: "Answer is relevant to the question", Weight: 0.2, MaxPoints: 100},
-				},
-				MaxScore:     100,
-				PassingScore: 65,
-			},
-			BaselineScores: []domain.BaselineScore{
-				{Model: "gpt-4", Score: 78.3, EvaluatedAt: baseTime, SampleSize: 500},
-			},
-			Tags:        []string{"qa", "multi-domain", "knowledge"},
-			Downloads:   832,
-			Rating:      4.4,
-			RatingCount: 56,
-			IsVerified:  true,
-			CreatedAt:   baseTime.Add(7 * 24 * time.Hour),
-			UpdatedAt:   baseTime.Add(45 * 24 * time.Hour),
-		},
-		{
-			ID:          uuid.New(),
-			Name:        "ToolUse-Eval",
-			Description: "Evaluation dataset for measuring AI tool usage accuracy and efficiency",
-			Author:      "tools-research",
-			AuthorID:    uuid.New(),
-			Category:    "Tool Use",
-			TaskType:    "custom",
-			SampleCount: 320,
-			ScoringRubric: domain.ScoringRubric{
-				Criteria: []domain.RubricCriterion{
-					{Name: "Tool Selection", Description: "Correct tool chosen for the task", Weight: 0.4, MaxPoints: 100},
-					{Name: "Parameter Accuracy", Description: "Correct parameters passed", Weight: 0.4, MaxPoints: 100},
-					{Name: "Efficiency", Description: "Minimal unnecessary tool calls", Weight: 0.2, MaxPoints: 100},
-				},
-				MaxScore:     100,
-				PassingScore: 60,
-			},
-			BaselineScores: []domain.BaselineScore{
-				{Model: "gpt-4", Score: 72.5, EvaluatedAt: baseTime, SampleSize: 320},
-				{Model: "claude-3-opus", Score: 71.8, EvaluatedAt: baseTime, SampleSize: 320},
-			},
-			Tags:        []string{"tool-use", "function-calling", "api"},
-			Downloads:   445,
-			Rating:      4.2,
-			RatingCount: 34,
-			IsVerified:  false,
-			CreatedAt:   baseTime.Add(14 * 24 * time.Hour),
-			UpdatedAt:   baseTime.Add(60 * 24 * time.Hour),
-		},
-	}
-
-	for i := range defaults {
-		s.listings[defaults[i].ID] = &defaults[i]
-	}
 }
