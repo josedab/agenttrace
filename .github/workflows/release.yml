@@ -20,7 +20,7 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -30,7 +30,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v4
+        uses: mikepenz/release-changelog-builder-action@v6
         with:
           configuration: ".github/changelog-config.json"
         env:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
@@ -51,22 +51,22 @@ jobs:
     needs: create-release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -74,7 +74,7 @@ jobs:
 
       - name: Docker meta for API
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             agenttrace/api
@@ -85,7 +85,7 @@ jobs:
             type=semver,pattern={{major}}
 
       - name: Build and push API
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./api
           platforms: linux/amd64,linux/arm64
@@ -97,7 +97,7 @@ jobs:
 
       - name: Docker meta for Web
         id: meta-web
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             agenttrace/web
@@ -108,7 +108,7 @@ jobs:
             type=semver,pattern={{major}}
 
       - name: Build and push Web
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./web
           platforms: linux/amd64,linux/arm64
@@ -127,7 +127,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Generate SBOM for API
         uses: anchore/sbom-action@v0
@@ -146,7 +146,7 @@ jobs:
           format: spdx-json
 
       - name: Upload SBOMs to Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             sbom-api.spdx.json
@@ -159,10 +159,10 @@ jobs:
     needs: create-release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -189,10 +189,10 @@ jobs:
     needs: create-release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org"
@@ -231,10 +231,10 @@ jobs:
             goarch: amd64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -252,7 +252,7 @@ jobs:
           go build -ldflags="-s -w -X main.Version=${VERSION}" -o ${BINARY_NAME} .
 
       - name: Upload Release Asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: sdk/cli/agenttrace-*
         env:
