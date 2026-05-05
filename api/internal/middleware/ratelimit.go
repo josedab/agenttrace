@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -61,9 +63,17 @@ func NewRateLimitMiddleware(redisClient *redis.Client, config ...RateLimitConfig
 	}
 }
 
+func (m *RateLimitMiddleware) disabled() bool {
+	return m == nil || m.redis == nil
+}
+
 // Handler returns the rate limit handler
 func (m *RateLimitMiddleware) Handler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if m.disabled() {
+			return c.Next()
+		}
+
 		// Skip if skip function returns true
 		if m.config.Skip != nil && m.config.Skip(c) {
 			return c.Next()
@@ -102,7 +112,7 @@ func (m *RateLimitMiddleware) Handler() fiber.Handler {
 		// Add current request
 		m.redis.ZAdd(ctx, key, redis.Z{
 			Score:  float64(now),
-			Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+			Member: rateLimitMember(c),
 		})
 
 		// Set expiry on key
@@ -121,6 +131,10 @@ func (m *RateLimitMiddleware) Handler() fiber.Handler {
 // ProjectRateLimit creates a rate limiter per project
 func (m *RateLimitMiddleware) ProjectRateLimit(maxPerMinute int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if m.disabled() {
+			return c.Next()
+		}
+
 		projectID, ok := GetProjectID(c)
 		if !ok {
 			return c.Next()
@@ -156,7 +170,7 @@ func (m *RateLimitMiddleware) ProjectRateLimit(maxPerMinute int) fiber.Handler {
 		// Add current request
 		m.redis.ZAdd(ctx, key, redis.Z{
 			Score:  float64(now),
-			Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+			Member: rateLimitMember(c),
 		})
 		m.redis.Expire(ctx, key, 2*time.Minute)
 
@@ -171,6 +185,10 @@ func (m *RateLimitMiddleware) ProjectRateLimit(maxPerMinute int) fiber.Handler {
 // APIKeyRateLimit creates a rate limiter per API key
 func (m *RateLimitMiddleware) APIKeyRateLimit(maxPerMinute int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if m.disabled() {
+			return c.Next()
+		}
+
 		apiKeyID, ok := GetAPIKeyID(c)
 		if !ok {
 			return c.Next()
@@ -202,7 +220,7 @@ func (m *RateLimitMiddleware) APIKeyRateLimit(maxPerMinute int) fiber.Handler {
 
 		m.redis.ZAdd(ctx, key, redis.Z{
 			Score:  float64(now),
-			Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+			Member: rateLimitMember(c),
 		})
 		m.redis.Expire(ctx, key, 2*time.Minute)
 
@@ -217,6 +235,10 @@ func (m *RateLimitMiddleware) APIKeyRateLimit(maxPerMinute int) fiber.Handler {
 // UserRateLimit creates a rate limiter per authenticated user
 func (m *RateLimitMiddleware) UserRateLimit(maxPerMinute int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if m.disabled() {
+			return c.Next()
+		}
+
 		userID, ok := GetUserID(c)
 		if !ok {
 			// Fall back to IP-based rate limiting for unauthenticated requests
@@ -249,7 +271,7 @@ func (m *RateLimitMiddleware) UserRateLimit(maxPerMinute int) fiber.Handler {
 
 		m.redis.ZAdd(ctx, key, redis.Z{
 			Score:  float64(now),
-			Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+			Member: rateLimitMember(c),
 		})
 		m.redis.Expire(ctx, key, 2*time.Minute)
 
@@ -263,6 +285,10 @@ func (m *RateLimitMiddleware) UserRateLimit(maxPerMinute int) fiber.Handler {
 
 // ipRateLimit is a helper for IP-based rate limiting
 func (m *RateLimitMiddleware) ipRateLimit(c *fiber.Ctx, maxPerMinute int) error {
+	if m.disabled() {
+		return c.Next()
+	}
+
 	key := fmt.Sprintf("ratelimit:ip:%s", c.IP())
 	now := time.Now().Unix()
 	windowStart := now - 60
@@ -289,7 +315,7 @@ func (m *RateLimitMiddleware) ipRateLimit(c *fiber.Ctx, maxPerMinute int) error 
 
 	m.redis.ZAdd(ctx, key, redis.Z{
 		Score:  float64(now),
-		Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+		Member: rateLimitMember(c),
 	})
 	m.redis.Expire(ctx, key, 2*time.Minute)
 
@@ -304,6 +330,10 @@ func (m *RateLimitMiddleware) ipRateLimit(c *fiber.Ctx, maxPerMinute int) error 
 // This allows for both per-identity and per-resource limits
 func (m *RateLimitMiddleware) CombinedRateLimit(userMax, projectMax int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if m.disabled() {
+			return c.Next()
+		}
+
 		// First check user/IP limit
 		userLimited, err := m.checkUserOrIPLimit(c, userMax)
 		if err == nil && userLimited {
@@ -349,6 +379,10 @@ func (m *RateLimitMiddleware) checkProjectLimit(c *fiber.Ctx, projectID string, 
 
 // checkAndUpdateLimit is a helper to check and update a rate limit
 func (m *RateLimitMiddleware) checkAndUpdateLimit(c *fiber.Ctx, key string, maxPerMinute int) (bool, error) {
+	if m.disabled() {
+		return false, nil
+	}
+
 	now := time.Now().Unix()
 	windowStart := now - 60
 
@@ -370,7 +404,7 @@ func (m *RateLimitMiddleware) checkAndUpdateLimit(c *fiber.Ctx, key string, maxP
 
 	m.redis.ZAdd(ctx, key, redis.Z{
 		Score:  float64(now),
-		Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+		Member: rateLimitMember(c),
 	})
 	m.redis.Expire(ctx, key, 2*time.Minute)
 
@@ -383,8 +417,31 @@ func (m *RateLimitMiddleware) checkAndUpdateLimit(c *fiber.Ctx, key string, maxP
 
 // IPRateLimit creates a public IP-based rate limiter with a custom window
 func (m *RateLimitMiddleware) IPRateLimit(max int, window time.Duration) fiber.Handler {
+	return m.keyedWindowRateLimit(max, window, func(c *fiber.Ctx) string {
+		return "ip:" + c.IP()
+	})
+}
+
+// AuthRateLimit isolates authentication limits by client and account/token identity.
+func (m *RateLimitMiddleware) AuthRateLimit(limit int, window time.Duration) fiber.Handler {
+	return m.keyedWindowRateLimit(limit, window, authRateLimitIdentity)
+}
+
+func (m *RateLimitMiddleware) keyedWindowRateLimit(
+	limit int,
+	window time.Duration,
+	keyGenerator func(*fiber.Ctx) string,
+) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		key := fmt.Sprintf("ratelimit:ip:%s:%d", c.IP(), int(window.Seconds()))
+		if m.disabled() {
+			return c.Next()
+		}
+
+		key := fmt.Sprintf(
+			"ratelimit:%s:%d",
+			keyGenerator(c),
+			int(window.Seconds()),
+		)
 		now := time.Now().Unix()
 		windowStart := now - int64(window.Seconds())
 
@@ -397,8 +454,8 @@ func (m *RateLimitMiddleware) IPRateLimit(max int, window time.Duration) fiber.H
 			return c.Next()
 		}
 
-		if count >= int64(max) {
-			c.Set("X-RateLimit-Limit", strconv.Itoa(max))
+		if count >= int64(limit) {
+			c.Set("X-RateLimit-Limit", strconv.Itoa(limit))
 			c.Set("X-RateLimit-Remaining", "0")
 			c.Set("Retry-After", strconv.FormatInt(int64(window.Seconds()), 10))
 
@@ -410,21 +467,57 @@ func (m *RateLimitMiddleware) IPRateLimit(max int, window time.Duration) fiber.H
 
 		m.redis.ZAdd(ctx, key, redis.Z{
 			Score:  float64(now),
-			Member: fmt.Sprintf("%d:%s", now, c.Get("X-Request-ID")),
+			Member: rateLimitMember(c),
 		})
 		m.redis.Expire(ctx, key, window*2)
 
-		remaining := max - int(count) - 1
-		c.Set("X-RateLimit-Limit", strconv.Itoa(max))
+		remaining := limit - int(count) - 1
+		c.Set("X-RateLimit-Limit", strconv.Itoa(limit))
 		c.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 
 		return c.Next()
 	}
 }
 
+type authRateLimitInput struct {
+	Email             string `json:"email"`
+	RefreshToken      string `json:"refreshToken"`
+	ProviderAccountID string `json:"providerAccountId"`
+}
+
+func authRateLimitIdentity(c *fiber.Ctx) string {
+	var input authRateLimitInput
+	if len(c.Body()) > 0 {
+		if err := json.Unmarshal(c.Body(), &input); err != nil {
+			input = authRateLimitInput{}
+		}
+	}
+
+	identity := input.Email
+	if identity == "" {
+		identity = input.RefreshToken
+	}
+	if identity == "" {
+		identity = input.ProviderAccountID
+	}
+	if identity == "" {
+		identity = c.Path()
+	}
+	digest := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("auth:%s:%x", c.IP(), digest[:8])
+}
+
+func rateLimitMember(c *fiber.Ctx) string {
+	return fmt.Sprintf("%d:%s", time.Now().UnixNano(), c.Get("X-Request-ID"))
+}
+
 // BurstRateLimit allows bursting with a token bucket algorithm
 func (m *RateLimitMiddleware) BurstRateLimit(maxTokens int, refillRate float64) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if m.disabled() {
+			return c.Next()
+		}
+
 		key := fmt.Sprintf("ratelimit:burst:%s", c.IP())
 		ctx := context.Background()
 
@@ -441,7 +534,7 @@ func (m *RateLimitMiddleware) BurstRateLimit(maxTokens int, refillRate float64) 
 
 		lastUpdate := time.Now()
 		if l, err := lastCmd.Int64(); err == nil {
-			lastUpdate = time.Unix(l, 0)
+			lastUpdate = time.Unix(0, l)
 		}
 
 		// Calculate token refill
@@ -460,7 +553,7 @@ func (m *RateLimitMiddleware) BurstRateLimit(maxTokens int, refillRate float64) 
 		tokens--
 
 		// Update Redis
-		now := time.Now().Unix()
+		now := time.Now().UnixNano()
 		pipe = m.redis.Pipeline()
 		pipe.Set(ctx, key+":tokens", tokens, time.Hour)
 		pipe.Set(ctx, key+":last", now, time.Hour)

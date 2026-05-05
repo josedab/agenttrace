@@ -2,12 +2,15 @@ package middleware
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+const unmatchedMetricsPath = "/unmatched"
 
 var (
 	// HTTP metrics
@@ -97,16 +100,6 @@ var (
 		[]string{"project_id", "model", "type"},
 	)
 
-	// Database metrics
-	dbQueryDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "agenttrace_db_query_duration_seconds",
-			Help:    "Database query duration in seconds",
-			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
-		},
-		[]string{"database", "operation"},
-	)
-
 	// Evaluation metrics
 	evaluationsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -142,10 +135,21 @@ func DefaultMetricsConfig() MetricsConfig {
 	}
 }
 
-// DefaultPathNormalizer normalizes paths by replacing IDs with placeholders
-func DefaultPathNormalizer(path string) string {
-	// This is a simple normalizer - in production you might want something more sophisticated
-	return path
+// DefaultPathNormalizer collapses unmatched paths to a bounded label.
+func DefaultPathNormalizer(_ string) string {
+	return unmatchedMetricsPath
+}
+
+func metricsPath(c *fiber.Ctx, normalizer func(string) string) string {
+	routePath := c.Route().Path
+	isUnmatched := routePath == "" || routePath == "*" || (routePath == "/" && c.Path() != "/")
+	if !isUnmatched {
+		return routePath
+	}
+	if normalizer == nil {
+		normalizer = DefaultPathNormalizer
+	}
+	return normalizer(c.Path())
 }
 
 // MetricsMiddleware creates a Prometheus metrics middleware
@@ -169,8 +173,7 @@ func (m *MetricsMiddleware) Handler() fiber.Handler {
 		}
 
 		start := time.Now()
-		method := c.Method()
-		path := m.config.PathNormalizer(c.Path())
+		method := strings.Clone(c.Method())
 
 		// Track active requests
 		httpActiveRequests.WithLabelValues(method).Inc()
@@ -178,6 +181,7 @@ func (m *MetricsMiddleware) Handler() fiber.Handler {
 
 		// Process request
 		err := c.Next()
+		path := strings.Clone(metricsPath(c, m.config.PathNormalizer))
 
 		// Record metrics
 		duration := time.Since(start).Seconds()
@@ -219,11 +223,6 @@ func RecordTokens(projectID, model, tokenType string, count int) {
 	totalTokens.WithLabelValues(projectID, model, tokenType).Add(float64(count))
 }
 
-// RecordDBQuery records database query metrics
-func RecordDBQuery(database, operation string, duration time.Duration) {
-	dbQueryDuration.WithLabelValues(database, operation).Observe(duration.Seconds())
-}
-
 // RecordEvaluation records evaluation metrics
 func RecordEvaluation(projectID, evaluatorID, status string) {
 	evaluationsTotal.WithLabelValues(projectID, evaluatorID, status).Inc()
@@ -242,18 +241,20 @@ func SimpleMetrics() fiber.Handler {
 		}
 
 		start := time.Now()
+		method := strings.Clone(c.Method())
 
 		err := c.Next()
+		path := strings.Clone(metricsPath(c, DefaultPathNormalizer))
 
 		httpRequestsTotal.WithLabelValues(
-			c.Method(),
-			c.Path(),
+			method,
+			path,
 			strconv.Itoa(c.Response().StatusCode()),
 		).Inc()
 
 		httpRequestDuration.WithLabelValues(
-			c.Method(),
-			c.Path(),
+			method,
+			path,
 		).Observe(time.Since(start).Seconds())
 
 		return err

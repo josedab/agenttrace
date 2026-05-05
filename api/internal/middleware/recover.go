@@ -290,16 +290,22 @@ func setSentryRequestContext(hub *sentry.Hub, c *fiber.Ctx) {
 	c.Request().Header.VisitAll(func(key, value []byte) {
 		k := string(key)
 		// Don't include sensitive headers
-		if k != "Authorization" && k != "Cookie" && k != "X-Api-Key" {
+		if !isSensitiveHeader(k) {
 			headers[k] = string(value)
 		}
 	})
 
+	queryString := sanitizeQueryString(string(c.Request().URI().QueryString()))
+	requestURL := c.Path()
+	if queryString != "" {
+		requestURL += "?" + queryString
+	}
+
 	hub.Scope().SetContext("Request", map[string]interface{}{
-		"url":          c.OriginalURL(),
+		"url":          requestURL,
 		"method":       c.Method(),
 		"headers":      headers,
-		"query_string": string(c.Request().URI().QueryString()),
+		"query_string": queryString,
 		"remote_addr":  c.IP(),
 	})
 }

@@ -97,7 +97,7 @@ func (m *LoggerMiddleware) Handler() fiber.Handler {
 			c.Request().Header.VisitAll(func(key, value []byte) {
 				k := string(key)
 				// Skip sensitive headers
-				if k != "Authorization" && k != "X-API-Key" && k != "Cookie" {
+				if !isSensitiveHeader(k) {
 					headers[k] = string(value)
 				}
 			})
@@ -121,6 +121,23 @@ func (m *LoggerMiddleware) Handler() fiber.Handler {
 		}
 
 		return err
+	}
+}
+
+func isSensitiveHeader(header string) bool {
+	switch {
+	case strings.EqualFold(header, "Authorization"):
+		return true
+	case strings.EqualFold(header, "X-API-Key"):
+		return true
+	case strings.EqualFold(header, "Cookie"):
+		return true
+	case strings.EqualFold(header, "Sec-WebSocket-Protocol"):
+		return true
+	case strings.EqualFold(header, "X-AgentTrace-OAuth-Secret"):
+		return true
+	default:
+		return false
 	}
 }
 
@@ -178,12 +195,13 @@ func AccessLog(logger *zap.Logger) fiber.Handler {
 
 // sensitiveQueryParams lists query parameter names that should be redacted from logs
 var sensitiveQueryParams = map[string]bool{
-	"api_key":    true,
-	"apikey":     true,
-	"token":      true,
-	"secret":     true,
-	"password":   true,
-	"access_key": true,
+	"api_key":      true,
+	"apikey":       true,
+	"token":        true,
+	"access_token": true,
+	"secret":       true,
+	"password":     true,
+	"access_key":   true,
 }
 
 // sanitizeQueryString redacts sensitive query parameters from the query string

@@ -8,9 +8,9 @@ import (
 
 func TestSanitizeQueryString(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		contains string // expected substring in output
+		name        string
+		input       string
+		contains    string // expected substring in output
 		notContains string // must NOT appear in output
 	}{
 		{
@@ -44,6 +44,11 @@ func TestSanitizeQueryString(t *testing.T) {
 			name:        "multiple sensitive params redacted",
 			input:       "api_key=k1&token=t1&password=p1&name=safe",
 			notContains: "k1",
+		},
+		{
+			name:        "access token redacted",
+			input:       "access_token=jwt.secret.value&follow=true",
+			notContains: "jwt.secret.value",
 		},
 		{
 			name:        "url-encoded param names",
@@ -99,4 +104,12 @@ func TestSanitizeQueryString_NoSensitiveParams(t *testing.T) {
 	result := sanitizeQueryString(input)
 	// Should return original unchanged
 	assert.Equal(t, input, result)
+}
+
+func TestIsSensitiveHeader(t *testing.T) {
+	assert.True(t, isSensitiveHeader("Authorization"))
+	assert.True(t, isSensitiveHeader("sec-websocket-protocol"))
+	assert.True(t, isSensitiveHeader("x-agenttrace-oauth-secret"))
+	assert.True(t, isSensitiveHeader("Cookie"))
+	assert.False(t, isSensitiveHeader("User-Agent"))
 }

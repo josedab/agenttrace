@@ -152,6 +152,26 @@ func TestCSRFMiddleware(t *testing.T) {
 		// Should pass without CSRF token when using API key auth
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 	})
+
+	t.Run("skips validation for JWT auth", func(t *testing.T) {
+		app := fiber.New()
+		app.Use(func(c *fiber.Ctx) error {
+			c.Locals(string(ContextKeyAuthType), AuthTypeJWT)
+			return c.Next()
+		})
+
+		csrf := NewCSRFMiddleware()
+		app.Use(csrf.Handler())
+		app.Post("/test", func(c *fiber.Ctx) error {
+			return c.SendStatus(200)
+		})
+
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/test", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	})
 }
 
 func TestCSRFMiddlewareDisabled(t *testing.T) {

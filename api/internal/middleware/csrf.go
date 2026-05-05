@@ -112,9 +112,12 @@ func (m *CSRFMiddleware) Handler() fiber.Handler {
 			return c.Next()
 		}
 
-		// Skip for API key authenticated requests (programmatic access)
-		if authType, ok := c.Locals(string(ContextKeyAuthType)).(AuthType); ok && authType == AuthTypeAPIKey {
-			return c.Next()
+		// Bearer credentials are attached explicitly and are not vulnerable to
+		// cross-site cookie submission.
+		if authType, ok := c.Locals(string(ContextKeyAuthType)).(AuthType); ok {
+			if authType == AuthTypeAPIKey || authType == AuthTypeJWT {
+				return c.Next()
+			}
 		}
 
 		// Check if method should skip validation

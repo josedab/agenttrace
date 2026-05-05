@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,35 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAuthRateLimitIdentity(t *testing.T) {
+	t.Parallel()
+	app := fiber.New()
+	app.Post("/api/auth/login", func(c *fiber.Ctx) error {
+		return c.SendString(authRateLimitIdentity(c))
+	})
+
+	requestKey := func(email string) string {
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/auth/login",
+			bytes.NewBufferString(`{"email":"`+email+`"}`),
+		)
+		request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+		response, err := app.Test(request)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, response.Body.Close())
+		}()
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+		return string(body)
+	}
+
+	assert.Equal(t, requestKey("one@example.com"), requestKey("one@example.com"))
+	assert.NotEqual(t, requestKey("one@example.com"), requestKey("two@example.com"))
+}
 
 func setupRateLimitTest(t *testing.T, cfg RateLimitConfig) (*fiber.App, *RateLimitMiddleware, *miniredis.Miniredis) {
 	t.Helper()
@@ -43,11 +74,11 @@ func TestRateLimitMiddleware_RequestsUnderLimit(t *testing.T) {
 
 	// Make 3 requests (under limit of 5)
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		resp, err := app.Test(req, -1)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		resp.Body.Close()
+		require.NoError(t, resp.Body.Close())
 	}
 }
 
@@ -229,6 +260,26 @@ func TestRateLimitMiddleware_RedisUnavailable_FailOpen(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "ok", string(body))
+}
+
+func TestRateLimitMiddleware_DisabledWithoutRedis(t *testing.T) {
+	rl := NewRateLimitMiddleware(nil, RateLimitConfig{
+		Max:    1,
+		Window: time.Minute,
+	})
+
+	app := fiber.New()
+	app.Get("/test", rl.Handler(), func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
+		resp, err := app.Test(req, -1)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
 }
 
 func TestRateLimitMiddleware_BurstRateLimit(t *testing.T) {

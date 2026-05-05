@@ -44,6 +44,7 @@ func DefaultCORSConfig() CORSConfig {
 			"Accept",
 			"Authorization",
 			"X-API-Key",
+			"X-Project-ID",
 			"X-Request-ID",
 			"X-Requested-With",
 		},
@@ -62,6 +63,7 @@ func DefaultCORSConfig() CORSConfig {
 func ProductionCORSConfig(allowedOrigins []string) CORSConfig {
 	config := DefaultCORSConfig()
 	config.AllowOrigins = allowedOrigins
+	config.AllowCredentials = true
 	return config
 }
 
