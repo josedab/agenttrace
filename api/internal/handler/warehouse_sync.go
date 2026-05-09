@@ -44,8 +44,13 @@ func (h *WarehouseSyncHandler) CreateConnection(c *fiber.Ctx) error {
 
 	conn, err := h.service.CreateConnection(c.Context(), projectID, &input)
 	if err != nil {
-		h.logger.Error("failed to create warehouse connection", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusBadRequest,
+			"Invalid request: "+err.Error(),
+		)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(conn)
@@ -53,12 +58,16 @@ func (h *WarehouseSyncHandler) CreateConnection(c *fiber.Ctx) error {
 
 // GetConnection handles GET /api/public/warehouse/connections/:connId
 func (h *WarehouseSyncHandler) GetConnection(c *fiber.Ctx) error {
+	projectID, err := RequireProjectID(c)
+	if err != nil {
+		return err
+	}
 	connID, err := uuid.Parse(c.Params("connId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid connection ID"})
 	}
 
-	conn, err := h.service.GetConnection(c.Context(), connID)
+	conn, err := h.service.GetConnection(c.Context(), projectID, connID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Connection not found"})
 	}
@@ -88,12 +97,16 @@ func (h *WarehouseSyncHandler) ListConnections(c *fiber.Ctx) error {
 
 // DeleteConnection handles DELETE /api/public/warehouse/connections/:connId
 func (h *WarehouseSyncHandler) DeleteConnection(c *fiber.Ctx) error {
+	projectID, err := RequireProjectID(c)
+	if err != nil {
+		return err
+	}
 	connID, err := uuid.Parse(c.Params("connId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid connection ID"})
 	}
 
-	if err := h.service.DeleteConnection(c.Context(), connID); err != nil {
+	if err := h.service.DeleteConnection(c.Context(), projectID, connID); err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}
 
@@ -102,27 +115,66 @@ func (h *WarehouseSyncHandler) DeleteConnection(c *fiber.Ctx) error {
 
 // TriggerSync handles POST /api/public/warehouse/connections/:connId/sync
 func (h *WarehouseSyncHandler) TriggerSync(c *fiber.Ctx) error {
+	projectID, err := RequireProjectID(c)
+	if err != nil {
+		return err
+	}
 	connID, err := uuid.Parse(c.Params("connId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid connection ID"})
 	}
 
-	op, err := h.service.TriggerSync(c.Context(), connID)
+	op, err := h.service.TriggerSync(c.Context(), projectID, connID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request: " + err.Error()})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusBadRequest,
+			"Invalid request: "+err.Error(),
+		)
 	}
 
 	return c.JSON(op)
 }
 
-// GetSyncStatus handles GET /api/public/warehouse/connections/:connId/status
-func (h *WarehouseSyncHandler) GetSyncStatus(c *fiber.Ctx) error {
+// TestConnection handles POST /api/public/warehouse/connections/:connId/test
+func (h *WarehouseSyncHandler) TestConnection(c *fiber.Ctx) error {
+	projectID, err := RequireProjectID(c)
+	if err != nil {
+		return err
+	}
 	connID, err := uuid.Parse(c.Params("connId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid connection ID"})
 	}
 
-	ops, err := h.service.GetSyncStatus(c.Context(), connID)
+	result, err := h.service.TestConnection(c.Context(), projectID, connID)
+	if err != nil {
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusNotFound,
+			"Connection not found",
+		)
+	}
+
+	return c.JSON(result)
+}
+
+// GetSyncStatus handles GET /api/public/warehouse/connections/:connId/status
+func (h *WarehouseSyncHandler) GetSyncStatus(c *fiber.Ctx) error {
+	projectID, err := RequireProjectID(c)
+	if err != nil {
+		return err
+	}
+	connID, err := uuid.Parse(c.Params("connId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid connection ID"})
+	}
+
+	ops, err := h.service.GetSyncStatus(c.Context(), projectID, connID)
 	if err != nil {
 		h.logger.Error("operation failed", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
@@ -137,12 +189,16 @@ func (h *WarehouseSyncHandler) GetSyncStatus(c *fiber.Ctx) error {
 
 // GetSchemaMapping handles POST /api/public/warehouse/connections/:connId/schema
 func (h *WarehouseSyncHandler) GetSchemaMapping(c *fiber.Ctx) error {
+	projectID, err := RequireProjectID(c)
+	if err != nil {
+		return err
+	}
 	connID, err := uuid.Parse(c.Params("connId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid connection ID"})
 	}
 
-	mapping, err := h.service.GetSchemaMapping(c.Context(), connID)
+	mapping, err := h.service.GetSchemaMapping(c.Context(), projectID, connID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Resource not found"})
 	}

@@ -8,21 +8,57 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
+	"github.com/agenttrace/agenttrace/api/internal/service"
 	"github.com/agenttrace/agenttrace/api/internal/worker"
 )
 
 // ExportHandler handles export endpoints
 type ExportHandler struct {
-	asynqClient *asynq.Client
-	logger      *zap.Logger
+	asynqClient      *asynq.Client
+	storageAvailable bool
+	guard            service.OutboundGuard
+	logger           *zap.Logger
 }
 
-// NewExportHandler creates a new export handler
-func NewExportHandler(asynqClient *asynq.Client, logger *zap.Logger) *ExportHandler {
+// NewExportHandler creates a new export handler.
+// The outbound guard rejects caller-supplied remote destinations in no-egress
+// mode; exports to the deployment's own object storage stay available.
+func NewExportHandler(
+	asynqClient *asynq.Client,
+	storageAvailable bool,
+	guard service.OutboundGuard,
+	logger *zap.Logger,
+) *ExportHandler {
 	return &ExportHandler{
-		asynqClient: asynqClient,
-		logger:      logger,
+		asynqClient:      asynqClient,
+		storageAvailable: storageAvailable,
+		guard:            guard,
+		logger:           logger,
 	}
+}
+
+// remoteExportAllowed reports whether a caller-supplied remote destination may be
+// used. When it is not, the 422 response has already been written.
+func (h *ExportHandler) remoteExportAllowed(
+	c *fiber.Ctx,
+	destination *ExportDestination,
+) (bool, error) {
+	if destination == nil {
+		return true, nil
+	}
+	err := service.RequireOutbound(h.guard, service.EgressRemoteExport)
+	if err == nil {
+		return true, nil
+	}
+	message := "Remote export destinations are disabled"
+	if appErr := apperrors.GetAppError(err); appErr != nil {
+		message = appErr.Message
+	}
+	return false, c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+		"error":   "Unprocessable Entity",
+		"message": message,
+	})
 }
 
 // ExportTracesRequest represents a request to export traces
@@ -72,6 +108,22 @@ func (h *ExportHandler) ExportData(c *fiber.Ctx) error {
 			"error":   "Bad Request",
 			"message": "Invalid request body: " + err.Error(),
 		})
+	}
+
+	if allowed, err := h.remoteExportAllowed(c, request.Destination); !allowed {
+		return err
+	}
+	if h.asynqClient == nil {
+		return h.exportUnavailable(
+			c,
+			"Export jobs require Redis and the background worker. Start the full local stack to enable exports.",
+		)
+	}
+	if !h.storageAvailable {
+		return h.exportUnavailable(
+			c,
+			"Export jobs require MinIO object storage. Start the full local stack to enable exports.",
+		)
 	}
 
 	// Validate request
@@ -163,6 +215,22 @@ func (h *ExportHandler) ExportDataset(c *fiber.Ctx) error {
 		})
 	}
 
+	if allowed, err := h.remoteExportAllowed(c, request.Destination); !allowed {
+		return err
+	}
+	if h.asynqClient == nil {
+		return h.exportUnavailable(
+			c,
+			"Export jobs require Redis and the background worker. Start the full local stack to enable exports.",
+		)
+	}
+	if !h.storageAvailable {
+		return h.exportUnavailable(
+			c,
+			"Export jobs require MinIO object storage. Start the full local stack to enable exports.",
+		)
+	}
+
 	// Validate request
 	if request.DatasetID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -236,6 +304,13 @@ func (h *ExportHandler) ExportDataset(c *fiber.Ctx) error {
 		JobID:   jobID.String(),
 		Status:  "queued",
 		Message: "Dataset export job has been queued for processing",
+	})
+}
+
+func (h *ExportHandler) exportUnavailable(c *fiber.Ctx, message string) error {
+	return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+		"error":   "Service Unavailable",
+		"message": message,
 	})
 }
 

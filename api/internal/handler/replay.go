@@ -345,11 +345,11 @@ func (h *ReplayHandler) compareTimelineEvents(events1, events2 []domain.ReplayEv
 		} else if len(eventsIn1) != len(eventsIn2) {
 			// Different count of same event type
 			differences = append(differences, TimelineDifference{
-				Type:        "changed",
+				Type: "changed",
 				Description: "Different number of '" + eventsIn1[0].Title + "' events: " +
 					strconv.Itoa(len(eventsIn1)) + " vs " + strconv.Itoa(len(eventsIn2)),
-				Event1:      nil,
-				Event2:      nil,
+				Event1: nil,
+				Event2: nil,
 			})
 		} else {
 			// Same count - compare individual events by index
@@ -418,17 +418,17 @@ type CompareTimelinesRequest struct {
 
 // TimelineComparison represents the result of comparing two timelines
 type TimelineComparison struct {
-	TraceID1    uuid.UUID             `json:"traceId1"`
-	TraceID2    uuid.UUID             `json:"traceId2"`
-	Summary1    domain.ReplaySummary  `json:"summary1"`
-	Summary2    domain.ReplaySummary  `json:"summary2"`
-	Differences []TimelineDifference  `json:"differences"`
+	TraceID1    uuid.UUID            `json:"traceId1"`
+	TraceID2    uuid.UUID            `json:"traceId2"`
+	Summary1    domain.ReplaySummary `json:"summary1"`
+	Summary2    domain.ReplaySummary `json:"summary2"`
+	Differences []TimelineDifference `json:"differences"`
 }
 
 // TimelineDifference represents a difference between two timelines
 type TimelineDifference struct {
-	Type        string `json:"type"` // added, removed, changed
-	Description string `json:"description"`
+	Type        string              `json:"type"` // added, removed, changed
+	Description string              `json:"description"`
 	Event1      *domain.ReplayEvent `json:"event1,omitempty"`
 	Event2      *domain.ReplayEvent `json:"event2,omitempty"`
 }

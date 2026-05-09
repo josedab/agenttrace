@@ -27,6 +27,28 @@ func NewDatasetsHandler(datasetService *service.DatasetService, logger *zap.Logg
 	}
 }
 
+// RequireDatasetAccess scopes dataset UUID routes to the authenticated project.
+func (h *DatasetsHandler) RequireDatasetAccess() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		projectID, ok := middleware.GetProjectID(c)
+		if !ok {
+			return fiber.NewError(fiber.StatusUnauthorized, "Project ID not found")
+		}
+		datasetID, err := uuid.Parse(c.Params("datasetId"))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Invalid dataset ID")
+		}
+		if _, err := h.datasetService.GetForProject(
+			c.Context(),
+			projectID,
+			datasetID,
+		); err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Dataset not found")
+		}
+		return c.Next()
+	}
+}
+
 // ListDatasets handles GET /v1/datasets
 func (h *DatasetsHandler) ListDatasets(c *fiber.Ctx) error {
 	projectID, ok := middleware.GetProjectID(c)
@@ -62,6 +84,13 @@ func (h *DatasetsHandler) ListDatasets(c *fiber.Ctx) error {
 
 // GetDataset handles GET /v1/datasets/:datasetId
 func (h *DatasetsHandler) GetDataset(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
 	datasetID, err := uuid.Parse(c.Params("datasetId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -70,7 +99,7 @@ func (h *DatasetsHandler) GetDataset(c *fiber.Ctx) error {
 		})
 	}
 
-	dataset, err := h.datasetService.Get(c.Context(), datasetID)
+	dataset, err := h.datasetService.GetForProject(c.Context(), projectID, datasetID)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -169,6 +198,13 @@ func (h *DatasetsHandler) CreateDataset(c *fiber.Ctx) error {
 
 // UpdateDataset handles PATCH /v1/datasets/:datasetId
 func (h *DatasetsHandler) UpdateDataset(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
 	datasetID, err := uuid.Parse(c.Params("datasetId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -185,7 +221,12 @@ func (h *DatasetsHandler) UpdateDataset(c *fiber.Ctx) error {
 		})
 	}
 
-	dataset, err := h.datasetService.Update(c.Context(), datasetID, &input)
+	dataset, err := h.datasetService.UpdateForProject(
+		c.Context(),
+		projectID,
+		datasetID,
+		&input,
+	)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -205,6 +246,13 @@ func (h *DatasetsHandler) UpdateDataset(c *fiber.Ctx) error {
 
 // DeleteDataset handles DELETE /v1/datasets/:datasetId
 func (h *DatasetsHandler) DeleteDataset(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
 	datasetID, err := uuid.Parse(c.Params("datasetId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -213,7 +261,11 @@ func (h *DatasetsHandler) DeleteDataset(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.datasetService.Delete(c.Context(), datasetID); err != nil {
+	if err := h.datasetService.DeleteForProject(
+		c.Context(),
+		projectID,
+		datasetID,
+	); err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error":   "Not Found",
@@ -360,6 +412,13 @@ func (h *DatasetsHandler) CreateItemFromTrace(c *fiber.Ctx) error {
 
 // UpdateItem handles PATCH /v1/datasets/:datasetId/items/:itemId
 func (h *DatasetsHandler) UpdateItem(c *fiber.Ctx) error {
+	datasetID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid dataset ID",
+		})
+	}
 	itemID, err := uuid.Parse(c.Params("itemId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -376,7 +435,12 @@ func (h *DatasetsHandler) UpdateItem(c *fiber.Ctx) error {
 		})
 	}
 
-	item, err := h.datasetService.UpdateItem(c.Context(), itemID, &input)
+	item, err := h.datasetService.UpdateItemForDataset(
+		c.Context(),
+		datasetID,
+		itemID,
+		&input,
+	)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -396,6 +460,13 @@ func (h *DatasetsHandler) UpdateItem(c *fiber.Ctx) error {
 
 // DeleteItem handles DELETE /v1/datasets/:datasetId/items/:itemId
 func (h *DatasetsHandler) DeleteItem(c *fiber.Ctx) error {
+	datasetID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid dataset ID",
+		})
+	}
 	itemID, err := uuid.Parse(c.Params("itemId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -404,7 +475,11 @@ func (h *DatasetsHandler) DeleteItem(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.datasetService.DeleteItem(c.Context(), itemID); err != nil {
+	if err := h.datasetService.DeleteItemForDataset(
+		c.Context(),
+		datasetID,
+		itemID,
+	); err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error":   "Not Found",
@@ -451,6 +526,13 @@ func (h *DatasetsHandler) ListRuns(c *fiber.Ctx) error {
 
 // GetRun handles GET /v1/datasets/:datasetId/runs/:runId
 func (h *DatasetsHandler) GetRun(c *fiber.Ctx) error {
+	datasetID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid dataset ID",
+		})
+	}
 	runID, err := uuid.Parse(c.Params("runId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -459,7 +541,7 @@ func (h *DatasetsHandler) GetRun(c *fiber.Ctx) error {
 		})
 	}
 
-	run, err := h.datasetService.GetRun(c.Context(), runID)
+	run, err := h.datasetService.GetRunForDataset(c.Context(), datasetID, runID)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -522,6 +604,13 @@ func (h *DatasetsHandler) CreateRun(c *fiber.Ctx) error {
 
 // AddRunItem handles POST /v1/datasets/:datasetId/runs/:runId/items
 func (h *DatasetsHandler) AddRunItem(c *fiber.Ctx) error {
+	datasetID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid dataset ID",
+		})
+	}
 	runID, err := uuid.Parse(c.Params("runId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -552,7 +641,12 @@ func (h *DatasetsHandler) AddRunItem(c *fiber.Ctx) error {
 		})
 	}
 
-	item, err := h.datasetService.AddRunItem(c.Context(), runID, &input)
+	item, err := h.datasetService.AddRunItemForDataset(
+		c.Context(),
+		datasetID,
+		runID,
+		&input,
+	)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -621,7 +715,19 @@ func (h *DatasetsHandler) BulkAddRunItems(c *fiber.Ctx) error {
 		}
 	}
 
-	items, err := h.datasetService.AddRunItemsBatch(c.Context(), runID, request.Items)
+	datasetID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid dataset ID",
+		})
+	}
+	items, err := h.datasetService.AddRunItemsBatchForDataset(
+		c.Context(),
+		datasetID,
+		runID,
+		request.Items,
+	)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -665,7 +771,19 @@ func (h *DatasetsHandler) GetRunResults(c *fiber.Ctx) error {
 		})
 	}
 
-	results, err := h.datasetService.GetRunResults(c.Context(), projectID, runID)
+	datasetID, err := uuid.Parse(c.Params("datasetId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid dataset ID",
+		})
+	}
+	results, err := h.datasetService.GetRunResultsForDataset(
+		c.Context(),
+		projectID,
+		datasetID,
+		runID,
+	)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{

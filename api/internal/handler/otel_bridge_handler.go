@@ -37,7 +37,7 @@ func (h *OTelBridgeHandler) GetConfig(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get OTel bridge config"})
 	}
 
-	return c.JSON(config)
+	return c.JSON(redactOTelBridgeConfig(config))
 }
 
 // UpdateConfig handles PUT /otel-bridge/config
@@ -54,11 +54,16 @@ func (h *OTelBridgeHandler) UpdateConfig(c *fiber.Ctx) error {
 
 	config, err := h.service.UpdateConfig(c.Context(), projectID, &input)
 	if err != nil {
-		h.logger.Error("failed to update OTel bridge config", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update OTel bridge config"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to update OTel bridge config",
+		)
 	}
 
-	return c.JSON(config)
+	return c.JSON(redactOTelBridgeConfig(config))
 }
 
 // ListDestinations handles GET /otel-bridge/destinations
@@ -72,6 +77,10 @@ func (h *OTelBridgeHandler) ListDestinations(c *fiber.Ctx) error {
 	if err != nil {
 		h.logger.Error("failed to list OTel destinations", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list OTel destinations"})
+	}
+	for i := range result {
+		result[i].Endpoint = redactEndpoint(result[i].Endpoint)
+		result[i].Headers = nil
 	}
 
 	return c.JSON(result)
@@ -95,16 +104,21 @@ func (h *OTelBridgeHandler) AddDestination(c *fiber.Ctx) error {
 
 	result, err := h.service.AddDestination(c.Context(), projectID, &input)
 	if err != nil {
-		h.logger.Error("failed to add OTel destination", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to add OTel destination"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to add OTel destination",
+		)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	return c.Status(fiber.StatusCreated).JSON(redactOTelDestinationRef(*result))
 }
 
 // RemoveDestination handles DELETE /otel-bridge/destinations/:destId
 func (h *OTelBridgeHandler) RemoveDestination(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -119,10 +133,15 @@ func (h *OTelBridgeHandler) RemoveDestination(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid destination ID"})
 	}
 
-	err = h.service.RemoveDestination(c.Context(), destID)
+	err = h.service.RemoveDestination(c.Context(), projectID, destID)
 	if err != nil {
-		h.logger.Error("failed to remove OTel destination", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to remove OTel destination"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to remove OTel destination",
+		)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)

@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -326,6 +327,9 @@ func (h *OTelHandler) CreateExporter(c *fiber.Ctx) error {
 
 	exporter, err := h.otelExporterService.CreateExporter(c.Context(), projectID, userID, &input)
 	if err != nil {
+		if appErr := apperrors.GetAppError(err); appErr != nil {
+			return errorResponse(c, appErr.StatusCode, appErr.Message)
+		}
 		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
@@ -442,9 +446,9 @@ func (h *OTelHandler) TestExporter(c *fiber.Ctx) error {
 
 // TestExporterResponse represents the response from testing an exporter
 type TestExporterResponse struct {
-	Success  bool   `json:"success"`
-	Message  string `json:"message"`
-	Latency  int    `json:"latencyMs"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Latency int    `json:"latencyMs"`
 }
 
 // GetExporterStats returns statistics for an OTLP exporter

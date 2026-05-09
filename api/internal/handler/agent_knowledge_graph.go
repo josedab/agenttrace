@@ -10,7 +10,7 @@ import (
 
 // AgentKnowledgeGraphHandler handles agent knowledge graph HTTP requests
 type AgentKnowledgeGraphHandler struct {
-	logger                    *zap.Logger
+	logger                     *zap.Logger
 	agentKnowledgeGraphService *service.AgentKnowledgeGraphService
 }
 
@@ -20,7 +20,7 @@ func NewAgentKnowledgeGraphHandler(
 	logger *zap.Logger,
 ) *AgentKnowledgeGraphHandler {
 	return &AgentKnowledgeGraphHandler{
-		logger:                    logger,
+		logger:                     logger,
 		agentKnowledgeGraphService: agentKnowledgeGraphService,
 	}
 }

@@ -29,6 +29,8 @@ type StreamingWSMessage struct {
 type StreamingClient struct {
 	conn         *websocket.Conn
 	traceID      string
+	roomID       string
+	projectID    uuid.UUID
 	send         chan []byte
 	subscription domain.StreamSubscription
 }
@@ -61,20 +63,28 @@ func (h *StreamingHub) Run() {
 		case client := <-h.register:
 			h.mu.Lock()
 			h.clients[client] = true
-			if h.traceRooms[client.traceID] == nil {
-				h.traceRooms[client.traceID] = make(map[*StreamingClient]bool)
+			roomID := client.roomID
+			if roomID == "" {
+				roomID = client.traceID
 			}
-			h.traceRooms[client.traceID][client] = true
+			if h.traceRooms[roomID] == nil {
+				h.traceRooms[roomID] = make(map[*StreamingClient]bool)
+			}
+			h.traceRooms[roomID][client] = true
 			h.mu.Unlock()
 
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				if room, ok := h.traceRooms[client.traceID]; ok {
+				roomID := client.roomID
+				if roomID == "" {
+					roomID = client.traceID
+				}
+				if room, ok := h.traceRooms[roomID]; ok {
 					delete(room, client)
 					if len(room) == 0 {
-						delete(h.traceRooms, client.traceID)
+						delete(h.traceRooms, roomID)
 					}
 				}
 				close(client.send)
@@ -146,6 +156,9 @@ func (h *StreamingWSHandler) UpgradeCheck() fiber.Handler {
 			if userID, ok := middleware.GetUserID(c); ok {
 				c.Locals("wsUserID", userID)
 			}
+			if projectID, ok := middleware.GetProjectID(c); ok {
+				c.Locals("wsProjectID", projectID)
+			}
 			return c.Next()
 		}
 		return fiber.ErrUpgradeRequired
@@ -156,18 +169,21 @@ func (h *StreamingWSHandler) UpgradeCheck() fiber.Handler {
 func (h *StreamingWSHandler) HandleWebSocket() fiber.Handler {
 	return websocket.New(func(c *websocket.Conn) {
 		traceID := c.Params("traceId")
+		projectID, ok := c.Locals("wsProjectID").(uuid.UUID)
 		followMode := c.Query("follow", "true") == "true"
 
-		if traceID == "" {
+		if traceID == "" || !ok || projectID == uuid.Nil {
 			c.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseInvalidFramePayloadData, "traceId required"))
 			return
 		}
 
 		client := &StreamingClient{
-			conn:    c,
-			traceID: traceID,
-			send:    make(chan []byte, 256),
+			conn:      c,
+			traceID:   traceID,
+			roomID:    projectID.String() + ":" + traceID,
+			projectID: projectID,
+			send:      make(chan []byte, 256),
 			subscription: domain.StreamSubscription{
 				FollowMode: followMode,
 			},
@@ -186,7 +202,7 @@ func (h *StreamingWSHandler) HandleWebSocket() fiber.Handler {
 		// Send initial metrics snapshot
 		traceUUID, err := uuid.Parse(traceID)
 		if err == nil {
-			if metrics := h.streamingService.GetLiveMetrics(traceUUID); metrics != nil {
+			if metrics := h.streamingService.GetLiveMetrics(traceUUID, projectID); metrics != nil {
 				h.sendToClient(client, StreamingWSMessage{
 					Type:      "metrics",
 					TraceID:   traceID,
@@ -219,7 +235,7 @@ func (h *StreamingWSHandler) HandleWebSocket() fiber.Handler {
 			for {
 				select {
 				case <-ticker.C:
-					h.hub.BroadcastToTrace(traceID, StreamingWSMessage{
+					h.hub.BroadcastToTrace(client.roomID, StreamingWSMessage{
 						Type:    "metrics",
 						TraceID: traceID,
 						Data: domain.LiveMetrics{
@@ -258,12 +274,13 @@ func (h *StreamingWSHandler) HandleWebSocket() fiber.Handler {
 				select {
 				case <-ticker.C:
 					evtType := activityTypes[rand.Intn(len(activityTypes))]
-					h.hub.BroadcastToTrace(traceID, StreamingWSMessage{
+					h.hub.BroadcastToTrace(client.roomID, StreamingWSMessage{
 						Type:    "activity",
 						TraceID: traceID,
 						Data: domain.StreamActivity{
 							ID:        uuid.New().String(),
 							TraceID:   traceUUID,
+							ProjectID: projectID,
 							Type:      evtType,
 							Title:     fmt.Sprintf("Mock %s event", evtType),
 							Timestamp: time.Now(),
@@ -327,7 +344,7 @@ func (h *StreamingWSHandler) HandleWebSocket() fiber.Handler {
 				})
 			}
 		}
-	})
+	}, websocket.Config{Subprotocols: []string{"agenttrace"}})
 }
 
 // sendToClient sends a message to a specific client.

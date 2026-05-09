@@ -38,10 +38,16 @@ func (h *FederationHandler) AddPeer(c *fiber.Ctx) error {
 
 	peer, err := h.federationService.AddPeer(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to add peer"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to add peer",
+		)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(peer)
+	return c.Status(fiber.StatusCreated).JSON(redactFederationPeer(peer))
 }
 
 // ListPeers handles GET /api/public/federation/peers
@@ -52,12 +58,16 @@ func (h *FederationHandler) ListPeers(c *fiber.Ctx) error {
 	}
 
 	peers := h.federationService.ListPeers(c.Context(), projectID)
+	for i := range peers {
+		peers[i].URL = redactEndpoint(peers[i].URL)
+		peers[i].APIKey = ""
+	}
 	return c.JSON(fiber.Map{"peers": peers, "count": len(peers)})
 }
 
 // RemovePeer handles DELETE /api/public/federation/peers/:peerId
 func (h *FederationHandler) RemovePeer(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -67,8 +77,14 @@ func (h *FederationHandler) RemovePeer(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid peer ID"})
 	}
 
-	if err := h.federationService.RemovePeer(c.Context(), peerID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to remove peer"})
+	if err := h.federationService.RemovePeer(c.Context(), projectID, peerID); err != nil {
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to remove peer",
+		)
 	}
 
 	return c.JSON(fiber.Map{"status": "removed"})
@@ -88,7 +104,13 @@ func (h *FederationHandler) FederatedQuery(c *fiber.Ctx) error {
 
 	result, err := h.federationService.FederatedQuery(c.Context(), projectID, &query)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Federation query failed"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Federation query failed",
+		)
 	}
 
 	return c.JSON(result)
@@ -108,10 +130,16 @@ func (h *FederationHandler) CreateExportDestination(c *fiber.Ctx) error {
 
 	dest, err := h.federationService.CreateExportDestination(c.Context(), projectID, &input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create destination"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to create destination",
+		)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(dest)
+	return c.Status(fiber.StatusCreated).JSON(redactExportDestination(dest))
 }
 
 // ListExportDestinations handles GET /api/public/federation/destinations
@@ -122,5 +150,8 @@ func (h *FederationHandler) ListExportDestinations(c *fiber.Ctx) error {
 	}
 
 	destinations := h.federationService.ListExportDestinations(c.Context(), projectID)
+	for i := range destinations {
+		destinations[i] = *redactExportDestination(&destinations[i])
+	}
 	return c.JSON(fiber.Map{"destinations": destinations, "count": len(destinations)})
 }

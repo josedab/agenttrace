@@ -491,4 +491,3 @@ func TestTracesHandler_GetSession(t *testing.T) {
 		mockSvc.AssertExpectations(t)
 	})
 }
-

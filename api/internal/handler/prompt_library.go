@@ -135,8 +135,8 @@ func (h *PromptLibraryHandler) GetPromptBySlug(c *fiber.Ctx) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/public/library/prompts [post]
 func (h *PromptLibraryHandler) CreatePrompt(c *fiber.Ctx) error {
-	userID := uuid.New()   // In real implementation, get from auth context
-	userName := "user"     // In real implementation, get from auth context
+	userID := uuid.New()     // In real implementation, get from auth context
+	userName := "user"       // In real implementation, get from auth context
 	var projectID *uuid.UUID // Optional project association
 
 	var input domain.LibraryPromptInput

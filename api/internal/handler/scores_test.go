@@ -337,11 +337,11 @@ func setupScoresTestApp(mockSvc *MockScoreService, projectID uuid.UUID) *fiber.A
 		}
 
 		var request struct {
-			TraceID  string              `json:"traceId"`
-			Name     string              `json:"name"`
-			Value    *float64            `json:"value"`
+			TraceID  string               `json:"traceId"`
+			Name     string               `json:"name"`
+			Value    *float64             `json:"value"`
 			DataType domain.ScoreDataType `json:"dataType"`
-			Comment  *string             `json:"comment"`
+			Comment  *string              `json:"comment"`
 		}
 		if err := c.BodyParser(&request); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

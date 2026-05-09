@@ -24,10 +24,10 @@ import (
 // OTLPGRPCServer implements the OpenTelemetry OTLP gRPC trace receiver.
 type OTLPGRPCServer struct {
 	v1.UnimplementedTraceServiceServer
-	logger       *zap.Logger
-	receiverSvc  *service.OTelReceiverService
-	authService  *service.AuthService
-	grpcServer   *grpc.Server
+	logger      *zap.Logger
+	receiverSvc *service.OTelReceiverService
+	authService *service.AuthService
+	grpcServer  *grpc.Server
 }
 
 // NewOTLPGRPCServer creates a new OTLP gRPC server.
@@ -142,13 +142,15 @@ func (s *OTLPGRPCServer) authInterceptor(
 		return nil, status.Error(codes.Unauthenticated, "API key required")
 	}
 
-	// Validate key — extract public/secret parts
-	projectID, err := s.authService.ValidateAPIKeyPublicOnly(ctx, apiKey)
-	if err != nil || projectID == nil {
+	apiKeyContext, err := s.authService.AuthenticateAPIKey(ctx, apiKey)
+	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid API key")
 	}
+	if !apiKeyContext.HasScope("traces:write") {
+		return nil, status.Error(codes.PermissionDenied, "API key scope does not permit trace ingestion")
+	}
 
-	ctx = context.WithValue(ctx, ctxKeyProjectID, *projectID)
+	ctx = context.WithValue(ctx, ctxKeyProjectID, apiKeyContext.ProjectID)
 	return handler(ctx, req)
 }
 

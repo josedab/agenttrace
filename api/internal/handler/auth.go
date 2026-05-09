@@ -186,6 +186,13 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 // OAuthCallback handles OAuth provider callbacks
 func (h *AuthHandler) OAuthCallback(c *fiber.Ctx) error {
+	if !h.authService.ValidateOAuthCallbackSecret(c.Get("X-AgentTrace-OAuth-Secret")) {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Invalid OAuth callback credentials",
+		})
+	}
+
 	provider := c.Params("provider")
 	if provider == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -194,25 +201,18 @@ func (h *AuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		})
 	}
 
-	// Parse OAuth callback data from query params or body
 	var callbackInput domain.OAuthCallbackInput
-	callbackInput.Provider = provider
-
-	// Get code from query params
-	code := c.Query("code")
-	if code == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Bad Request",
-			"message": "Authorization code required",
-		})
-	}
-
-	// In a real implementation, we would exchange the code for tokens
-	// and get user info from the provider. For now, parse from body.
 	if err := c.BodyParser(&callbackInput); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Bad Request",
 			"message": "Invalid callback data",
+		})
+	}
+	callbackInput.Provider = provider
+	if callbackInput.ProviderAccountID == "" || callbackInput.Email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Provider account ID and email are required",
 		})
 	}
 
@@ -250,7 +250,7 @@ func (h *AuthHandler) RegisterRoutes(app *fiber.App, authMiddleware *middleware.
 	auth.Post("/register", h.Register)
 	auth.Post("/refresh", h.RefreshToken)
 	auth.Post("/logout", h.Logout)
-	auth.Get("/callback/:provider", h.OAuthCallback)
+	auth.Post("/callback/:provider", h.OAuthCallback)
 
 	// Protected routes
 	protected := auth.Group("", authMiddleware.RequireJWT())

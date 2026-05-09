@@ -189,6 +189,14 @@ func IsConflict(err error) bool {
 	return false
 }
 
+// IsUnprocessable checks if the error is an unprocessable entity error
+func IsUnprocessable(err error) bool {
+	if appErr := GetAppError(err); appErr != nil {
+		return appErr.Code == CodeUnprocessable
+	}
+	return false
+}
+
 // IsRateLimited checks if the error is a rate limited error
 func IsRateLimited(err error) bool {
 	if appErr := GetAppError(err); appErr != nil {

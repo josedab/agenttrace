@@ -49,6 +49,8 @@ type MockPromptServiceForImport struct {
 	mock.Mock
 }
 
+var importTestUserID = uuid.MustParse("48e4a137-c7be-4f68-913f-f63a8184da83")
+
 func (m *MockPromptServiceForImport) Create(ctx context.Context, projectID uuid.UUID, input *domain.PromptInput, userID uuid.UUID) (*domain.Prompt, error) {
 	args := m.Called(ctx, projectID, input, userID)
 	if args.Get(0) == nil {
@@ -61,6 +63,9 @@ func (m *MockPromptServiceForImport) Create(ctx context.Context, projectID uuid.
 func importTestProjectMiddleware(projectID uuid.UUID) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		c.Locals(string(middleware.ContextKeyProjectID), projectID)
+		c.Locals(string(middleware.ContextKeyAPIKeyID), uuid.New())
+		c.Locals(string(middleware.ContextKeyAuthType), middleware.AuthTypeAPIKey)
+		c.Locals(string(middleware.ContextKeyUserID), importTestUserID)
 		return c.Next()
 	}
 }
@@ -144,62 +149,11 @@ func setupImportTestApp(
 		})
 	})
 
-	// Import prompt endpoint
-	app.Post("/v1/import/prompt", func(c *fiber.Ctx) error {
-		pid, ok := middleware.GetProjectID(c)
-		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error":   "Unauthorized",
-				"message": "Project ID not found",
-			})
-		}
-
-		var request ImportPromptRequest
-		if err := c.BodyParser(&request); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":   "Bad Request",
-				"message": "Invalid request body: " + err.Error(),
-			})
-		}
-
-		if request.Name == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":   "Bad Request",
-				"message": "name is required",
-			})
-		}
-
-		if request.Content == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":   "Bad Request",
-				"message": "content is required",
-			})
-		}
-
-		promptInput := &domain.PromptInput{
-			Name:        request.Name,
-			Content:     request.Content,
-			Description: request.Description,
-			Config:      request.Config,
-			Labels:      request.Labels,
-			Tags:        request.Tags,
-		}
-
-		prompt, err := mockPromptSvc.Create(c.Context(), pid, promptInput, uuid.Nil)
-		if err != nil {
-			logger.Error("failed to create prompt for import", zap.Error(err))
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error":   "Internal Server Error",
-				"message": "Failed to create prompt",
-			})
-		}
-
-		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-			"id":      prompt.ID.String(),
-			"name":    prompt.Name,
-			"message": "Prompt imported successfully",
-		})
-	})
+	importHandler := &ImportHandler{
+		promptService: mockPromptSvc,
+		logger:        logger,
+	}
+	app.Post("/v1/import/prompt", importHandler.ImportPrompt)
 
 	return app
 }
@@ -418,7 +372,7 @@ func TestImportHandler_ImportPrompt(t *testing.T) {
 			ProjectID: projectID,
 			Name:      "test-prompt",
 		}
-		mockPromptSvc.On("Create", mock.Anything, projectID, mock.AnythingOfType("*domain.PromptInput"), uuid.Nil).Return(prompt, nil)
+		mockPromptSvc.On("Create", mock.Anything, projectID, mock.AnythingOfType("*domain.PromptInput"), importTestUserID).Return(prompt, nil)
 
 		description := "A test prompt"
 		reqBody := ImportPromptRequest{
@@ -449,6 +403,47 @@ func TestImportHandler_ImportPrompt(t *testing.T) {
 		assert.Equal(t, "Prompt imported successfully", result["message"])
 
 		mockPromptSvc.AssertExpectations(t)
+	})
+
+	t.Run("rejects unowned legacy API key before persistence", func(t *testing.T) {
+		mockPromptSvc := new(MockPromptServiceForImport)
+		app := fiber.New()
+		app.Use(func(c *fiber.Ctx) error {
+			c.Locals(string(middleware.ContextKeyProjectID), projectID)
+			c.Locals(string(middleware.ContextKeyAPIKeyID), uuid.New())
+			c.Locals(string(middleware.ContextKeyAuthType), middleware.AuthTypeAPIKey)
+			return c.Next()
+		})
+		importHandler := &ImportHandler{
+			promptService: mockPromptSvc,
+			logger:        zap.NewNop(),
+		}
+		app.Post("/v1/import/prompt", importHandler.ImportPrompt)
+
+		body, err := json.Marshal(ImportPromptRequest{
+			Name:    "legacy-key-prompt",
+			Content: "Prompt content",
+		})
+		require.NoError(t, err)
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/v1/import/prompt",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, resp.Body.Close())
+		})
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		var result map[string]string
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+		assert.Equal(t, "Actor ID not found", result["message"])
+		mockPromptSvc.AssertNotCalled(t, "Create")
 	})
 
 	t.Run("returns 400 for missing name", func(t *testing.T) {
@@ -525,7 +520,7 @@ func TestImportHandler_ImportPrompt(t *testing.T) {
 		mockPromptSvc := new(MockPromptServiceForImport)
 		app := setupImportTestApp(mockDatasetSvc, mockPromptSvc, projectID)
 
-		mockPromptSvc.On("Create", mock.Anything, projectID, mock.AnythingOfType("*domain.PromptInput"), uuid.Nil).Return(nil, errors.New("db error"))
+		mockPromptSvc.On("Create", mock.Anything, projectID, mock.AnythingOfType("*domain.PromptInput"), importTestUserID).Return(nil, errors.New("db error"))
 
 		reqBody := ImportPromptRequest{
 			Name:    "test-prompt",
@@ -565,7 +560,7 @@ func TestImportHandler_ImportPrompt(t *testing.T) {
 				return false
 			}
 			return config["model"] == "gpt-4" && config["temperature"] == 0.7
-		}), uuid.Nil).Return(prompt, nil)
+		}), importTestUserID).Return(prompt, nil)
 
 		reqBody := ImportPromptRequest{
 			Name:    "test-prompt",

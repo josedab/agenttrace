@@ -99,6 +99,12 @@ func (h *APIKeysHandler) CreateAPIKey(c *fiber.Ctx) error {
 
 	result, err := h.authService.CreateAPIKey(c.Context(), projectID, &input, userID)
 	if err != nil {
+		if apperrors.IsValidation(err) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":   "Bad Request",
+				"message": err.Error(),
+			})
+		}
 		h.logger.Error("failed to create API key", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":   "Internal Server Error",
@@ -121,6 +127,14 @@ func (h *APIKeysHandler) CreateAPIKey(c *fiber.Ctx) error {
 
 // DeleteAPIKey handles DELETE /v1/api-keys/:keyId
 func (h *APIKeysHandler) DeleteAPIKey(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
+
 	keyID, err := uuid.Parse(c.Params("keyId"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -129,11 +143,17 @@ func (h *APIKeysHandler) DeleteAPIKey(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.authService.DeleteAPIKey(c.Context(), keyID); err != nil {
+	if err := h.authService.DeleteAPIKeyForProject(c.Context(), keyID, projectID); err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error":   "Not Found",
 				"message": "API key not found",
+			})
+		}
+		if apperrors.IsForbidden(err) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "Forbidden",
+				"message": "API key does not belong to this project",
 			})
 		}
 		h.logger.Error("failed to delete API key", zap.Error(err))

@@ -73,12 +73,16 @@ func (h *HealthHandler) Health(c *fiber.Ctx) error {
 		status.Checks["clickhouse"] = "healthy"
 	}
 
-	// Check Redis
-	if _, err := h.redis.Ping(ctx).Result(); err != nil {
-		status.Status = "unhealthy"
-		status.Checks["redis"] = "unhealthy"
+	// Redis is optional for the local core workflow.
+	if h.redis == nil {
+		status.Checks["redis"] = "disabled"
 	} else {
-		status.Checks["redis"] = "healthy"
+		if _, err := h.redis.Ping(ctx).Result(); err != nil {
+			status.Status = "unhealthy"
+			status.Checks["redis"] = "unhealthy"
+		} else {
+			status.Checks["redis"] = "healthy"
+		}
 	}
 
 	statusCode := fiber.StatusOK
@@ -116,11 +120,13 @@ func (h *HealthHandler) Readiness(c *fiber.Ctx) error {
 		})
 	}
 
-	if _, err := h.redis.Ping(ctx).Result(); err != nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"status": "not ready",
-			"reason": "redis unavailable",
-		})
+	if h.redis != nil {
+		if _, err := h.redis.Ping(ctx).Result(); err != nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"status": "not ready",
+				"reason": "redis unavailable",
+			})
+		}
 	}
 
 	return c.JSON(fiber.Map{

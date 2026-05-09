@@ -12,7 +12,7 @@ import (
 
 // CostGuardrailHandler handles cost guardrail HTTP requests
 type CostGuardrailHandler struct {
-	logger              *zap.Logger
+	logger               *zap.Logger
 	costGuardrailService *service.CostGuardrailService
 }
 
@@ -22,7 +22,7 @@ func NewCostGuardrailHandler(
 	logger *zap.Logger,
 ) *CostGuardrailHandler {
 	return &CostGuardrailHandler{
-		logger:              logger,
+		logger:               logger,
 		costGuardrailService: costGuardrailService,
 	}
 }

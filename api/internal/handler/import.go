@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -16,10 +17,19 @@ import (
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
+type promptImportService interface {
+	Create(
+		ctx context.Context,
+		projectID uuid.UUID,
+		input *domain.PromptInput,
+		userID uuid.UUID,
+	) (*domain.Prompt, error)
+}
+
 // ImportHandler handles import endpoints
 type ImportHandler struct {
 	datasetService *service.DatasetService
-	promptService  *service.PromptService
+	promptService  promptImportService
 	logger         *zap.Logger
 }
 
@@ -38,10 +48,10 @@ func NewImportHandler(
 
 // ImportDatasetRequest represents a request to import a dataset
 type ImportDatasetRequest struct {
-	Name        string               `json:"name"`
-	Description string               `json:"description,omitempty"`
-	Items       []DatasetItemImport  `json:"items"`
-	Metadata    map[string]any       `json:"metadata,omitempty"`
+	Name        string              `json:"name"`
+	Description string              `json:"description,omitempty"`
+	Items       []DatasetItemImport `json:"items"`
+	Metadata    map[string]any      `json:"metadata,omitempty"`
 }
 
 // DatasetItemImport represents an imported dataset item
@@ -63,9 +73,9 @@ type ImportPromptRequest struct {
 
 // ImportResponse represents an import response
 type ImportResponse struct {
-	ID           string `json:"id"`
+	ID            string `json:"id"`
 	ImportedCount int    `json:"importedCount"`
-	Message      string `json:"message,omitempty"`
+	Message       string `json:"message,omitempty"`
 }
 
 // ImportDataset handles POST /v1/import/dataset
@@ -144,9 +154,9 @@ func (h *ImportHandler) ImportDataset(c *fiber.Ctx) error {
 	)
 
 	return c.Status(fiber.StatusCreated).JSON(ImportResponse{
-		ID:           dataset.ID.String(),
+		ID:            dataset.ID.String(),
 		ImportedCount: importedCount,
-		Message:      fmt.Sprintf("Successfully imported %d items", importedCount),
+		Message:       fmt.Sprintf("Successfully imported %d items", importedCount),
 	})
 }
 
@@ -287,9 +297,9 @@ func (h *ImportHandler) ImportDatasetCSV(c *fiber.Ctx) error {
 	)
 
 	return c.Status(fiber.StatusCreated).JSON(ImportResponse{
-		ID:           dataset.ID.String(),
+		ID:            dataset.ID.String(),
 		ImportedCount: importedCount,
-		Message:      fmt.Sprintf("Successfully imported %d items from CSV", importedCount),
+		Message:       fmt.Sprintf("Successfully imported %d items from CSV", importedCount),
 	})
 }
 
@@ -326,10 +336,12 @@ func (h *ImportHandler) ImportPrompt(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user ID (for API key auth, use a system user ID)
-	userID, ok := middleware.GetUserID(c)
+	userID, ok := roadmapActorID(c)
 	if !ok {
-		userID = uuid.Nil
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Actor ID not found",
+		})
 	}
 
 	// Create prompt
@@ -488,9 +500,9 @@ func (h *ImportHandler) ImportOpenAIFinetune(c *fiber.Ctx) error {
 	)
 
 	return c.Status(fiber.StatusCreated).JSON(ImportResponse{
-		ID:           dataset.ID.String(),
+		ID:            dataset.ID.String(),
 		ImportedCount: importedCount,
-		Message:      fmt.Sprintf("Successfully imported %d items from OpenAI fine-tune format", importedCount),
+		Message:       fmt.Sprintf("Successfully imported %d items from OpenAI fine-tune format", importedCount),
 	})
 }
 

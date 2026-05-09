@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/middleware"
 	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 	pgrepo "github.com/agenttrace/agenttrace/api/internal/repository/postgres"
 	"github.com/agenttrace/agenttrace/api/internal/service"
@@ -79,6 +80,11 @@ func (h *WebhookHandler) ListWebhooks(c *fiber.Ctx) error {
 		)
 		return errorResponse(c, fiber.StatusInternalServerError, "Failed to list webhooks")
 	}
+	for i := range result.Webhooks {
+		result.Webhooks[i].URL = redactEndpoint(result.Webhooks[i].URL)
+		result.Webhooks[i].Secret = ""
+		result.Webhooks[i].Headers = nil
+	}
 
 	return c.JSON(result)
 }
@@ -116,7 +122,7 @@ func (h *WebhookHandler) GetWebhook(c *fiber.Ctx) error {
 		return errorResponse(c, fiber.StatusInternalServerError, "Failed to get webhook")
 	}
 
-	return c.JSON(webhook)
+	return c.JSON(redactWebhook(webhook))
 }
 
 // CreateWebhook creates a new webhook
@@ -149,6 +155,9 @@ func (h *WebhookHandler) CreateWebhook(c *fiber.Ctx) error {
 	}
 	if len(input.Events) == 0 {
 		return errorResponse(c, fiber.StatusBadRequest, "At least one event type is required")
+	}
+	if err := service.ValidateWebhookURL(c.Context(), input.URL); err != nil {
+		return errorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	// Set default type if not specified
@@ -192,7 +201,7 @@ func (h *WebhookHandler) CreateWebhook(c *fiber.Ctx) error {
 		zap.String("type", string(webhook.Type)),
 	)
 
-	return c.Status(fiber.StatusCreated).JSON(webhook)
+	return c.Status(fiber.StatusCreated).JSON(redactWebhook(webhook))
 }
 
 // UpdateWebhook updates an existing webhook
@@ -241,6 +250,9 @@ func (h *WebhookHandler) UpdateWebhook(c *fiber.Ctx) error {
 		webhook.Name = *input.Name
 	}
 	if input.URL != nil {
+		if err := service.ValidateWebhookURL(c.Context(), *input.URL); err != nil {
+			return errorResponse(c, fiber.StatusBadRequest, err.Error())
+		}
 		webhook.URL = *input.URL
 	}
 	if input.Secret != nil {
@@ -286,7 +298,7 @@ func (h *WebhookHandler) UpdateWebhook(c *fiber.Ctx) error {
 		zap.String("projectId", projectID.String()),
 	)
 
-	return c.JSON(webhook)
+	return c.JSON(redactWebhook(webhook))
 }
 
 // DeleteWebhook deletes a webhook
@@ -461,6 +473,10 @@ func (h *WebhookHandler) ListWebhookDeliveries(c *fiber.Ctx) error {
 
 // getProjectIDFromContext extracts project ID from context or API key
 func getProjectIDFromContext(c *fiber.Ctx) (uuid.UUID, error) {
+	if projectID, ok := middleware.GetProjectID(c); ok {
+		return projectID, nil
+	}
+
 	// Try to get from API key context first
 	if apiKey, ok := c.Locals("apiKey").(*domain.APIKey); ok {
 		return apiKey.ProjectID, nil

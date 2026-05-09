@@ -7,6 +7,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -63,7 +64,7 @@ func (h *GuardrailsHandler) CreateRule(c *fiber.Ctx) error {
 
 // UpdateRule handles PUT /guardrails/:ruleId
 func (h *GuardrailsHandler) UpdateRule(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error":   "Unauthorized",
@@ -87,8 +88,14 @@ func (h *GuardrailsHandler) UpdateRule(c *fiber.Ctx) error {
 		})
 	}
 
-	rule, err := h.guardrailService.UpdateRule(c.Context(), ruleID, &input)
+	rule, err := h.guardrailService.UpdateRule(c.Context(), projectID, ruleID, &input)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error":   "Not Found",
+				"message": "Guard rule not found",
+			})
+		}
 		h.logger.Error("failed to update guard rule",
 			zap.String("ruleId", ruleID.String()),
 			zap.Error(err),
@@ -104,7 +111,7 @@ func (h *GuardrailsHandler) UpdateRule(c *fiber.Ctx) error {
 
 // DeleteRule handles DELETE /guardrails/:ruleId
 func (h *GuardrailsHandler) DeleteRule(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error":   "Unauthorized",
@@ -120,7 +127,13 @@ func (h *GuardrailsHandler) DeleteRule(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.guardrailService.DeleteRule(c.Context(), ruleID); err != nil {
+	if err := h.guardrailService.DeleteRule(c.Context(), projectID, ruleID); err != nil {
+		if apperrors.IsNotFound(err) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error":   "Not Found",
+				"message": "Guard rule not found",
+			})
+		}
 		h.logger.Error("failed to delete guard rule",
 			zap.String("ruleId", ruleID.String()),
 			zap.Error(err),

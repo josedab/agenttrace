@@ -7,6 +7,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/domain"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
@@ -51,6 +52,9 @@ func (h *MigrationHandler) StartMigration(c *fiber.Ctx) error {
 
 	job, err := h.migrationService.StartMigration(c.Context(), projectID, &input)
 	if err != nil {
+		if appErr := apperrors.GetAppError(err); appErr != nil {
+			return errorResponse(c, appErr.StatusCode, appErr.Message)
+		}
 		h.logger.Error("failed to start migration", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":   "Internal Server Error",
@@ -58,12 +62,12 @@ func (h *MigrationHandler) StartMigration(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(job)
+	return c.Status(fiber.StatusCreated).JSON(redactMigrationJob(job))
 }
 
 // GetMigration handles GET /migrations/:jobId
 func (h *MigrationHandler) GetMigration(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error":   "Unauthorized",
@@ -79,7 +83,7 @@ func (h *MigrationHandler) GetMigration(c *fiber.Ctx) error {
 		})
 	}
 
-	job, err := h.migrationService.GetMigration(c.Context(), jobID)
+	job, err := h.migrationService.GetMigration(c.Context(), projectID, jobID)
 	if err != nil {
 		h.logger.Error("failed to get migration",
 			zap.String("jobId", jobID.String()),
@@ -91,7 +95,7 @@ func (h *MigrationHandler) GetMigration(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(job)
+	return c.JSON(redactMigrationJob(job))
 }
 
 // ListMigrations handles GET /migrations
@@ -113,7 +117,16 @@ func (h *MigrationHandler) ListMigrations(c *fiber.Ctx) error {
 		})
 	}
 
+	for i := range jobs {
+		jobs[i] = *redactMigrationJob(&jobs[i])
+	}
 	return c.JSON(jobs)
+}
+
+func redactMigrationJob(job *domain.MigrationJob) *domain.MigrationJob {
+	redacted := *job
+	redacted.Config.SourceDSN = ""
+	return &redacted
 }
 
 // ValidateSource handles POST /migrations/validate
@@ -146,6 +159,9 @@ func (h *MigrationHandler) ValidateSource(c *fiber.Ctx) error {
 
 	valid, message, err := h.migrationService.ValidateSource(c.Context(), body.Source, body.DSN)
 	if err != nil {
+		if appErr := apperrors.GetAppError(err); appErr != nil {
+			return errorResponse(c, appErr.StatusCode, appErr.Message)
+		}
 		h.logger.Error("failed to validate migration source", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":   "Internal Server Error",

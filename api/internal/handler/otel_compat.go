@@ -47,11 +47,16 @@ func (h *OTelCompatHandler) CreateExportDestination(c *fiber.Ctx) error {
 
 	destination, err := h.service.CreateDestination(c.Context(), projectID, input)
 	if err != nil {
-		h.logger.Error("failed to create export destination", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create export destination"})
+		return respondServiceError(
+			c,
+			h.logger,
+			err,
+			fiber.StatusInternalServerError,
+			"Failed to create export destination",
+		)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(destination)
+	return c.Status(fiber.StatusCreated).JSON(redactOTelExportDestination(destination))
 }
 
 // ListExportDestinations handles GET /api/public/otel-compat/destinations
@@ -73,6 +78,10 @@ func (h *OTelCompatHandler) ListExportDestinations(c *fiber.Ctx) error {
 	if err != nil {
 		h.logger.Error("failed to list export destinations", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list export destinations"})
+	}
+	for i := range destinations {
+		destinations[i].Endpoint = redactEndpoint(destinations[i].Endpoint)
+		destinations[i].Headers = nil
 	}
 
 	return c.JSON(destinations)

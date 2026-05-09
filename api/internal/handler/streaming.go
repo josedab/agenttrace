@@ -68,7 +68,7 @@ func (h *StreamingHandler) StreamTrace(c *fiber.Ctx) error {
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		// Send initial metrics snapshot
-		metrics := h.streamingService.GetLiveMetrics(traceID)
+		metrics := h.streamingService.GetLiveMetrics(traceID, projectID)
 		if metrics != nil {
 			data, _ := json.Marshal(metrics)
 			fmt.Fprintf(w, "event: metrics\ndata: %s\n\n", data)
@@ -76,7 +76,7 @@ func (h *StreamingHandler) StreamTrace(c *fiber.Ctx) error {
 		}
 
 		// Send recent activities as backfill
-		activities := h.streamingService.GetRecentActivities(traceID, 50)
+		activities := h.streamingService.GetRecentActivities(traceID, projectID, 50)
 		for _, act := range activities {
 			data, _ := json.Marshal(act)
 			fmt.Fprintf(w, "event: activity\ndata: %s\n\n", data)
@@ -102,7 +102,7 @@ func (h *StreamingHandler) StreamTrace(c *fiber.Ctx) error {
 				w.Flush()
 
 			case <-metricsTicker.C:
-				metrics := h.streamingService.GetLiveMetrics(traceID)
+				metrics := h.streamingService.GetLiveMetrics(traceID, projectID)
 				if metrics != nil {
 					data, _ := json.Marshal(metrics)
 					fmt.Fprintf(w, "event: metrics\ndata: %s\n\n", data)
@@ -117,7 +117,7 @@ func (h *StreamingHandler) StreamTrace(c *fiber.Ctx) error {
 				return
 
 			case <-c.Context().Done():
-				h.streamingService.UnsubscribeFromTrace(traceID, sub.ID)
+				h.streamingService.UnsubscribeFromTrace(traceID, projectID, sub.ID)
 				return
 			}
 		}
@@ -128,7 +128,7 @@ func (h *StreamingHandler) StreamTrace(c *fiber.Ctx) error {
 
 // GetLiveMetrics handles GET /api/public/traces/:traceId/live-metrics
 func (h *StreamingHandler) GetLiveMetrics(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -138,7 +138,7 @@ func (h *StreamingHandler) GetLiveMetrics(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid trace ID"})
 	}
 
-	metrics := h.streamingService.GetLiveMetrics(traceID)
+	metrics := h.streamingService.GetLiveMetrics(traceID, projectID)
 	if metrics == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No active stream for this trace"})
 	}
@@ -148,7 +148,7 @@ func (h *StreamingHandler) GetLiveMetrics(c *fiber.Ctx) error {
 
 // GetRecentActivities handles GET /api/public/traces/:traceId/activities
 func (h *StreamingHandler) GetRecentActivities(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -163,7 +163,7 @@ func (h *StreamingHandler) GetRecentActivities(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	activities := h.streamingService.GetRecentActivities(traceID, limit)
+	activities := h.streamingService.GetRecentActivities(traceID, projectID, limit)
 	return c.JSON(fiber.Map{
 		"activities": activities,
 		"count":      len(activities),
@@ -224,7 +224,7 @@ func (h *StreamingHandler) GetActiveStreams(c *fiber.Ctx) error {
 
 // GetPendingInterventions handles GET /api/public/traces/:traceId/interventions
 func (h *StreamingHandler) GetPendingInterventions(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -234,7 +234,7 @@ func (h *StreamingHandler) GetPendingInterventions(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid trace ID"})
 	}
 
-	interventions := h.streamingService.GetPendingInterventions(traceID)
+	interventions := h.streamingService.GetPendingInterventions(traceID, projectID)
 	return c.JSON(fiber.Map{
 		"interventions": interventions,
 		"count":         len(interventions),
@@ -243,7 +243,7 @@ func (h *StreamingHandler) GetPendingInterventions(c *fiber.Ctx) error {
 
 // AcknowledgeIntervention handles POST /api/public/traces/:traceId/interventions/:interventionId/ack
 func (h *StreamingHandler) AcknowledgeIntervention(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -258,7 +258,7 @@ func (h *StreamingHandler) AcknowledgeIntervention(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid intervention ID"})
 	}
 
-	if err := h.streamingService.AcknowledgeIntervention(traceID, interventionID); err != nil {
+	if err := h.streamingService.AcknowledgeIntervention(traceID, projectID, interventionID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to acknowledge"})
 	}
 

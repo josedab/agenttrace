@@ -211,49 +211,49 @@ func (h *FederatedAggregationHandler) GetInsights(c *fiber.Ctx) error {
 
 // SubmitAnonymizedBenchmark handles POST /api/public/federated-aggregation/anonymized-benchmark
 func (h *FederatedAggregationHandler) SubmitAnonymizedBenchmark(c *fiber.Ctx) error {
-projectID, ok := middleware.GetProjectID(c)
-if !ok {
-return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
-}
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
+	}
 
-var input struct {
-Metrics       []domain.AnonymizedMetric          `json:"metrics"`
-PrivacyConfig *domain.DifferentialPrivacyConfig   `json:"privacyConfig,omitempty"`
-}
-if err := c.BodyParser(&input); err != nil {
-return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
-}
+	var input struct {
+		Metrics       []domain.AnonymizedMetric         `json:"metrics"`
+		PrivacyConfig *domain.DifferentialPrivacyConfig `json:"privacyConfig,omitempty"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
 
-if len(input.Metrics) == 0 {
-return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "At least one metric is required"})
-}
+	if len(input.Metrics) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "At least one metric is required"})
+	}
 
-submission, err := h.federatedAggregationService.SubmitAnonymizedBenchmark(
-c.Context(), projectID, input.Metrics, input.PrivacyConfig,
-)
-if err != nil {
-return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to submit benchmark"})
-}
+	submission, err := h.federatedAggregationService.SubmitAnonymizedBenchmark(
+		c.Context(), projectID, input.Metrics, input.PrivacyConfig,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to submit benchmark"})
+	}
 
-return c.Status(fiber.StatusCreated).JSON(submission)
+	return c.Status(fiber.StatusCreated).JSON(submission)
 }
 
 // GetIndustryBaselines handles GET /api/public/federated-aggregation/baselines
 func (h *FederatedAggregationHandler) GetIndustryBaselines(c *fiber.Ctx) error {
-baselines, err := h.federatedAggregationService.GetIndustryBaselines(c.Context())
-if err != nil {
-return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get baselines"})
-}
-return c.JSON(fiber.Map{"baselines": baselines})
+	baselines, err := h.federatedAggregationService.GetIndustryBaselines(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get baselines"})
+	}
+	return c.JSON(fiber.Map{"baselines": baselines})
 }
 
 // GetMeshStatus handles GET /api/public/federated-aggregation/mesh-status
 func (h *FederatedAggregationHandler) GetMeshStatus(c *fiber.Ctx) error {
-status, err := h.federatedAggregationService.GetMeshStatus(c.Context())
-if err != nil {
-return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get mesh status"})
-}
-return c.JSON(status)
+	status, err := h.federatedAggregationService.GetMeshStatus(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get mesh status"})
+	}
+	return c.JSON(status)
 }
 
 // GetFederatedAnalyticsDashboard handles GET /api/public/federated/dashboard

@@ -56,7 +56,9 @@ func (h *ScoresHandler) ListScores(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"data":       list.Scores,
+		"scores":     list.Scores,
 		"totalCount": list.TotalCount,
+		"hasMore":    list.HasMore,
 	})
 }
 
@@ -192,7 +194,6 @@ func (h *ScoresHandler) UpdateScore(c *fiber.Ctx) error {
 	return c.JSON(score)
 }
 
-
 // DeleteScore handles DELETE /v1/scores/:scoreId
 func (h *ScoresHandler) DeleteScore(c *fiber.Ctx) error {
 	projectID, ok := middleware.GetProjectID(c)
@@ -320,11 +321,11 @@ func (h *ScoresHandler) SubmitFeedback(c *fiber.Ctx) error {
 	}
 
 	var request struct {
-		TraceID  string                 `json:"traceId"`
-		Name     string                 `json:"name"`
-		Value    *float64               `json:"value"`
-		DataType domain.ScoreDataType   `json:"dataType"`
-		Comment  *string                `json:"comment"`
+		TraceID  string               `json:"traceId"`
+		Name     string               `json:"name"`
+		Value    *float64             `json:"value"`
+		DataType domain.ScoreDataType `json:"dataType"`
+		Comment  *string              `json:"comment"`
 	}
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

@@ -48,12 +48,22 @@ func (h *ProjectsHandler) ListProjects(c *fiber.Ctx) error {
 				"message": "Invalid organization ID",
 			})
 		}
-		projects, err = h.projectService.ListByOrganization(c.Context(), orgID)
+		projects, err = h.projectService.ListByOrganizationForUser(
+			c.Context(),
+			orgID,
+			userID,
+		)
 	} else {
 		projects, err = h.projectService.ListByUser(c.Context(), userID)
 	}
 
 	if err != nil {
+		if apperrors.IsForbidden(err) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "Forbidden",
+				"message": "No access to this organization",
+			})
+		}
 		h.logger.Error("failed to list projects", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":   "Internal Server Error",
@@ -156,6 +166,12 @@ func (h *ProjectsHandler) CreateProject(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error":   "Not Found",
 				"message": "Organization not found",
+			})
+		}
+		if apperrors.IsForbidden(err) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "Forbidden",
+				"message": "No permission to create projects in this organization",
 			})
 		}
 		h.logger.Error("failed to create project", zap.Error(err))

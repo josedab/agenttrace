@@ -49,7 +49,7 @@ func (h *DiffIntelligenceHandler) AnalyzeDiff(c *fiber.Ctx) error {
 
 // GetAnalysis handles GET /api/public/diff-analysis/:id
 func (h *DiffIntelligenceHandler) GetAnalysis(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -59,7 +59,7 @@ func (h *DiffIntelligenceHandler) GetAnalysis(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid analysis ID"})
 	}
 
-	analysis, err := h.diffService.GetAnalysis(c.Context(), id)
+	analysis, err := h.diffService.GetAnalysis(c.Context(), projectID, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Analysis not found"})
 	}
@@ -94,7 +94,7 @@ func (h *DiffIntelligenceHandler) ListAnalyses(c *fiber.Ctx) error {
 
 // GetTraceAnalyses handles GET /api/public/traces/:traceId/diff-analysis
 func (h *DiffIntelligenceHandler) GetTraceAnalyses(c *fiber.Ctx) error {
-	_, ok := middleware.GetProjectID(c)
+	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Project ID not found"})
 	}
@@ -104,7 +104,7 @@ func (h *DiffIntelligenceHandler) GetTraceAnalyses(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid trace ID"})
 	}
 
-	analyses, err := h.diffService.GetTraceAnalyses(c.Context(), traceID)
+	analyses, err := h.diffService.GetTraceAnalyses(c.Context(), projectID, traceID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get analyses"})
 	}

@@ -305,13 +305,13 @@ type CIWebhookRequest struct {
 
 // CIWebhookResponse returns the gate result with CI-friendly fields
 type CIWebhookResponse struct {
-	Passed          bool                       `json:"passed"`
-	ExitCode        int                        `json:"exitCode"`
-	OverallSeverity string                     `json:"overallSeverity"`
-	Summary         string                     `json:"summary"`
-	BlockReason     string                     `json:"blockReason,omitempty"`
-	MetricResults   []domain.MetricGateResult  `json:"metricResults"`
-	StatusBadgeURL  string                     `json:"statusBadgeUrl,omitempty"`
+	Passed          bool                      `json:"passed"`
+	ExitCode        int                       `json:"exitCode"`
+	OverallSeverity string                    `json:"overallSeverity"`
+	Summary         string                    `json:"summary"`
+	BlockReason     string                    `json:"blockReason,omitempty"`
+	MetricResults   []domain.MetricGateResult `json:"metricResults"`
+	StatusBadgeURL  string                    `json:"statusBadgeUrl,omitempty"`
 }
 
 // HandleCIWebhook handles POST /api/public/prompt-ci/ci-webhook

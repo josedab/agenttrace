@@ -65,6 +65,8 @@ func TestCollaborationHub_MultipleClients(t *testing.T) {
 	hub.Register <- client1
 	hub.Register <- client2
 	time.Sleep(50 * time.Millisecond)
+	requireCollabMessageType(t, client1.send, "presence")
+	requireCollabMessageType(t, client2.send, "presence")
 
 	presence := hub.GetPresence(traceID)
 	assert.Len(t, presence, 2)
@@ -102,6 +104,8 @@ func TestCollaborationHub_BroadcastToTrace(t *testing.T) {
 	hub.Register <- client1
 	hub.Register <- client2
 	time.Sleep(50 * time.Millisecond)
+	requireCollabMessageType(t, client1.send, "presence")
+	requireCollabMessageType(t, client2.send, "presence")
 
 	t.Run("broadcasts to all when no exclusion", func(t *testing.T) {
 		msg := CollabMessage{
@@ -206,6 +210,8 @@ func TestCollaborationHub_DuplicateUserPresence(t *testing.T) {
 	hub.Register <- client1
 	hub.Register <- client2
 	time.Sleep(50 * time.Millisecond)
+	requireCollabMessageType(t, client1.send, "presence")
+	requireCollabMessageType(t, client2.send, "presence")
 
 	// Presence should deduplicate by userID
 	presence := hub.GetPresence(traceID)
@@ -253,6 +259,7 @@ func TestCollaborationHub_SendChannelClosedOnUnregister(t *testing.T) {
 
 	hub.Register <- client
 	time.Sleep(50 * time.Millisecond)
+	requireCollabMessageType(t, client.send, "presence")
 
 	hub.Unregister <- client
 	time.Sleep(50 * time.Millisecond)
@@ -302,6 +309,8 @@ func TestCollaborationHub_IsolatedTraces(t *testing.T) {
 	hub.Register <- client1
 	hub.Register <- client2
 	time.Sleep(50 * time.Millisecond)
+	requireCollabMessageType(t, client1.send, "presence")
+	requireCollabMessageType(t, client2.send, "presence")
 
 	// Broadcast to trace-A should not reach trace-B
 	hub.BroadcastToTrace("trace-A", CollabMessage{Type: "test", Timestamp: time.Now()}, nil)
@@ -322,4 +331,17 @@ func TestCollaborationHub_IsolatedTraces(t *testing.T) {
 
 	hub.Unregister <- client1
 	hub.Unregister <- client2
+}
+
+func requireCollabMessageType(t *testing.T, messages <-chan []byte, expected string) {
+	t.Helper()
+
+	select {
+	case data := <-messages:
+		var message CollabMessage
+		require.NoError(t, json.Unmarshal(data, &message))
+		require.Equal(t, expected, message.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("did not receive %s message", expected)
+	}
 }

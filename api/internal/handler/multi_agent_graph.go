@@ -11,7 +11,7 @@ import (
 
 // MultiAgentGraphHandler handles multi-agent collaboration graph HTTP requests
 type MultiAgentGraphHandler struct {
-	logger                *zap.Logger
+	logger                 *zap.Logger
 	multiAgentGraphService *service.MultiAgentGraphService
 }
 
@@ -21,7 +21,7 @@ func NewMultiAgentGraphHandler(
 	logger *zap.Logger,
 ) *MultiAgentGraphHandler {
 	return &MultiAgentGraphHandler{
-		logger:                logger,
+		logger:                 logger,
 		multiAgentGraphService: multiAgentGraphService,
 	}
 }

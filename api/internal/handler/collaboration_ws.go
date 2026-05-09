@@ -17,9 +17,9 @@ import (
 
 // CollaborationWSHandler manages WebSocket connections for real-time collaboration.
 type CollaborationWSHandler struct {
-	logger      *zap.Logger
-	collabSvc   *service.CollaborationService
-	hub         *CollaborationHub
+	logger    *zap.Logger
+	collabSvc *service.CollaborationService
+	hub       *CollaborationHub
 }
 
 // NewCollaborationWSHandler creates a new WebSocket handler for collaboration.
@@ -44,6 +44,9 @@ func (h *CollaborationWSHandler) UpgradeCheck() fiber.Handler {
 			if userID, ok := middleware.GetUserID(c); ok {
 				c.Locals("wsUserID", userID)
 			}
+			if projectID, ok := middleware.GetProjectID(c); ok {
+				c.Locals("wsProjectID", projectID)
+			}
 			return c.Next()
 		}
 		return fiber.ErrUpgradeRequired
@@ -54,9 +57,10 @@ func (h *CollaborationWSHandler) UpgradeCheck() fiber.Handler {
 func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 	return websocket.New(func(c *websocket.Conn) {
 		traceID := c.Params("traceId")
+		projectID, projectOK := c.Locals("wsProjectID").(uuid.UUID)
 		userName := c.Query("userName", "Anonymous")
 
-		if traceID == "" {
+		if traceID == "" || !projectOK || projectID == uuid.Nil {
 			c.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseInvalidFramePayloadData, "traceId required"))
 			return
@@ -70,10 +74,11 @@ func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "authentication required"))
 			return
 		}
+		roomID := projectID.String() + ":" + traceID
 
 		client := &CollabClient{
 			conn:     c,
-			traceID:  traceID,
+			traceID:  roomID,
 			userID:   uid,
 			userName: userName,
 			send:     make(chan []byte, 256),
@@ -82,7 +87,7 @@ func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 		h.hub.Register <- client
 
 		// Notify others about new user
-		h.hub.BroadcastToTrace(traceID, CollabMessage{
+		h.hub.BroadcastToTrace(roomID, CollabMessage{
 			Type: "user_joined",
 			Payload: map[string]any{
 				"userId":   uid.String(),
@@ -93,7 +98,7 @@ func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 
 		defer func() {
 			h.hub.Unregister <- client
-			h.hub.BroadcastToTrace(traceID, CollabMessage{
+			h.hub.BroadcastToTrace(roomID, CollabMessage{
 				Type: "user_left",
 				Payload: map[string]any{
 					"userId":   uid.String(),
@@ -127,7 +132,7 @@ func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 
 			switch inbound.Type {
 			case "cursor_move":
-				h.hub.BroadcastToTrace(traceID, inbound, &uid)
+				h.hub.BroadcastToTrace(roomID, inbound, &uid)
 
 			case "annotation_add":
 				content, _ := inbound.Payload["content"].(string)
@@ -141,17 +146,17 @@ func (h *CollaborationWSHandler) HandleWebSocket() fiber.Handler {
 					Content:   content,
 					CreatedAt: time.Now(),
 				}
-				h.hub.BroadcastToTrace(traceID, CollabMessage{
+				h.hub.BroadcastToTrace(roomID, CollabMessage{
 					Type:      "annotation_added",
 					Payload:   map[string]any{"annotation": annotation},
 					Timestamp: time.Now(),
 				}, nil)
 
 			case "annotation_resolve":
-				h.hub.BroadcastToTrace(traceID, inbound, nil)
+				h.hub.BroadcastToTrace(roomID, inbound, nil)
 			}
 		}
-	})
+	}, websocket.Config{Subprotocols: []string{"agenttrace"}})
 }
 
 // CollabMessage represents a real-time collaboration message.

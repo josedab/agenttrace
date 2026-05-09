@@ -11,7 +11,7 @@ import (
 
 // SemanticTraceSearchHandler handles semantic trace search HTTP requests
 type SemanticTraceSearchHandler struct {
-	logger                    *zap.Logger
+	logger                     *zap.Logger
 	semanticTraceSearchService *service.SemanticTraceSearchService
 }
 
@@ -21,7 +21,7 @@ func NewSemanticTraceSearchHandler(
 	logger *zap.Logger,
 ) *SemanticTraceSearchHandler {
 	return &SemanticTraceSearchHandler{
-		logger:                    logger,
+		logger:                     logger,
 		semanticTraceSearchService: semanticTraceSearchService,
 	}
 }

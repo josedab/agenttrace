@@ -5,8 +5,10 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
+	apperrors "github.com/agenttrace/agenttrace/api/internal/pkg/errors"
 )
 
 // Pagination represents pagination parameters for list operations.
@@ -19,29 +21,25 @@ type Pagination struct {
 var DefaultPagination = Pagination{Limit: 50, Offset: 0}
 
 // RequireProjectID extracts the project ID from the request context.
-// If the project ID is not found, it sends an unauthorized response and returns an error.
-// Returns the project ID and nil on success.
+// When the request carries no project it returns a non-nil *fiber.Error so the
+// caller stops immediately. Writing the response here would not be enough:
+// Fiber's JSON writer reports success as a nil error, which would let the
+// handler body continue and operate on an empty project ID.
 func RequireProjectID(c *fiber.Ctx) (uuid.UUID, error) {
 	projectID, ok := middleware.GetProjectID(c)
 	if !ok {
-		return uuid.Nil, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":   "Unauthorized",
-			"message": "Project ID not found",
-		})
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Project ID not found")
 	}
 	return projectID, nil
 }
 
 // RequireUserID extracts the user ID from the request context.
-// If the user ID is not found, it sends an unauthorized response and returns an error.
-// Returns the user ID and nil on success.
+// It returns a non-nil *fiber.Error when the request has no user, for the same
+// reason as RequireProjectID.
 func RequireUserID(c *fiber.Ctx) (uuid.UUID, error) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
-		return uuid.Nil, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error":   "Unauthorized",
-			"message": "User ID not found",
-		})
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "User ID not found")
 	}
 	return userID, nil
 }
@@ -114,6 +112,8 @@ func errorResponse(c *fiber.Ctx, statusCode int, message string) error {
 		errorName = "Not Found"
 	case fiber.StatusConflict:
 		errorName = "Conflict"
+	case fiber.StatusUnprocessableEntity:
+		errorName = "Unprocessable Entity"
 	case fiber.StatusInternalServerError:
 		errorName = "Internal Server Error"
 	}
@@ -122,4 +122,24 @@ func errorResponse(c *fiber.Ctx, statusCode int, message string) error {
 		Error:   errorName,
 		Message: message,
 	})
+}
+
+// respondServiceError maps an application error onto its own HTTP status while
+// keeping the compact {"error": ...} envelope used by infrastructure handlers.
+// Errors that are not application errors keep the caller's fallback so internal
+// details are never returned to clients.
+func respondServiceError(
+	c *fiber.Ctx,
+	logger *zap.Logger,
+	err error,
+	fallbackStatus int,
+	fallbackMessage string,
+) error {
+	if appErr := apperrors.GetAppError(err); appErr != nil {
+		return c.Status(appErr.StatusCode).JSON(fiber.Map{"error": appErr.Message})
+	}
+	if logger != nil {
+		logger.Error(fallbackMessage, zap.Error(err))
+	}
+	return c.Status(fallbackStatus).JSON(fiber.Map{"error": fallbackMessage})
 }

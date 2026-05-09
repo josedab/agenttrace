@@ -25,6 +25,28 @@ func NewPromptsHandler(promptService *service.PromptService, logger *zap.Logger)
 	}
 }
 
+// RequirePromptAccess scopes prompt UUID routes to the authenticated project.
+func (h *PromptsHandler) RequirePromptAccess() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		projectID, ok := middleware.GetProjectID(c)
+		if !ok {
+			return fiber.NewError(fiber.StatusUnauthorized, "Project ID not found")
+		}
+		promptID, err := uuid.Parse(c.Params("promptId"))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Invalid prompt ID")
+		}
+		if _, err := h.promptService.GetForProject(
+			c.Context(),
+			projectID,
+			promptID,
+		); err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Prompt not found")
+		}
+		return c.Next()
+	}
+}
+
 // ListPrompts handles GET /v1/prompts
 func (h *PromptsHandler) ListPrompts(c *fiber.Ctx) error {
 	projectID, ok := middleware.GetProjectID(c)
@@ -170,6 +192,13 @@ func (h *PromptsHandler) CreatePrompt(c *fiber.Ctx) error {
 
 // UpdatePrompt handles PATCH /v1/prompts/:promptId
 func (h *PromptsHandler) UpdatePrompt(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
 	promptIDStr := c.Params("promptId")
 	if promptIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -194,7 +223,12 @@ func (h *PromptsHandler) UpdatePrompt(c *fiber.Ctx) error {
 		})
 	}
 
-	prompt, err := h.promptService.Update(c.Context(), promptID, &input)
+	prompt, err := h.promptService.UpdateForProject(
+		c.Context(),
+		projectID,
+		promptID,
+		&input,
+	)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -214,6 +248,13 @@ func (h *PromptsHandler) UpdatePrompt(c *fiber.Ctx) error {
 
 // DeletePrompt handles DELETE /v1/prompts/:promptId
 func (h *PromptsHandler) DeletePrompt(c *fiber.Ctx) error {
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
 	promptIDStr := c.Params("promptId")
 	if promptIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -230,7 +271,11 @@ func (h *PromptsHandler) DeletePrompt(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.promptService.Delete(c.Context(), promptID); err != nil {
+	if err := h.promptService.DeleteForProject(
+		c.Context(),
+		projectID,
+		promptID,
+	); err != nil {
 		if apperrors.IsNotFound(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error":   "Not Found",

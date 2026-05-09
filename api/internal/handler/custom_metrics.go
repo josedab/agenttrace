@@ -110,7 +110,7 @@ func (h *CustomMetricsHandler) CreateDashboard(c *fiber.Ctx) error {
 	}
 
 	var input struct {
-		Name    string                  `json:"name"`
+		Name    string                   `json:"name"`
 		Widgets []domain.DashboardWidget `json:"widgets"`
 	}
 	if err := c.BodyParser(&input); err != nil {

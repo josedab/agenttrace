@@ -521,6 +521,7 @@ func TestIngestionHandler_BatchIngestion(t *testing.T) {
 				},
 			},
 		}
+
 		jsonBody, _ := json.Marshal(batch)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/public/ingestion", bytes.NewReader(jsonBody))
@@ -604,4 +605,24 @@ func TestIngestionHandler_BatchIngestion(t *testing.T) {
 
 		mockSvc.AssertExpectations(t)
 	})
+}
+
+func TestBatchItemScope(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "traces:write", batchItemScope("trace-create"))
+	assert.Equal(t, "observations:write", batchItemScope("span-create"))
+	assert.Equal(t, "observations:write", batchItemScope("event-create"))
+	assert.Equal(t, "observations:write", batchItemScope("generation-create"))
+	assert.Equal(t, "scores:write", batchItemScope("score-create"))
+	assert.Equal(t, "logs:write", batchItemScope("sdk-log"))
+	assert.Empty(t, batchItemScope("unknown"))
+	assert.True(t, allBatchErrorsHaveStatus(
+		[]map[string]any{{"status": fiber.StatusForbidden}},
+		fiber.StatusForbidden,
+	))
+	assert.False(t, allBatchErrorsHaveStatus(
+		[]map[string]any{{"status": fiber.StatusBadRequest}},
+		fiber.StatusForbidden,
+	))
 }

@@ -84,6 +84,15 @@ func (h *IngestionHandler) BatchIngestion(c *fiber.Ctx) error {
 		if eventID == "" {
 			eventID = uuid.New().String()
 		}
+		requiredScope := batchItemScope(common.Type)
+		if requiredScope != "" && !middleware.HasAPIKeyScope(c, requiredScope) {
+			errors = append(errors, map[string]any{
+				"id":      eventID,
+				"status":  fiber.StatusForbidden,
+				"message": "API key scope does not permit this event type",
+			})
+			continue
+		}
 
 		switch common.Type {
 		case "trace-create":
@@ -108,7 +117,7 @@ func (h *IngestionHandler) BatchIngestion(c *fiber.Ctx) error {
 			}
 			successes = append(successes, eventID)
 
-		case "span-create", "generation-create", "event-create":
+		case "span-create", "event-create":
 			var obsInput domain.ObservationInput
 			if err := json.Unmarshal(item, &struct {
 				Body *domain.ObservationInput `json:"body"`
@@ -126,14 +135,35 @@ func (h *IngestionHandler) BatchIngestion(c *fiber.Ctx) error {
 			switch common.Type {
 			case "span-create":
 				obsType = domain.ObservationTypeSpan
-			case "generation-create":
-				obsType = domain.ObservationTypeGeneration
 			case "event-create":
 				obsType = domain.ObservationTypeEvent
 			}
 			obsInput.Type = &obsType
 
 			if _, err := h.ingestionService.IngestObservation(c.Context(), projectID, &obsInput); err != nil {
+				errors = append(errors, map[string]any{
+					"id":      eventID,
+					"status":  500,
+					"message": err.Error(),
+				})
+				continue
+			}
+			successes = append(successes, eventID)
+
+		case "generation-create":
+			var generationInput domain.GenerationInput
+			if err := json.Unmarshal(item, &struct {
+				Body *domain.GenerationInput `json:"body"`
+			}{Body: &generationInput}); err != nil {
+				errors = append(errors, map[string]any{
+					"id":      eventID,
+					"status":  400,
+					"message": "Invalid generation input: " + err.Error(),
+				})
+				continue
+			}
+
+			if _, err := h.ingestionService.IngestGeneration(c.Context(), projectID, &generationInput); err != nil {
 				errors = append(errors, map[string]any{
 					"id":      eventID,
 					"status":  500,
@@ -178,10 +208,41 @@ func (h *IngestionHandler) BatchIngestion(c *fiber.Ctx) error {
 		}
 	}
 
-	return c.JSON(fiber.Map{
+	response := fiber.Map{
 		"successes": successes,
 		"errors":    errors,
-	})
+	}
+	if len(errors) == 0 {
+		return c.JSON(response)
+	}
+	if len(successes) == 0 && allBatchErrorsHaveStatus(errors, fiber.StatusForbidden) {
+		return c.Status(fiber.StatusForbidden).JSON(response)
+	}
+	return c.Status(fiber.StatusMultiStatus).JSON(response)
+}
+
+func allBatchErrorsHaveStatus(errors []map[string]any, status int) bool {
+	for _, item := range errors {
+		if item["status"] != status {
+			return false
+		}
+	}
+	return len(errors) > 0
+}
+
+func batchItemScope(eventType string) string {
+	switch eventType {
+	case "trace-create":
+		return "traces:write"
+	case "span-create", "event-create", "generation-create":
+		return "observations:write"
+	case "score-create":
+		return "scores:write"
+	case "sdk-log":
+		return "logs:write"
+	default:
+		return ""
+	}
 }
 
 // CreateTrace handles POST /v1/traces
@@ -268,7 +329,32 @@ func (h *IngestionHandler) CreateSpan(c *fiber.Ctx) error {
 
 // CreateGeneration handles POST /v1/generations
 func (h *IngestionHandler) CreateGeneration(c *fiber.Ctx) error {
-	return h.createObservation(c, domain.ObservationTypeGeneration)
+	projectID, ok := middleware.GetProjectID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Unauthorized",
+			"message": "Project ID not found",
+		})
+	}
+
+	var input domain.GenerationInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Bad Request",
+			"message": "Invalid request body: " + err.Error(),
+		})
+	}
+
+	obs, err := h.ingestionService.IngestGeneration(c.Context(), projectID, &input)
+	if err != nil {
+		h.logger.Error("failed to create generation", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "Internal Server Error",
+			"message": "Failed to create generation",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(obs)
 }
 
 // UpdateGeneration handles PATCH /v1/generations/:generationId

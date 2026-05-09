@@ -26,8 +26,8 @@ func NewAIDebuggerHandler(svc *service.AIDebuggerService, logger *zap.Logger) *A
 
 // AIDebugRequest represents the request to debug a trace
 type AIDebugRequest struct {
-	TraceID   string               `json:"traceId"`
-	Query     string               `json:"query"`
+	TraceID   string                `json:"traceId"`
+	Query     string                `json:"query"`
 	QueryType domain.DebugQueryType `json:"queryType"`
 }
 

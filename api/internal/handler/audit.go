@@ -124,6 +124,12 @@ func (h *AuditHandler) ListAuditLogs(c *fiber.Ctx) error {
 		}
 	}
 
+	if h.auditService == nil {
+		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
+			Error: "Audit service unavailable",
+		})
+	}
+
 	result, err := h.auditService.ListAuditLogs(c.Context(), filter)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
@@ -307,6 +313,23 @@ func (h *AuditHandler) SetRetentionPolicy(c *fiber.Ctx) error {
 		})
 	}
 
+	userID, ok := c.Locals("userID").(uuid.UUID)
+	if !ok {
+		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{
+			Error: "User authentication required",
+		})
+	}
+	userEmail, hasUserEmail := c.Locals("userEmail").(string)
+	if !hasUserEmail {
+		userEmail = ""
+	}
+
+	if h.auditService == nil {
+		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
+			Error: "Audit service unavailable",
+		})
+	}
+
 	policy, err := h.auditService.SetRetentionPolicy(c.Context(), orgID, req.RetentionDays, req.Enabled)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
@@ -315,15 +338,19 @@ func (h *AuditHandler) SetRetentionPolicy(c *fiber.Ctx) error {
 	}
 
 	// Log the change
-	userID, ok := c.Locals("userID").(uuid.UUID)
-	if !ok {
-		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{
-			Error: "User authentication required",
+	if err := h.auditService.LogSettingsChanged(
+		c.Context(),
+		orgID,
+		userID,
+		userEmail,
+		"audit_retention",
+		nil,
+		map[string]any{"retention_days": req.RetentionDays, "enabled": req.Enabled},
+	); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
+			Error: "Retention policy updated, but audit logging failed",
 		})
 	}
-	userEmail, _ := c.Locals("userEmail").(string)
-	h.auditService.LogSettingsChanged(c.Context(), orgID, userID, userEmail, "audit_retention",
-		nil, map[string]any{"retention_days": req.RetentionDays, "enabled": req.Enabled})
 
 	return c.JSON(policy)
 }

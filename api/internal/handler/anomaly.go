@@ -637,14 +637,14 @@ type TestRuleRequest struct {
 
 // TestRuleResponse represents the response from testing an anomaly rule
 type TestRuleResponse struct {
-	IsAnomaly     bool                  `json:"isAnomaly"`
-	Score         float64               `json:"score"`
-	Threshold     float64               `json:"threshold"`
-	Expected      float64               `json:"expected"`
-	TestValue     float64               `json:"testValue"`
-	Description   string                `json:"description"`
+	IsAnomaly     bool                   `json:"isAnomaly"`
+	Score         float64                `json:"score"`
+	Threshold     float64                `json:"threshold"`
+	Expected      float64                `json:"expected"`
+	TestValue     float64                `json:"testValue"`
+	Description   string                 `json:"description"`
 	Severity      domain.AnomalySeverity `json:"severity,omitempty"`
-	BaselineStats domain.BaselineStats  `json:"baselineStats"`
+	BaselineStats domain.BaselineStats   `json:"baselineStats"`
 }
 
 // CreateAlertChannel handles POST /api/public/anomaly/channels
