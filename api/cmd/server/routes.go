@@ -4,6 +4,9 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/agenttrace/agenttrace/api/internal/domain"
+	"github.com/agenttrace/agenttrace/api/internal/middleware"
 )
 
 // registerRoutes registers all HTTP routes by delegating to domain-specific
@@ -25,7 +28,7 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 
 	// Public API routes (API key auth)
 	public := app.Group("/api/public")
-	public.Use(deps.AuthMiddleware.RequireAPIKey())
+	public.Use(deps.AuthMiddleware.RequireAuth())
 	public.Use(deps.RateLimitMiddleware.Handler())
 
 	// Register domain-specific public routes
@@ -45,7 +48,7 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 	// Internal API routes (JWT auth)
 	internal := app.Group("/api/v1")
 	internal.Use(deps.AuthMiddleware.RequireJWT())
-	internal.Use(deps.RateLimitMiddleware.UserRateLimit(100))
+	internal.Use(deps.RateLimitMiddleware.UserRateLimit(deps.Config.RateLimit.UserMaxPerMinute))
 	internal.Use(deps.CSRFMiddleware.Handler())
 	{
 		// CSRF token endpoint for SPAs
@@ -65,32 +68,167 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 
 		// Projects
 		internal.Get("/projects", h.Projects.ListProjects)
-		internal.Get("/projects/:id", h.Projects.GetProject)
+		internal.Get(
+			"/projects/:projectId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.Projects.GetProject,
+		)
 		internal.Post("/projects", h.Projects.CreateProject)
-		internal.Put("/projects/:id", h.Projects.UpdateProject)
-		internal.Delete("/projects/:id", h.Projects.DeleteProject)
-		internal.Post("/projects/:id/members", h.Projects.AddMember)
-		internal.Delete("/projects/:projectId/members/:userId", h.Projects.RemoveMember)
-		internal.Get("/projects/:id/role", h.Projects.GetUserRole)
+		internal.Put(
+			"/projects/:projectId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.Projects.UpdateProject,
+		)
+		internal.Delete(
+			"/projects/:projectId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.Projects.DeleteProject,
+		)
+		internal.Post(
+			"/projects/:projectId/members",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.Projects.AddMember,
+		)
+		internal.Delete(
+			"/projects/:projectId/members/:userId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.Projects.RemoveMember,
+		)
+		internal.Get(
+			"/projects/:projectId/role",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.Projects.GetUserRole,
+		)
 
 		// API Keys
-		internal.Get("/projects/:id/api-keys", h.APIKeys.ListAPIKeys)
-		internal.Post("/projects/:id/api-keys", h.APIKeys.CreateAPIKey)
-		internal.Delete("/api-keys/:id", h.APIKeys.DeleteAPIKey)
+		internal.Get(
+			"/projects/:projectId/api-keys",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.APIKeys.ListAPIKeys,
+		)
+		internal.Post(
+			"/projects/:projectId/api-keys",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.APIKeys.CreateAPIKey,
+		)
+		internal.Delete(
+			"/projects/:projectId/api-keys/:keyId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleAdmin),
+			h.APIKeys.DeleteAPIKey,
+		)
 
 		// Dashboard metrics
-		internal.Get("/projects/:id/metrics", h.Traces.GetMetrics)
+		internal.Get(
+			"/projects/:projectId/metrics",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.Traces.GetMetrics,
+		)
+		internal.Get(
+			"/projects/:projectId/outcomes",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.Outcomes.GetOverview,
+		)
+		internal.Get(
+			"/projects/:projectId/outcomes/digest",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.Outcomes.GetDigest,
+		)
+		internal.Post(
+			"/projects/:projectId/outcomes/github-report",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.OutcomeDelivery.DeliverGitHub,
+		)
+		internal.Post(
+			"/projects/:projectId/outcomes/digest/deliver",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.TeamDigest.Deliver,
+		)
+		internal.Get(
+			"/projects/:projectId/traces/:traceId/replay-capabilities",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.ReplayPlan.AssessCapabilities,
+		)
+		internal.Post(
+			"/projects/:projectId/traces/:traceId/replay-plans",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.ReplayPlan.CreatePlan,
+		)
+		internal.Get(
+			"/projects/:projectId/replay-plans/:planId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.ReplayPlan.GetPlan,
+		)
+		internal.Post(
+			"/projects/:projectId/replay-plans/:planId/execute",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.ReplayPlan.ExecutePlan,
+		)
+		internal.Post(
+			"/projects/:projectId/replay-plans/:planId/retry",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.ReplayPlan.RetryPlan,
+		)
+		internal.Get(
+			"/projects/:projectId/replay-plans/:planId/comparison",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.ReplayPlan.GetComparison,
+		)
+		internal.Get(
+			"/projects/:projectId/eval-hub/packages",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.EvalHub.ListPackages,
+		)
+		internal.Get(
+			"/projects/:projectId/eval-hub/packages/:packageId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.EvalHub.GetPackage,
+		)
+		internal.Post(
+			"/projects/:projectId/eval-hub/packages",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.EvalHub.Publish,
+		)
+		internal.Post(
+			"/projects/:projectId/eval-hub/packages/:packageId/fork",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.EvalHub.Fork,
+		)
+		internal.Post(
+			"/projects/:projectId/eval-hub/packages/:packageId/runs",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.EvalHub.Run,
+		)
+		internal.Get(
+			"/projects/:projectId/eval-hub/runs",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.EvalHub.ListRuns,
+		)
+		internal.Get(
+			"/projects/:projectId/eval-hub/runs/:runId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleViewer),
+			h.EvalHub.GetRun,
+		)
+		internal.Post(
+			"/projects/:projectId/share-links",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.ShareLink.Create,
+		)
+		internal.Delete(
+			"/projects/:projectId/share-links/:linkId",
+			deps.AuthMiddleware.RequireProjectRole(domain.OrgRoleMember),
+			h.ShareLink.Revoke,
+		)
 	}
 
 	// Auth routes (no auth required, rate limited)
 	auth := app.Group("/api/auth")
-	auth.Use(deps.RateLimitMiddleware.IPRateLimit(10, time.Minute))
+	auth.Use(deps.RateLimitMiddleware.AuthRateLimit(10, time.Minute))
 	{
 		auth.Post("/login", h.Auth.Login)
 		auth.Post("/register", h.Auth.Register)
 		auth.Post("/refresh", h.Auth.RefreshToken)
 		auth.Post("/logout", h.Auth.Logout)
-		auth.Get("/callback/:provider", h.Auth.OAuthCallback)
+		auth.Post("/callback/:provider", h.Auth.OAuthCallback)
 	}
 
 	// User feedback endpoint (special auth - accepts both API key and user token)
@@ -106,20 +244,31 @@ func registerRoutes(app *fiber.App, deps *Dependencies) {
 	}
 
 	// WebSocket routes for real-time collaboration (require authentication)
-	app.Use("/ws", deps.AuthMiddleware.RequireAuth())
-	app.Use("/ws", h.CollaborationWS.UpgradeCheck())
-	app.Get("/ws/collaboration/:traceId", h.CollaborationWS.HandleWebSocket())
+	app.Get(
+		"/ws/collaboration/:traceId",
+		deps.AuthMiddleware.RequireAuth(),
+		deps.AuthMiddleware.RequireTraceAccess(deps.Repositories.Trace),
+		h.CollaborationWS.UpgradeCheck(),
+		h.CollaborationWS.HandleWebSocket(),
+	)
 
 	// WebSocket routes for real-time trace streaming (require authentication)
-	app.Use("/ws/streaming", deps.AuthMiddleware.RequireAuth())
-	app.Use("/ws/streaming", h.StreamingWS.UpgradeCheck())
-	app.Get("/ws/streaming/:traceId", h.StreamingWS.HandleWebSocket())
+	app.Get(
+		"/ws/streaming/:traceId",
+		deps.AuthMiddleware.RequireAuth(),
+		deps.AuthMiddleware.RequireTraceAccess(deps.Repositories.Trace),
+		h.StreamingWS.UpgradeCheck(),
+		h.StreamingWS.HandleWebSocket(),
+	)
 
 	// Billing webhook (no auth — Stripe sends directly with signature)
 	app.Post("/api/billing/webhook", h.Billing.HandleWebhook)
 
 	// Embed widget script (no auth — token-based access)
 	app.Get("/api/public/embed/widget.js", h.Embed.GetWidget)
+
+	shareLimiter := middleware.NewShareRateLimiter(60, time.Minute)
+	app.Get("/api/share/:token", shareLimiter.Handler(), h.ShareLink.Resolve)
 
 	// Cloud Sandbox (no auth — demo environment, rate limited)
 	sandbox := app.Group("/api/public/cloud-sandbox")

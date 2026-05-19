@@ -39,6 +39,7 @@ func registerComplianceRoutes(public fiber.Router, h *Handlers) {
 	public.Put("/privacy/config", h.Privacy.UpdateConfig)
 	public.Post("/privacy/deletion-requests", h.Privacy.RequestDeletion)
 	public.Get("/privacy/deletion-requests", h.Privacy.ListDeletionRequests)
+	public.Get("/privacy/capabilities", h.PrivacyMode.GetCapabilities)
 
 	// RBAC & SSO
 	public.Get("/rbac/permissions", h.RBAC.GetPermissions)

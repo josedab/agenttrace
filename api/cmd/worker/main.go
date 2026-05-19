@@ -14,6 +14,7 @@ import (
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
 	"github.com/agenttrace/agenttrace/api/internal/pkg/database"
+	pkglogger "github.com/agenttrace/agenttrace/api/internal/pkg/logger"
 	chrepo "github.com/agenttrace/agenttrace/api/internal/repository/clickhouse"
 	pgrepo "github.com/agenttrace/agenttrace/api/internal/repository/postgres"
 	"github.com/agenttrace/agenttrace/api/internal/service"
@@ -27,19 +28,25 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Initialize logger
-	var logger *zap.Logger
-	if cfg.Server.Env == "production" {
-		logger, err = zap.NewProduction()
-	} else {
-		logger, err = zap.NewDevelopment()
+	if !cfg.Redis.Enabled {
+		fmt.Fprintln(os.Stderr, "failed to start worker: Redis is disabled")
+		os.Exit(1)
 	}
-	if err != nil {
+
+	// Initialize the shared logger used by the worker and database packages.
+	if err := pkglogger.Init(pkglogger.Config{
+		Level:  cfg.Log.Level,
+		Format: cfg.Log.Format,
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	logger := pkglogger.Log
+	defer func() {
+		if err := pkglogger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to flush logger: %v\n", err)
+		}
+	}()
 
 	logger.Info("starting worker service")
 
@@ -155,7 +162,7 @@ func initWorkerDependencies(cfg *config.Config, logger *zap.Logger) (*worker.Wor
 
 // initMinio initializes MinIO client
 func initMinio(cfg *config.Config) (*minio.Client, error) {
-	if cfg.MinIO.Endpoint == "" {
+	if !cfg.MinIO.Enabled || cfg.MinIO.Endpoint == "" {
 		return nil, nil
 	}
 

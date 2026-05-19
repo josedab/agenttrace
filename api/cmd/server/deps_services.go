@@ -9,41 +9,51 @@ import (
 
 // Services holds all service instances
 type Services struct {
+	Egress *service.EgressPolicy
+
 	// Core
-	Query           *service.QueryService
-	Ingestion       *service.IngestionService
-	Score           *service.ScoreService
-	Prompt          *service.PromptService
-	Dataset         *service.DatasetService
-	Eval            *service.EvalService
-	Auth            *service.AuthService
-	Org             *service.OrgService
-	Project         *service.ProjectService
-	Cost            *service.CostService
-	Realtime        *service.RealtimeService
-	Checkpoint      *service.CheckpointService
-	GitLink         *service.GitLinkService
-	FileOperation   *service.FileOperationService
-	TerminalCommand *service.TerminalCommandService
-	CIRun           *service.CIRunService
-	Replay          *service.ReplayService
-	Experiment      *service.ExperimentService
-	Debug           *service.DebugService
-	Regression      *service.RegressionService
-	Tenant          *service.TenantService
-	AgentGraph      *service.AgentGraphService
-	Migration       *service.MigrationService
-	Benchmark       *service.BenchmarkService
-	Collaboration   *service.CollaborationService
-	Guardrail       *service.GuardrailService
-	OTelReceiver    *service.OTelReceiverService
-	Billing         *service.BillingService
-	Reasoning       *service.ReasoningService
-	Instrumentation *service.InstrumentationService
-	Scorecard       *service.ScorecardService
-	Ticket          *service.TicketService
-	Audit           *service.AuditService
-	Streaming       *service.StreamingService
+	Query            *service.QueryService
+	Ingestion        *service.IngestionService
+	Score            *service.ScoreService
+	Prompt           *service.PromptService
+	Dataset          *service.DatasetService
+	Eval             *service.EvalService
+	EvalHub          *service.EvalHubService
+	ShareLink        *service.ShareLinkService
+	GitHubReporter   *service.GitHubOutcomeReporter
+	Notification     *service.NotificationService
+	TeamDigest       *service.TeamDigestDeliveryService
+	Auth             *service.AuthService
+	Org              *service.OrgService
+	Project          *service.ProjectService
+	Cost             *service.CostService
+	Realtime         *service.RealtimeService
+	Checkpoint       *service.CheckpointService
+	GitLink          *service.GitLinkService
+	FileOperation    *service.FileOperationService
+	TerminalCommand  *service.TerminalCommandService
+	CIRun            *service.CIRunService
+	Outcome          *service.OutcomeService
+	Replay           *service.ReplayService
+	ReplayPlan       *service.ReplayPlanService
+	Experiment       *service.ExperimentService
+	Debug            *service.DebugService
+	Regression       *service.RegressionService
+	Tenant           *service.TenantService
+	AgentGraph       *service.AgentGraphService
+	Migration        *service.MigrationService
+	LangfuseImport   *service.LangfuseImportService
+	Benchmark        *service.BenchmarkService
+	Collaboration    *service.CollaborationService
+	Guardrail        *service.GuardrailService
+	OTelReceiver     *service.OTelReceiverService
+	Billing          *service.BillingService
+	Reasoning        *service.ReasoningService
+	Instrumentation  *service.InstrumentationService
+	Scorecard        *service.ScorecardService
+	Ticket           *service.TicketService
+	Audit            *service.AuditService
+	Streaming        *service.StreamingService
 	DiffIntelligence *service.DiffIntelligenceService
 	Anomaly          *service.AnomalyService
 	TeamIntelligence *service.TeamIntelligenceService
@@ -63,27 +73,27 @@ type Services struct {
 	Carbon          *service.CarbonService
 
 	// Compliance & Security
-	Compliance       *service.ComplianceService
-	ComplianceExport *service.ComplianceExportService
-	ComplianceReport *service.ComplianceReportService
+	Compliance        *service.ComplianceService
+	ComplianceExport  *service.ComplianceExportService
+	ComplianceReport  *service.ComplianceReportService
 	ComplianceMonitor *service.ComplianceMonitorService
 	Privacy           *service.PrivacyService
 	RBAC              *service.RBACService
 
 	// Agents
-	AgentBuilder    *service.AgentBuilderService
-	AgentVersion    *service.AgentVersionService
-	AgentMemory     *service.AgentMemoryService
-	Autonomy        *service.AutonomyService
-	Fleet           *service.FleetService
-	Copilot         *service.CopilotService
-	KnowledgeGraph  *service.KnowledgeGraphService
-	Intent          *service.IntentService
-	SLO             *service.SLOService
+	AgentBuilder   *service.AgentBuilderService
+	AgentVersion   *service.AgentVersionService
+	AgentMemory    *service.AgentMemoryService
+	Autonomy       *service.AutonomyService
+	Fleet          *service.FleetService
+	Copilot        *service.CopilotService
+	KnowledgeGraph *service.KnowledgeGraphService
+	Intent         *service.IntentService
+	SLO            *service.SLOService
 
 	// Collaboration
-	CollabPattern     *service.CollabPatternService
-	CrossOrg          *service.CrossOrgService
+	CollabPattern *service.CollabPatternService
+	CrossOrg      *service.CrossOrgService
 
 	// Infrastructure
 	Federation            *service.FederationService
@@ -177,9 +187,9 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 	initAgentServices(svcs, logger)
 	initCollabServices(svcs, logger)
 	initInfraServices(svcs, logger)
-	initV6Services(svcs, cfg, logger)
+	initV6Services(svcs, cfg, logger, repos)
 	initV7Services(svcs, logger)
-	initV8Services(svcs, logger)
+	initV8Services(svcs, cfg, logger)
 	initV10Services(svcs, logger)
 	initV11Services(svcs, logger)
 	initV12Services(svcs, logger)
@@ -189,7 +199,11 @@ func initServices(cfg *config.Config, logger *zap.Logger, repos *Repositories) *
 
 // initCoreServices initializes core platform services
 func initCoreServices(svcs *Services, cfg *config.Config, logger *zap.Logger, repos *Repositories) {
-	svcs.LLM = service.NewLLMClient(logger)
+	svcs.Egress = service.NewEgressPolicy(
+		cfg.Privacy.NoEgress,
+		cfg.Privacy.RedactionEnabled,
+	)
+	svcs.LLM = service.NewLLMClient(logger, svcs.Egress)
 	svcs.Cost = service.NewCostService(logger)
 
 	svcs.Query = service.NewQueryService(repos.Trace, repos.Observation, repos.Score, repos.Session)
@@ -208,14 +222,75 @@ func initCoreServices(svcs *Services, cfg *config.Config, logger *zap.Logger, re
 	svcs.FileOperation = service.NewFileOperationService(repos.FileOperation, repos.Trace)
 	svcs.TerminalCommand = service.NewTerminalCommandService(repos.TerminalCommand, repos.Trace)
 	svcs.CIRun = service.NewCIRunService(repos.CIRun)
+	svcs.Outcome = service.NewOutcomeService(repos.Outcome)
 	svcs.Replay = service.NewReplayService(logger, repos.Trace, repos.Observation, repos.FileOperation, repos.TerminalCommand, repos.Checkpoint, repos.GitLink)
+	svcs.ReplayPlan = service.NewReplayPlanService(
+		repos.ReplayPlan,
+		repos.Trace,
+		repos.Checkpoint,
+		svcs.Replay,
+		nil,
+	)
 	svcs.Experiment = service.NewExperimentService(logger, repos.Experiment)
 	svcs.Debug = service.NewDebugService(logger, repos.DebugSession, svcs.Replay)
 	svcs.Regression = service.NewRegressionService(logger, repos.Regression, svcs.Dataset, svcs.Eval)
 	svcs.Tenant = service.NewTenantService(logger, repos.Tenant)
 	svcs.AgentGraph = service.NewAgentGraphService(logger, svcs.Query)
-	svcs.Migration = service.NewMigrationService(logger, repos.Migration, svcs.Ingestion, svcs.Prompt, svcs.Dataset)
+	svcs.Migration = service.NewMigrationService(
+		logger,
+		repos.Migration,
+		svcs.Ingestion,
+		svcs.Prompt,
+		svcs.Dataset,
+		svcs.Egress,
+	)
+	svcs.LangfuseImport = service.NewLangfuseImportService(
+		repos.Migration,
+		svcs.Ingestion,
+		svcs.Score,
+		svcs.Prompt,
+		service.NewSensitiveDataRedactor(),
+	)
 	svcs.Benchmark = service.NewBenchmarkService(logger, repos.Benchmark, svcs.Dataset, svcs.Eval)
+	svcs.EvalHub = service.NewEvalHubService(
+		repos.EvalHub,
+		svcs.Project,
+		service.NewDefaultEvalHubAssetManager(
+			svcs.Dataset,
+			svcs.Eval,
+			svcs.Prompt,
+			svcs.Experiment,
+		),
+	)
+	svcs.ShareLink = service.NewShareLinkService(
+		repos.ShareLink,
+		repos.Trace,
+		svcs.Replay,
+		svcs.ReplayPlan,
+		service.NewSensitiveDataRedactor(),
+		cfg.Server.PublicURL,
+	)
+	svcs.GitHubReporter = service.NewGitHubOutcomeReporter(
+		repos.GitHubReporting,
+		svcs.Outcome,
+		service.GitHubReportingConfig{
+			Enabled: cfg.GitHub.ReportingEnabled,
+			APIURL:  cfg.GitHub.APIURL,
+			Token:   cfg.GitHub.ReportToken,
+		},
+		svcs.Egress,
+	)
+	svcs.Notification = service.NewNotificationService(
+		logger,
+		cfg.Server.PublicURL,
+		svcs.Egress,
+	)
+	svcs.TeamDigest = service.NewTeamDigestDeliveryService(
+		repos.Webhook,
+		svcs.Notification,
+		svcs.Outcome,
+		svcs.Egress,
+	)
 	svcs.Collaboration = service.NewCollaborationService(logger, repos.Collaboration, svcs.Realtime)
 	svcs.Guardrail = service.NewGuardrailService(logger, repos.Guardrail, nil)
 	svcs.Ingestion.SetGuardrailService(svcs.Guardrail)
@@ -279,7 +354,7 @@ func initCollabServices(svcs *Services, logger *zap.Logger) {
 
 // initInfraServices initializes infrastructure services
 func initInfraServices(svcs *Services, logger *zap.Logger) {
-	svcs.Federation = service.NewFederationService(logger)
+	svcs.Federation = service.NewFederationService(logger, svcs.Egress)
 	svcs.FederatedLearning = service.NewFederatedLearningService(logger)
 	svcs.WebhookOrchestration = service.NewWebhookOrchestrationService(logger)
 	svcs.Marketplace = service.NewMarketplaceService(logger)
@@ -296,8 +371,18 @@ func initInfraServices(svcs *Services, logger *zap.Logger) {
 }
 
 // initV6Services initializes Next-Gen v6 feature services
-func initV6Services(svcs *Services, cfg *config.Config, logger *zap.Logger) {
-	svcs.ReplaySession = service.NewReplaySessionService(logger)
+func initV6Services(
+	svcs *Services,
+	cfg *config.Config,
+	logger *zap.Logger,
+	repos *Repositories,
+) {
+	svcs.ReplaySession = service.NewReplaySessionService(
+		logger,
+		repos.ReplaySession,
+		repos.Trace,
+		svcs.Replay,
+	)
 	svcs.CostGuardrail = service.NewCostGuardrailService(logger)
 	svcs.MultiAgentGraph = service.NewMultiAgentGraphService(logger)
 	svcs.PromptCI = service.NewPromptCIService(logger)
@@ -326,17 +411,17 @@ func initV7Services(svcs *Services, logger *zap.Logger) {
 	svcs.CostAlerting = service.NewCostAlertingService(logger)
 	svcs.RegressionSuite = service.NewRegressionSuiteService(logger)
 	svcs.CollabHub = service.NewCollabHubService(logger)
-	svcs.OTelCompat = service.NewOTelCompatService(logger)
+	svcs.OTelCompat = service.NewOTelCompatService(logger, svcs.Egress)
 	svcs.SecurityScanner = service.NewSecurityScannerService(logger)
 }
 
 // initV8Services initializes Next-Gen v8 feature services
-func initV8Services(svcs *Services, logger *zap.Logger) {
+func initV8Services(svcs *Services, cfg *config.Config, logger *zap.Logger) {
 	svcs.AgentComparison = service.NewAgentComparisonService(logger)
 	svcs.RegressionDetection = service.NewRegressionDetectionService(logger)
 	svcs.CodeQuality = service.NewCodeQualityService(logger)
 	svcs.SkillProfile = service.NewSkillProfileService(logger, svcs.Query)
-	svcs.NLQuery = service.NewNLQueryService(nil, svcs.Query, logger)
+	svcs.NLQuery = service.NewNLQueryService(cfg, svcs.Query, logger, svcs.Egress)
 	svcs.Sandbox = service.NewSandboxService(logger)
 }
 
@@ -346,7 +431,7 @@ func initV10Services(svcs *Services, logger *zap.Logger) {
 	svcs.TestGenerator = service.NewTestGeneratorService(logger)
 	svcs.CanaryDeployment = service.NewCanaryDeploymentService(logger)
 	svcs.CertExport = service.NewCertificationExportService(logger)
-	svcs.WarehouseSync = service.NewWarehouseSyncService(logger)
+	svcs.WarehouseSync = service.NewWarehouseSyncService(logger, svcs.Egress)
 	svcs.TraceReview = service.NewTraceReviewService(logger)
 	svcs.RunbookEngine = service.NewRunbookEngineService(logger)
 	svcs.EdgeIngest = service.NewEdgeIngestService(logger)
@@ -364,7 +449,7 @@ func initV11Services(svcs *Services, logger *zap.Logger) {
 	svcs.TraceEnrichment = service.NewTraceEnrichmentService(logger)
 	svcs.CostForecast = service.NewCostForecastService(logger, svcs.Cost, svcs.Query)
 	svcs.TraceKB = service.NewTraceKBService(logger)
-	svcs.OTelBridge = service.NewOTelBridgeService(logger, svcs.Ingestion)
+	svcs.OTelBridge = service.NewOTelBridgeService(logger, svcs.Ingestion, svcs.Egress)
 }
 
 // initV12Services initializes Next-Gen v12 feature services

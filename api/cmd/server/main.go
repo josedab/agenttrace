@@ -13,16 +13,19 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
 	"github.com/agenttrace/agenttrace/api/internal/config"
-	"github.com/agenttrace/agenttrace/api/internal/graphql/generated"
 	gql "github.com/agenttrace/agenttrace/api/internal/graphql"
+	"github.com/agenttrace/agenttrace/api/internal/graphql/generated"
 	apihandler "github.com/agenttrace/agenttrace/api/internal/handler"
 	"github.com/agenttrace/agenttrace/api/internal/middleware"
+	pkglogger "github.com/agenttrace/agenttrace/api/internal/pkg/logger"
+	"github.com/agenttrace/agenttrace/api/internal/service"
 )
 
-const appVersion = "0.1.0"
+var appVersion = "dev"
 
 func main() {
 	// Load configuration
@@ -32,21 +35,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize logger
-	var logger *zap.Logger
-	if cfg.Server.Env == "production" {
-		logger, err = zap.NewProduction()
-	} else {
-		logger, err = zap.NewDevelopment()
-	}
-	if err != nil {
+	// Initialize the shared logger used by the server and database packages.
+	if err := pkglogger.Init(pkglogger.Config{
+		Level:  cfg.Log.Level,
+		Format: cfg.Log.Format,
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	logger := pkglogger.Log
+	defer func() {
+		if err := pkglogger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to flush logger: %v\n", err)
+		}
+	}()
 
 	// Initialize Sentry if enabled
-	sentryEnabled := cfg.Sentry.Enabled && cfg.Sentry.DSN != ""
+	sentryEnabled := sentryRuntimeEnabled(cfg)
 	if sentryEnabled {
 		sentryConfig := middleware.SentryConfig{
 			DSN:              cfg.Sentry.DSN,
@@ -107,7 +112,12 @@ func main() {
 		app.Use(middleware.SentryMiddleware(true))
 	}
 
-	corsMiddleware := middleware.NewCORSMiddleware(middleware.DefaultCORSConfig())
+	corsConfig := middleware.DefaultCORSConfig()
+	if cfg.IsProduction() {
+		corsConfig = middleware.ProductionCORSConfig(cfg.CORS.AllowedOrigins)
+		corsConfig.AllowCredentials = cfg.CORS.AllowCredentials
+	}
+	corsMiddleware := middleware.NewCORSMiddleware(corsConfig)
 	app.Use(corsMiddleware.Handler())
 
 	// Security headers middleware
@@ -125,6 +135,7 @@ func main() {
 	// Metrics middleware
 	metricsMiddleware := middleware.NewMetricsMiddleware(middleware.DefaultMetricsConfig())
 	app.Use(metricsMiddleware.Handler())
+	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 
 	// Register routes
 	registerRoutes(app, deps)
@@ -174,8 +185,23 @@ func main() {
 	logger.Info("server stopped")
 }
 
+func sentryRuntimeEnabled(cfg *config.Config) bool {
+	if cfg == nil || !cfg.Sentry.Enabled || cfg.Sentry.DSN == "" {
+		return false
+	}
+	policy := service.NewEgressPolicy(
+		cfg.Privacy.NoEgress,
+		cfg.Privacy.RedactionEnabled,
+	)
+	return service.RequireOutbound(policy, service.EgressSentry) == nil
+}
+
 // setupGraphQL sets up GraphQL handlers
 func setupGraphQL(app *fiber.App, deps *Dependencies, cfg *config.Config) {
+	if cfg.IsProduction() {
+		return
+	}
+
 	// Create GraphQL server
 	srv := handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{
@@ -187,18 +213,12 @@ func setupGraphQL(app *fiber.App, deps *Dependencies, cfg *config.Config) {
 	srv.Use(extension.FixedComplexityLimit(300))
 	srv.Use(gql.DepthLimitExtension{MaxDepth: 15})
 
-	// Introspection only in development
-	if cfg.Server.Env == "production" {
-		srv.Use(extension.Introspection{})
-	}
+	srv.Use(extension.Introspection{})
 
 	// GraphQL endpoint
 	app.All("/graphql", adaptor.HTTPHandler(srv))
 
-	// GraphQL playground (only in development)
-	if cfg.Server.Env != "production" {
-		app.Get("/playground", adaptor.HTTPHandlerFunc(playground.Handler("AgentTrace GraphQL", "/graphql")))
-	}
+	app.Get("/playground", adaptor.HTTPHandlerFunc(playground.Handler("AgentTrace GraphQL", "/graphql")))
 }
 
 // errorHandler creates a custom error handler

@@ -50,6 +50,7 @@ func registerV10Routes(public fiber.Router, h *Handlers) {
 	public.Post("/warehouse/connections", h.WarehouseSync.CreateConnection)
 	public.Get("/warehouse/connections/:connId", h.WarehouseSync.GetConnection)
 	public.Delete("/warehouse/connections/:connId", h.WarehouseSync.DeleteConnection)
+	public.Post("/warehouse/connections/:connId/test", h.WarehouseSync.TestConnection)
 	public.Post("/warehouse/connections/:connId/sync", h.WarehouseSync.TriggerSync)
 	public.Get("/warehouse/connections/:connId/status", h.WarehouseSync.GetSyncStatus)
 	public.Post("/warehouse/connections/:connId/schema", h.WarehouseSync.GetSchemaMapping)

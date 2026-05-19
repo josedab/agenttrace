@@ -26,6 +26,13 @@ func registerAnalysisRoutes(public fiber.Router, h *Handlers) {
 	public.Post("/replay/compare", h.Replay.CompareTimelines)
 	public.Post("/traces/:traceId/reproduce", h.Replay.GenerateReproduction)
 	public.Post("/replay/compare-ab", h.Replay.CompareReplaysAB)
+	public.Get("/traces/:traceId/replay-capabilities", h.ReplayPlan.AssessCapabilities)
+	public.Post("/traces/:traceId/replay-plans", h.ReplayPlan.CreatePlan)
+	public.Get("/replay-plans/:planId", h.ReplayPlan.GetPlan)
+	public.Post("/replay-plans/:planId/execute", h.ReplayPlan.ExecutePlan)
+	public.Post("/replay-plans/:planId/retry", h.ReplayPlan.RetryPlan)
+	public.Get("/replay-plans/:planId/comparison", h.ReplayPlan.GetComparison)
+	public.Post("/replay-plans/:planId/share-links", h.ShareLink.CreateReplayPlan)
 
 	// Real-Time Agent Replay
 	public.Get("/replay-sessions", h.ReplaySession.ListSessions)

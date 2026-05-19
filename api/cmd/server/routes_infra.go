@@ -74,6 +74,7 @@ func registerInfraRoutes(public fiber.Router, h *Handlers) {
 	// Migration
 	public.Get("/migrations", h.Migration.ListMigrations)
 	public.Post("/migrations", h.Migration.StartMigration)
+	public.Post("/migrations/langfuse/import", h.LangfuseImport.ImportBatch)
 	public.Get("/migrations/:jobId", h.Migration.GetMigration)
 	public.Post("/migrations/validate", h.Migration.ValidateSource)
 

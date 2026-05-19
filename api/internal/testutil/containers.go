@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func SetupPostgres(t *testing.T) *PostgresContainer {
 	ctx := context.Background()
 
 	container, err := tcpostgres.Run(ctx,
-		"postgres:16-alpine",
+		"postgres:16.4-alpine",
 		tcpostgres.WithDatabase("test_agenttrace"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
@@ -66,12 +67,16 @@ func SetupPostgres(t *testing.T) *PostgresContainer {
 	if err != nil {
 		t.Fatalf("failed to get postgres port: %v", err)
 	}
+	portNumber, err := strconv.Atoi(port.Port())
+	if err != nil {
+		t.Fatalf("failed to parse postgres port %q: %v", port.Port(), err)
+	}
 
 	dsn := fmt.Sprintf("postgres://test:test@%s:%s/test_agenttrace?sslmode=disable", host, port.Port())
 
 	cfg := config.PostgresConfig{
 		Host:     host,
-		Port:     port.Int(),
+		Port:     portNumber,
 		User:     "test",
 		Password: "test",
 		Database: "test_agenttrace",

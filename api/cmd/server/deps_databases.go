@@ -42,13 +42,22 @@ func initDatabases(ctx context.Context, cfg *config.Config, logger *zap.Logger) 
 	}
 	dbs.ClickHouse = chDB
 
-	// Initialize Redis
-	redisClient, err := initRedis(ctx, cfg)
-	if err != nil {
-		dbs.Close()
-		return nil, fmt.Errorf("failed to initialize Redis: %w", err)
+	// Initialize Redis when queue-backed features are enabled.
+	if cfg.Redis.Enabled {
+		redisClient, err := initRedis(ctx, cfg)
+		if err != nil {
+			dbs.Close()
+			return nil, fmt.Errorf("failed to initialize Redis: %w", err)
+		}
+		dbs.Redis = redisClient
+		dbs.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{
+			Addr:     cfg.Redis.Addr(),
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		})
+	} else {
+		logger.Info("Redis disabled; queue-backed exports and distributed rate limiting are unavailable")
 	}
-	dbs.Redis = redisClient
 
 	// Initialize MinIO (optional - nil is safe, checked before use)
 	minioClient, err := initMinio(cfg)
@@ -57,13 +66,6 @@ func initDatabases(ctx context.Context, cfg *config.Config, logger *zap.Logger) 
 		minioClient = nil
 	}
 	dbs.Minio = minioClient
-
-	// Initialize Asynq client
-	dbs.AsynqClient = asynq.NewClient(asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Addr(),
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
 
 	return dbs, nil
 }
@@ -102,7 +104,7 @@ func initRedis(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
 
 // initMinio initializes MinIO client
 func initMinio(cfg *config.Config) (*minio.Client, error) {
-	if cfg.MinIO.Endpoint == "" {
+	if !cfg.MinIO.Enabled || cfg.MinIO.Endpoint == "" {
 		return nil, nil
 	}
 

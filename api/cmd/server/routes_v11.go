@@ -34,10 +34,19 @@ func registerV11Routes(public fiber.Router, h *Handlers) {
 	public.Put("/streaming-dashboard/config", h.StreamingDashboard.UpdateConfig)
 
 	// Evaluation Dataset Marketplace
-	public.Get("/eval-marketplace/datasets", h.EvalMarketplace.ListDatasets)
-	public.Get("/eval-marketplace/datasets/:datasetId", h.EvalMarketplace.GetDataset)
-	public.Post("/eval-marketplace/datasets", h.EvalMarketplace.PublishDataset)
-	public.Post("/eval-marketplace/datasets/:datasetId/import", h.EvalMarketplace.ImportDataset)
+	public.Get("/eval-hub/packages", h.EvalHub.ListPackages)
+	public.Get("/eval-hub/packages/:packageId", h.EvalHub.GetPackage)
+	public.Post("/eval-hub/packages", h.EvalHub.Publish)
+	public.Post("/eval-hub/packages/:packageId/fork", h.EvalHub.Fork)
+	public.Post("/eval-hub/packages/:packageId/runs", h.EvalHub.Run)
+	public.Get("/eval-hub/runs", h.EvalHub.ListRuns)
+	public.Get("/eval-hub/runs/:runId", h.EvalHub.GetRun)
+
+	// Compatibility aliases for the former dataset-only marketplace.
+	public.Get("/eval-marketplace/datasets", h.EvalHub.ListLegacyDatasets)
+	public.Get("/eval-marketplace/datasets/:datasetId", h.EvalHub.GetLegacyDataset)
+	public.Post("/eval-marketplace/datasets", h.EvalHub.Publish)
+	public.Post("/eval-marketplace/datasets/:datasetId/import", h.EvalHub.ImportLegacyDataset)
 	public.Get("/eval-marketplace/categories", h.EvalMarketplace.ListCategories)
 	public.Post("/eval-marketplace/datasets/:datasetId/rate", h.EvalMarketplace.RateDataset)
 

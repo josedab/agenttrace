@@ -168,7 +168,11 @@ func (w *ExportWorker) ProcessDatasetTask(ctx context.Context, t *asynq.Task) er
 	)
 
 	// Get dataset
-	dataset, err := w.datasetService.Get(ctx, payload.DatasetID)
+	dataset, err := w.datasetService.GetForProject(
+		ctx,
+		payload.ProjectID,
+		payload.DatasetID,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to get dataset: %w", err)
 	}

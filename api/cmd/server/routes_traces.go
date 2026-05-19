@@ -19,14 +19,15 @@ func registerTracesRoutes(public fiber.Router, h *Handlers) {
 	// Trace queries
 	public.Get("/traces", h.Traces.ListTraces)
 	public.Get("/traces/search", h.Traces.SearchTraces)
-	public.Get("/traces/:id", h.Traces.GetTrace)
-	public.Get("/traces/:id/observations", h.Traces.GetTraceObservations)
-	public.Get("/traces/:id/stats", h.Traces.GetTraceStats)
-	public.Delete("/traces/:id", h.Traces.DeleteTrace)
+	public.Get("/traces/:traceId", h.Traces.GetTrace)
+	public.Get("/traces/:traceId/observations", h.Traces.GetTraceObservations)
+	public.Get("/traces/:traceId/stats", h.Traces.GetTraceStats)
+	public.Patch("/traces/:traceId", h.Traces.UpdateTrace)
+	public.Delete("/traces/:traceId", h.Traces.DeleteTrace)
 
 	// Sessions
 	public.Get("/sessions", h.Traces.GetSessions)
-	public.Get("/sessions/:id", h.Traces.GetSession)
+	public.Get("/sessions/:sessionId", h.Traces.GetSession)
 
 	// Checkpoints (agent-specific)
 	public.Get("/checkpoints", h.Checkpoints.ListCheckpoints)
@@ -42,6 +43,7 @@ func registerTracesRoutes(public fiber.Router, h *Handlers) {
 	public.Get("/git-links/:gitLinkId", h.GitLinks.GetGitLink)
 	public.Post("/git-links", h.GitLinks.CreateGitLink)
 	public.Get("/traces/:traceId/git-links", h.GitLinks.GetTraceGitLinks)
+	public.Post("/traces/:traceId/share-links", h.ShareLink.CreateTrace)
 
 	// File Operations (agent-specific)
 	public.Get("/file-operations", h.FileOperations.ListFileOperations)
@@ -72,6 +74,10 @@ func registerTracesRoutes(public fiber.Router, h *Handlers) {
 
 	// Metrics
 	public.Get("/metrics/project", h.Traces.GetMetrics)
+	public.Get("/outcomes", h.Outcomes.GetOverview)
+	public.Get("/outcomes/digest", h.Outcomes.GetDigest)
+	public.Post("/outcomes/github-report", h.OutcomeDelivery.DeliverGitHub)
+	public.Post("/outcomes/digest/deliver", h.TeamDigest.Deliver)
 
 	// Distributed Tracing
 	public.Get("/distributed/traces/:traceId", h.DistributedTrace.GetTrace)

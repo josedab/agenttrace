@@ -19,6 +19,8 @@ type Handlers struct {
 	Prompts          *handler.PromptsHandler
 	Datasets         *handler.DatasetsHandler
 	Evaluators       *handler.EvaluatorsHandler
+	EvalHub          *handler.EvalHubHandler
+	ShareLink        *handler.ShareLinkHandler
 	Events           *handler.EventsHandler
 	APIKeys          *handler.APIKeysHandler
 	Projects         *handler.ProjectsHandler
@@ -29,11 +31,15 @@ type Handlers struct {
 	FileOperations   *handler.FileOperationsHandler
 	TerminalCommands *handler.TerminalCommandsHandler
 	CIRuns           *handler.CIRunsHandler
+	Outcomes         *handler.OutcomeHandler
+	OutcomeDelivery  *handler.OutcomeDeliveryHandler
+	TeamDigest       *handler.TeamDigestHandler
 	Export           *handler.ExportHandler
 	Import           *handler.ImportHandler
 	Docs             *handler.DocsHandler
 	Webhook          *handler.WebhookHandler
 	Replay           *handler.ReplayHandler
+	ReplayPlan       *handler.ReplayPlanHandler
 	Experiment       *handler.ExperimentHandler
 	Debug            *handler.DebugHandler
 	Regression       *handler.RegressionHandler
@@ -41,6 +47,7 @@ type Handlers struct {
 	Benchmarks       *handler.BenchmarksHandler
 	Collaboration    *handler.CollaborationHandler
 	Migration        *handler.MigrationHandler
+	LangfuseImport   *handler.LangfuseImportHandler
 	OTelReceiver     *handler.OTelReceiverHandler
 	CollaborationWS  *handler.CollaborationWSHandler
 	Billing          *handler.BillingHandler
@@ -73,30 +80,31 @@ type Handlers struct {
 	ComplianceMonitor *handler.ComplianceMonitorHandler
 	Guardrails        *handler.GuardrailsHandler
 	Privacy           *handler.PrivacyHandler
+	PrivacyMode       *handler.PrivacyModeHandler
 	RBAC              *handler.RBACHandler
 
 	// Agents
-	AgentBuilder    *handler.AgentBuilderHandler
-	AgentVersion    *handler.AgentVersionHandler
-	AgentMemory     *handler.AgentMemoryHandler
-	Autonomy        *handler.AutonomyHandler
-	Fleet           *handler.FleetHandler
-	Copilot         *handler.CopilotHandler
-	KnowledgeGraph  *handler.KnowledgeGraphHandler
-	Intent          *handler.IntentHandler
-	SLO             *handler.SLOHandler
+	AgentBuilder   *handler.AgentBuilderHandler
+	AgentVersion   *handler.AgentVersionHandler
+	AgentMemory    *handler.AgentMemoryHandler
+	Autonomy       *handler.AutonomyHandler
+	Fleet          *handler.FleetHandler
+	Copilot        *handler.CopilotHandler
+	KnowledgeGraph *handler.KnowledgeGraphHandler
+	Intent         *handler.IntentHandler
+	SLO            *handler.SLOHandler
 
 	// Collaboration
 	CollabPattern *handler.CollabPatternHandler
 	CrossOrg      *handler.CrossOrgHandler
 
 	// Infrastructure
-	Federation           *handler.FederationHandler
-	FederatedLearning    *handler.FederatedLearningHandler
-	WebhookOrchestration *handler.WebhookOrchestrationHandler
-	Marketplace          *handler.MarketplaceHandler
-	Mobile               *handler.MobileHandler
-	Plugin               *handler.PluginHandler
+	Federation            *handler.FederationHandler
+	FederatedLearning     *handler.FederatedLearningHandler
+	WebhookOrchestration  *handler.WebhookOrchestrationHandler
+	Marketplace           *handler.MarketplaceHandler
+	Mobile                *handler.MobileHandler
+	Plugin                *handler.PluginHandler
 	OrchestrationDebugger *handler.OrchestrationDebuggerHandler
 	RCA                   *handler.RCAHandler
 	Embed                 *handler.EmbedHandler
@@ -177,11 +185,12 @@ func initHandlers(
 	chDB *database.ClickHouseDB,
 	redisClient *redis.Client,
 	asynqClient *asynq.Client,
+	storageAvailable bool,
 	version string,
 ) *Handlers {
 	h := &Handlers{}
 
-	initCoreHandlers(h, logger, svcs, repos, pgDB, chDB, redisClient, asynqClient, version)
+	initCoreHandlers(h, logger, svcs, repos, pgDB, chDB, redisClient, asynqClient, storageAvailable, version)
 	initCostHandlers(h, logger, svcs)
 	initComplianceHandlers(h, logger, svcs)
 	initAgentHandlers(h, logger, svcs)
@@ -207,6 +216,7 @@ func initCoreHandlers(
 	chDB *database.ClickHouseDB,
 	redisClient *redis.Client,
 	asynqClient *asynq.Client,
+	storageAvailable bool,
 	version string,
 ) {
 	h.Health = handler.NewHealthHandler(pgDB.Pool, chDB.Conn, redisClient, version)
@@ -216,6 +226,8 @@ func initCoreHandlers(
 	h.Prompts = handler.NewPromptsHandler(svcs.Prompt, logger)
 	h.Datasets = handler.NewDatasetsHandler(svcs.Dataset, logger)
 	h.Evaluators = handler.NewEvaluatorsHandler(svcs.Eval, logger)
+	h.EvalHub = handler.NewEvalHubHandler(svcs.EvalHub, logger)
+	h.ShareLink = handler.NewShareLinkHandler(svcs.ShareLink, logger)
 	h.Events = handler.NewEventsHandler(svcs.Realtime, logger)
 	h.APIKeys = handler.NewAPIKeysHandler(svcs.Auth, logger)
 	h.Projects = handler.NewProjectsHandler(svcs.Project, logger)
@@ -226,11 +238,15 @@ func initCoreHandlers(
 	h.FileOperations = handler.NewFileOperationsHandler(svcs.FileOperation, logger)
 	h.TerminalCommands = handler.NewTerminalCommandsHandler(svcs.TerminalCommand, logger)
 	h.CIRuns = handler.NewCIRunsHandler(svcs.CIRun, logger)
-	h.Export = handler.NewExportHandler(asynqClient, logger)
+	h.Outcomes = handler.NewOutcomeHandler(svcs.Outcome, logger)
+	h.OutcomeDelivery = handler.NewOutcomeDeliveryHandler(svcs.GitHubReporter, logger)
+	h.TeamDigest = handler.NewTeamDigestHandler(svcs.TeamDigest, logger)
+	h.Export = handler.NewExportHandler(asynqClient, storageAvailable, svcs.Egress, logger)
 	h.Import = handler.NewImportHandler(svcs.Dataset, svcs.Prompt, logger)
 	h.Docs = handler.NewDocsHandler()
 	h.Webhook = handler.NewWebhookHandler(logger, repos.Webhook, nil)
 	h.Replay = handler.NewReplayHandler(logger, svcs.Replay)
+	h.ReplayPlan = handler.NewReplayPlanHandler(svcs.ReplayPlan, logger)
 	h.Experiment = handler.NewExperimentHandler(logger, svcs.Experiment)
 	h.Debug = handler.NewDebugHandler(svcs.Debug, logger)
 	h.Regression = handler.NewRegressionHandler(svcs.Regression, logger)
@@ -238,6 +254,7 @@ func initCoreHandlers(
 	h.Benchmarks = handler.NewBenchmarksHandler(svcs.Benchmark, logger)
 	h.Collaboration = handler.NewCollaborationHandler(svcs.Collaboration, logger)
 	h.Migration = handler.NewMigrationHandler(svcs.Migration, logger)
+	h.LangfuseImport = handler.NewLangfuseImportHandler(svcs.LangfuseImport, logger)
 	h.OTelReceiver = handler.NewOTelReceiverHandler(svcs.OTelReceiver, logger)
 	h.CollaborationWS = handler.NewCollaborationWSHandler(logger, svcs.Collaboration)
 	h.Billing = handler.NewBillingHandler(svcs.Billing, logger)
@@ -274,6 +291,7 @@ func initComplianceHandlers(h *Handlers, logger *zap.Logger, svcs *Services) {
 	h.ComplianceMonitor = handler.NewComplianceMonitorHandler(svcs.ComplianceMonitor, logger)
 	h.Guardrails = handler.NewGuardrailsHandler(svcs.Guardrail, logger)
 	h.Privacy = handler.NewPrivacyHandler(svcs.Privacy, logger)
+	h.PrivacyMode = handler.NewPrivacyModeHandler(svcs.Egress)
 	h.RBAC = handler.NewRBACHandler(logger, svcs.RBAC)
 }
 

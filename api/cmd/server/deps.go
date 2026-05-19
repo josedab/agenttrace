@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -55,12 +56,20 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*Dependencies, er
 		dbs.ClickHouse,
 		dbs.Redis,
 		dbs.AsynqClient,
-		"0.1.0",
+		dbs.Minio != nil,
+		appVersion,
 	)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(svcs.Auth, svcs.Org)
-	rateLimitMiddleware := middleware.NewRateLimitMiddleware(dbs.Redis)
+	rateLimitRedis := dbs.Redis
+	if !cfg.RateLimit.Enabled {
+		rateLimitRedis = nil
+	}
+	rateLimitConfig := middleware.DefaultRateLimitConfig()
+	rateLimitConfig.Max = cfg.RateLimit.RequestsPerSecond
+	rateLimitConfig.Window = time.Second
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(rateLimitRedis, rateLimitConfig)
 	csrfMiddleware := middleware.NewCSRFMiddlewareWithConfig(middleware.CSRFConfig{
 		Enabled:        cfg.Server.CSRFEnabled,
 		CookieSecure:   cfg.Server.SecureCookies,

@@ -9,10 +9,10 @@ func registerScoresRoutes(public fiber.Router, h *Handlers) {
 	// Scores
 	public.Get("/scores", h.Scores.ListScores)
 	public.Get("/scores/stats", h.Scores.GetScoreStats)
-	public.Get("/scores/:id", h.Scores.GetScore)
+	public.Get("/scores/:scoreId", h.Scores.GetScore)
 	public.Post("/scores", h.Scores.CreateScore)
 	public.Post("/scores/batch", h.Scores.BatchCreateScores)
-	public.Put("/scores/:id", h.Scores.UpdateScore)
+	public.Put("/scores/:scoreId", h.Scores.UpdateScore)
 	public.Get("/traces/:traceId/scores", h.Scores.GetTraceScores)
 
 	// Evaluators
