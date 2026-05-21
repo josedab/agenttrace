@@ -2,25 +2,31 @@ package agenttrace
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestClient_ConcurrentAddEvent tests for race conditions in concurrent event additions
 func TestClient_ConcurrentAddEvent(t *testing.T) {
 	t.Parallel()
 
+	numGoroutines := 100
+	eventsPerGoroutine := 10
+	expectedEvents := numGoroutines * eventsPerGoroutine
+
 	client := New(Config{
-		APIKey:       "test-api-key",
-		Host:         "http://localhost:8080",
-		MaxQueueSize: 1000,
-		FlushAt:      100, // Higher threshold to avoid flushes during test
+		APIKey:        "test-api-key",
+		Host:          newRaceTestServer(t),
+		MaxQueueSize:  1000,
+		FlushAt:       expectedEvents + 1,
+		FlushInterval: time.Hour,
 	})
 	defer client.Shutdown()
 
 	var wg sync.WaitGroup
-	numGoroutines := 100
-	eventsPerGoroutine := 10
 
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
@@ -41,7 +47,6 @@ func TestClient_ConcurrentAddEvent(t *testing.T) {
 	queueLen := len(client.queue)
 	client.queueMu.Unlock()
 
-	expectedEvents := numGoroutines * eventsPerGoroutine
 	if queueLen != expectedEvents {
 		t.Errorf("expected %d events in queue, got %d", expectedEvents, queueLen)
 	}
@@ -52,10 +57,11 @@ func TestClient_ConcurrentFlush(t *testing.T) {
 	t.Parallel()
 
 	client := New(Config{
-		APIKey:       "test-api-key",
-		Host:         "http://localhost:8080",
-		MaxQueueSize: 1000,
-		FlushAt:      1000, // Prevent auto-flush
+		APIKey:        "test-api-key",
+		Host:          newRaceTestServer(t),
+		MaxQueueSize:  1000,
+		FlushAt:       1000, // Prevent auto-flush
+		FlushInterval: time.Hour,
 	})
 	defer client.Shutdown()
 
@@ -85,10 +91,11 @@ func TestClient_ConcurrentQueueOverflow(t *testing.T) {
 	var errMu sync.Mutex
 
 	client := New(Config{
-		APIKey:       "test-api-key",
-		Host:         "http://localhost:8080",
-		MaxQueueSize: maxSize,
-		FlushAt:      maxSize + 100, // Prevent auto-flush
+		APIKey:        "test-api-key",
+		Host:          newRaceTestServer(t),
+		MaxQueueSize:  maxSize,
+		FlushAt:       maxSize + 100, // Prevent auto-flush
+		FlushInterval: time.Hour,
 		OnError: func(err error) {
 			errMu.Lock()
 			errCount++
@@ -120,4 +127,14 @@ func TestClient_ConcurrentQueueOverflow(t *testing.T) {
 	if queueLen > maxSize {
 		t.Errorf("queue exceeded max size: got %d, max %d", queueLen, maxSize)
 	}
+}
+
+func newRaceTestServer(t *testing.T) string {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
 }

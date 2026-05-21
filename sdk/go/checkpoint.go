@@ -3,6 +3,8 @@ package agenttrace
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -16,12 +18,12 @@ import (
 type CheckpointType string
 
 const (
-	CheckpointTypeManual   CheckpointType = "manual"
-	CheckpointTypeAuto     CheckpointType = "auto"
-	CheckpointTypeToolCall CheckpointType = "tool_call"
-	CheckpointTypeError    CheckpointType = "error"
+	CheckpointTypeManual    CheckpointType = "manual"
+	CheckpointTypeAuto      CheckpointType = "auto"
+	CheckpointTypeToolCall  CheckpointType = "tool_call"
+	CheckpointTypeError     CheckpointType = "error"
 	CheckpointTypeMilestone CheckpointType = "milestone"
-	CheckpointTypeRestore  CheckpointType = "restore"
+	CheckpointTypeRestore   CheckpointType = "restore"
 )
 
 // CheckpointOptions holds options for creating a checkpoint.
@@ -66,7 +68,7 @@ func (t *Trace) Checkpoint(opts CheckpointOptions) *CheckpointInfo {
 	}
 
 	// Include git info by default
-	if opts.IncludeGitInfo || opts.IncludeGitInfo == false && len(opts.Files) == 0 {
+	if !opts.IncludeGitInfo && len(opts.Files) == 0 {
 		opts.IncludeGitInfo = true
 	}
 
@@ -90,8 +92,12 @@ func (t *Trace) Checkpoint(opts CheckpointOptions) *CheckpointInfo {
 
 			if f, err := os.Open(filePath); err == nil {
 				h := sha256.New()
-				io.Copy(h, f)
-				f.Close()
+				_, copyErr := io.Copy(h, f)
+				closeErr := f.Close()
+				if err := errors.Join(copyErr, closeErr); err != nil {
+					t.client.reportError(fmt.Errorf("failed to hash checkpoint file %s: %w", filePath, err))
+					continue
+				}
 				hash := hex.EncodeToString(h.Sum(nil))
 				filesSnapshot[filePath] = map[string]interface{}{
 					"size": info.Size(),

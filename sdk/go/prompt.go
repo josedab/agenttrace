@@ -179,14 +179,18 @@ func GetPrompt(opts GetPromptOptions) (*PromptVersion, error) {
 	if err != nil {
 		return getFallback(opts)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if err := resp.Body.Close(); err != nil {
+			return getFallback(opts)
+		}
 		return getFallback(opts)
 	}
 
 	var prompt PromptVersion
-	if err := json.NewDecoder(resp.Body).Decode(&prompt); err != nil {
+	decodeErr := json.NewDecoder(resp.Body).Decode(&prompt)
+	closeErr := resp.Body.Close()
+	if decodeErr != nil || closeErr != nil {
 		return getFallback(opts)
 	}
 

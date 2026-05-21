@@ -319,7 +319,9 @@ func (c *Client) sendBatchWithContext(ctx context.Context, events []map[string]a
 			time.Sleep(time.Duration(1<<attempt) * 500 * time.Millisecond)
 			continue
 		}
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			c.reportError(fmt.Errorf("agenttrace: failed to close response body: %w", err))
+		}
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return
@@ -328,7 +330,9 @@ func (c *Client) sendBatchWithContext(ctx context.Context, events []map[string]a
 		if resp.StatusCode == 429 {
 			retryAfter := 5
 			if h := resp.Header.Get("Retry-After"); h != "" {
-				fmt.Sscanf(h, "%d", &retryAfter)
+				if _, err := fmt.Sscanf(h, "%d", &retryAfter); err != nil {
+					retryAfter = 5
+				}
 			}
 			lastErr = fmt.Errorf("rate limited (429), retry after %ds", retryAfter)
 			time.Sleep(time.Duration(retryAfter) * time.Second)

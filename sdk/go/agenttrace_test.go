@@ -221,7 +221,10 @@ func TestClient_Score(t *testing.T) {
 		}
 
 		var payload map[string]any
-		json.NewDecoder(r.Body).Decode(&payload)
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode request body: %v", err)
+			return
+		}
 
 		batch := payload["batch"].([]any)
 		if len(batch) == 0 {
@@ -253,7 +256,10 @@ func TestClient_Flush(t *testing.T) {
 	eventsReceived := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]any
-		json.NewDecoder(r.Body).Decode(&payload)
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode request body: %v", err)
+			return
+		}
 		batch := payload["batch"].([]any)
 		eventsReceived += len(batch)
 		w.WriteHeader(http.StatusOK)
