@@ -15,9 +15,10 @@ info:
     ```
     Authorization: Bearer at_pk_xxxxx
     ```
+    The bearer value is the same one-time `sk-at-<key-id>.<secret>` credential.
     Or via the `X-API-Key` header:
     ```
-    X-API-Key: at_pk_xxxxx
+    X-API-Key: sk-at-<key-id>.<secret>
     ```
 
     ### JWT Authentication
@@ -72,6 +73,26 @@ tags:
     description: Terminal command logging for agents
   - name: CI Runs
     description: CI/CD pipeline run tracking
+  - name: Outcomes
+    description: Trace-to-git-to-CI outcome analytics and reporting
+  - name: Replay
+    description: Safe replay planning and comparison
+  - name: Eval Hub
+    description: Versioned evaluation package workflows
+  - name: Sharing
+    description: Expiring server-redacted read-only links
+  - name: Privacy
+    description: Effective no-egress and redaction capabilities
+  - name: Migration
+    description: Resumable compatibility imports
+  - name: Export
+    description: Queued trace and dataset export jobs
+  - name: Warehouse
+    description: Data warehouse connections and syncs
+  - name: Federation
+    description: Cross-instance peers, queries, and export destinations
+  - name: OpenTelemetry
+    description: OTLP export destinations and bridge configuration
   - name: SSO
     description: Single Sign-On configuration (Enterprise)
   - name: Audit Logs
@@ -501,6 +522,19 @@ paths:
                 $ref: '#/components/schemas/Observation'
 
   /api/public/events:
+    get:
+      tags: [Traces]
+      summary: Stream real-time events (SSE)
+      operationId: streamEvents
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
     post:
       tags: [Ingestion]
       summary: Create an event
@@ -1248,22 +1282,6 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/EvaluatorTemplate'
-
-  # Real-time events
-  /api/public/events:
-    get:
-      tags: [Traces]
-      summary: Stream real-time events (SSE)
-      operationId: streamEvents
-      security:
-        - apiKey: []
-      responses:
-        '200':
-          description: Server-Sent Events stream
-          content:
-            text/event-stream:
-              schema:
-                type: string
 
   # Feedback
   /api/public/feedback:
@@ -2333,12 +2351,930 @@ paths:
               schema:
                 $ref: '#/components/schemas/Trace'
 
+  /api/public/outcomes:
+    get:
+      tags: [Outcomes]
+      summary: Get project outcome analytics
+      operationId: getOutcomeOverview
+      security:
+        - apiKey: []
+      parameters:
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 30d
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Outcome analytics with explicit availability states
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeOverview'
+
+  /api/public/outcomes/digest:
+    get:
+      tags: [Outcomes]
+      summary: Render a team outcome digest
+      operationId: getOutcomeDigest
+      security:
+        - apiKey: []
+      parameters:
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, markdown]
+      responses:
+        '200':
+          description: JSON digest or Markdown text
+
+  /api/public/outcomes/github-report:
+    post:
+      tags: [Outcomes]
+      summary: Deliver an optional GitHub outcome report
+      operationId: deliverGitHubOutcomeReport
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [repositoryId]
+              properties:
+                repositoryId:
+                  type: string
+                  format: uuid
+                commitSha:
+                  type: string
+                pullRequestNumber:
+                  type: integer
+                window:
+                  type: string
+                  enum: [24h, 7d, 30d]
+      responses:
+        '200':
+          description: Report delivered
+        '422':
+          description: GitHub reporting is not configured or is blocked by no-egress mode
+
+  /api/public/outcomes/digest/deliver:
+    post:
+      tags: [Outcomes]
+      summary: Deliver a digest to selected Slack, Discord, or generic webhooks
+      operationId: deliverOutcomeDigest
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [webhookIds]
+              properties:
+                webhookIds:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: string
+                    format: uuid
+                window:
+                  type: string
+                  enum: [24h, 7d, 30d]
+      responses:
+        '200':
+          description: |
+            Per-webhook delivery results. Every requested webhook is validated
+            before the first send. The body reports the honest per-webhook
+            outcome, including partial failure, cached duplicates, and sends
+            skipped because duplicate-safety storage was unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDigestDeliveryResult'
+        '400':
+          description: A requested webhook is disabled, unsupported, or has an unusable destination
+        '404':
+          description: A requested webhook does not belong to the project
+        '422':
+          description: Webhook delivery is disabled by privacy no-egress mode
+
+  /api/public/traces/{traceId}/replay-capabilities:
+    get:
+      tags: [Replay]
+      summary: Assess safe replay prerequisites
+      operationId: assessReplayCapabilities
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: checkpointId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [recorded_generation, sandbox]
+      responses:
+        '200':
+          description: Explicit capability report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayCapabilityReport'
+
+  /api/public/traces/{traceId}/replay-plans:
+    post:
+      tags: [Replay]
+      summary: Create a project-scoped safe replay plan
+      operationId: createReplayPlan
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                checkpointId:
+                  type: string
+                  format: uuid
+                mode:
+                  type: string
+                  enum: [recorded_generation, sandbox]
+      responses:
+        '201':
+          description: Replay plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPlan'
+
+  /api/public/replay-plans/{planId}/execute:
+    post:
+      tags: [Replay]
+      summary: Execute a ready replay plan
+      operationId: executeReplayPlan
+      security:
+        - apiKey: []
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Completed replay plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPlan'
+        '404':
+          description: Plan does not exist in this project
+        '409':
+          description: |
+            The plan is not ready. Concurrent execution attempts are refused
+            here: only the request that atomically moved the plan from ready to
+            running executes it. Running plans are never reclaimed based only
+            on age because an external sandbox may still be executing.
+
+  /api/public/replay-plans/{planId}:
+    get:
+      tags: [Replay]
+      summary: Get a project-scoped replay plan
+      operationId: getReplayPlan
+      security:
+        - apiKey: []
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Replay plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPlan'
+        '404':
+          description: Plan does not exist in this project
+
+  /api/public/replay-plans/{planId}/retry:
+    post:
+      tags: [Replay]
+      summary: Return a failed replay plan to ready
+      operationId: retryReplayPlan
+      security:
+        - apiKey: []
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Failed plan returned to ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPlan'
+        '404':
+          description: Plan does not exist in this project
+        '409':
+          description: Plan is not failed; running plans cannot be reclaimed by age
+
+  /api/public/replay-plans/{planId}/comparison:
+    get:
+      tags: [Replay]
+      summary: Compare a completed replay with its source
+      operationId: getReplayPlanComparison
+      security:
+        - apiKey: []
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Original-versus-replay comparison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPlanComparison'
+        '404':
+          description: Plan does not exist in this project
+        '409':
+          description: Comparison is unavailable until the replay completes
+
+  /api/public/eval-hub/packages:
+    get:
+      tags: [Eval Hub]
+      summary: List packages visible to the project
+      operationId: listEvalHubPackages
+      security:
+        - apiKey: []
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [dataset, evaluator, prompt, experiment]
+        - name: visibility
+          in: query
+          schema:
+            type: string
+            enum: [private, organization, public]
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Accessible packages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubPackageList'
+    post:
+      tags: [Eval Hub]
+      summary: Publish a package or immutable next version
+      operationId: publishEvalHubPackage
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, sourceResourceId]
+              properties:
+                packageId:
+                  type: string
+                  format: uuid
+                  description: Publishes the next immutable version of an owned package
+                kind:
+                  type: string
+                  enum: [dataset, evaluator, prompt, experiment]
+                sourceResourceId:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                description:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [private, organization, public]
+                versionNote:
+                  type: string
+      responses:
+        '201':
+          description: Published package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubPackage'
+        '422':
+          description: |
+            The asset cannot be packaged. Benchmarks are rejected because they
+            have no owning project and reference another project's dataset and
+            evaluators.
+
+  /api/public/eval-hub/packages/{packageId}:
+    get:
+      tags: [Eval Hub]
+      summary: Get a package visible to the project
+      operationId: getEvalHubPackage
+      security:
+        - apiKey: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Visible package and latest immutable version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubPackage'
+        '404':
+          description: Package is not visible to this project
+
+  /api/public/eval-hub/packages/{packageId}/fork:
+    post:
+      tags: [Eval Hub]
+      summary: Fork a visible package with provenance
+      operationId: forkEvalHubPackage
+      security:
+        - apiKey: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [private, organization, public]
+      responses:
+        '201':
+          description: |
+            Forked project-owned package. Dataset forks are validated in full and
+            rolled back on partial materialization, so a package never points at
+            incomplete data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubPackage'
+        '400':
+          description: The packaged asset is invalid and was not materialized
+        '422':
+          description: The asset kind cannot be forked
+
+  /api/public/eval-hub/packages/{packageId}/runs:
+    post:
+      tags: [Eval Hub]
+      summary: Start an idempotent project-scoped package run
+      operationId: runEvalHubPackage
+      security:
+        - apiKey: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                version:
+                  type: integer
+                  minimum: 1
+                idempotencyKey:
+                  type: string
+                  maxLength: 200
+                  description: |
+                    Unique per project. Repeating a request with the same key,
+                    including two concurrent requests, returns the run that was
+                    created first and executes the work exactly once.
+                variables:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '201':
+          description: |
+            Run created or explicit unsupported prerequisite state. The run row
+            is persisted before any dataset run or experiment starts, so an
+            interrupted execution stays visible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubRun'
+        '400':
+          description: Invalid version, variables, or idempotency key
+        '404':
+          description: Package or version is not visible to this project
+
+  /api/public/eval-hub/runs:
+    get:
+      tags: [Eval Hub]
+      summary: List project-scoped Eval Hub runs
+      operationId: listEvalHubRuns
+      security:
+        - apiKey: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Project-scoped runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubRunList'
+
+  /api/public/eval-hub/runs/{runId}:
+    get:
+      tags: [Eval Hub]
+      summary: Get a project-scoped Eval Hub run
+      operationId: getEvalHubRun
+      security:
+        - apiKey: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Eval Hub run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalHubRun'
+        '404':
+          description: Run does not exist in this project
+
+  /api/public/traces/{traceId}/share-links:
+    post:
+      tags: [Sharing]
+      summary: Create an expiring redacted trace link
+      operationId: createTraceShareLink
+      security:
+        - apiKey: []
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Raw token returned once
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShareLinkCreated'
+
+  /api/share/{token}:
+    get:
+      tags: [Sharing]
+      summary: Resolve a read-only redacted share token
+      operationId: resolveShareLink
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Redacted trace or replay view
+        '404':
+          description: Token is invalid, expired, or revoked
+        '429':
+          description: Public share rate limit exceeded
+
+  /api/public/privacy/capabilities:
+    get:
+      tags: [Privacy]
+      summary: Get effective privacy and no-egress capabilities
+      operationId: getPrivacyCapabilities
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Effective runtime behavior
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyCapabilities'
+
+  /api/public/migrations/langfuse/import:
+    post:
+      tags: [Migration]
+      summary: Import a bounded resumable Langfuse JSON batch
+      operationId: importLangfuseBatch
+      description: |
+        Trace, observation, and score records derive deterministic identifiers
+        from their source identifiers, so retrying after a failed ledger write
+        rewrites the same rows instead of creating duplicates. Identical prompt
+        versions are reused. Records the ledger already reports as imported are
+        skipped, and an imported ledger state cannot be downgraded by a later
+        concurrent failure.
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Redacted migration job progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationJob'
+        '409':
+          description: The job fingerprint or dry-run mode does not match the existing job
+
+  /api/public/warehouse/connections:
+    post:
+      tags: [Warehouse]
+      summary: Create a warehouse connection
+      operationId: createWarehouseConnection
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, config]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [snowflake, bigquery, databricks, s3_parquet]
+                direction:
+                  type: string
+                  enum: [export, import, bidirectional]
+                config:
+                  type: object
+                syncSchedule:
+                  type: string
+      responses:
+        '201':
+          description: Connection created
+        '400':
+          description: Invalid connection configuration
+        '422':
+          description: Warehouse sync is disabled by privacy no-egress mode
+
+  /api/public/warehouse/connections/{connId}/test:
+    post:
+      tags: [Warehouse]
+      summary: Test a project-owned warehouse connection
+      operationId: testWarehouseConnection
+      security:
+        - apiKey: []
+      parameters:
+        - name: connId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Connection reachability report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarehouseConnectionTest'
+        '404':
+          description: Connection does not belong to the project
+        '422':
+          description: Warehouse sync is disabled by privacy no-egress mode
+
+  /api/public/warehouse/connections/{connId}/sync:
+    post:
+      tags: [Warehouse]
+      summary: Trigger a warehouse sync
+      operationId: triggerWarehouseSync
+      security:
+        - apiKey: []
+      parameters:
+        - name: connId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sync operation
+        '404':
+          description: Connection does not belong to the project
+        '422':
+          description: Warehouse sync is disabled by privacy no-egress mode
+
+  /api/public/federation/peers:
+    post:
+      tags: [Federation]
+      summary: Register a remote AgentTrace peer
+      operationId: addFederationPeer
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                apiKey:
+                  type: string
+      responses:
+        '201':
+          description: Peer registered with a redacted endpoint
+        '422':
+          description: Federation is disabled by privacy no-egress mode
+    delete:
+      tags: [Federation]
+      summary: Remove a project-owned federation peer
+      operationId: removeFederationPeer
+      security:
+        - apiKey: []
+      parameters:
+        - name: peerId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Peer removed
+        '404':
+          description: Peer does not belong to the project
+
+  /api/public/federation/query:
+    post:
+      tags: [Federation]
+      summary: Query registered federation peers
+      operationId: federatedQuery
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Per-peer results
+        '422':
+          description: Federation is disabled by privacy no-egress mode
+
+  /api/public/federation/destinations:
+    post:
+      tags: [Federation]
+      summary: Create a remote export destination
+      operationId: createFederationExportDestination
+      security:
+        - apiKey: []
+      responses:
+        '201':
+          description: Destination created with a redacted endpoint
+        '422':
+          description: Remote export is disabled by privacy no-egress mode
+
+  /api/public/otel/destinations:
+    post:
+      tags: [OpenTelemetry]
+      summary: Create an OTLP export destination
+      operationId: createOTelExportDestination
+      security:
+        - apiKey: []
+      responses:
+        '201':
+          description: Destination created with a redacted endpoint
+        '422':
+          description: OpenTelemetry export is disabled by privacy no-egress mode
+
+  /api/public/otel-bridge/destinations:
+    post:
+      tags: [OpenTelemetry]
+      summary: Add a bridge export destination
+      operationId: addOTelBridgeDestination
+      security:
+        - apiKey: []
+      responses:
+        '201':
+          description: Destination added with a redacted endpoint
+        '422':
+          description: OpenTelemetry export is disabled by privacy no-egress mode
+
+  /api/public/otel-bridge/config:
+    put:
+      tags: [OpenTelemetry]
+      summary: Update the project OTel bridge configuration
+      operationId: updateOTelBridgeConfig
+      security:
+        - apiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exportEnabled:
+                  type: boolean
+                importEnabled:
+                  type: boolean
+                resourceAttributes:
+                  type: object
+                  additionalProperties:
+                    type: string
+                samplingRate:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+      responses:
+        '200':
+          description: Bridge configuration updated
+        '422':
+          description: Enabling OpenTelemetry export is disabled by privacy no-egress mode
+
+  /v1/export/data:
+    post:
+      tags: [Export]
+      summary: Queue a trace, observation, or score export job
+      operationId: exportData
+      security:
+        - apiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [traces, observations, scores]
+                format:
+                  type: string
+                  enum: [json, csv]
+                filters:
+                  type: object
+                destination:
+                  type: object
+                  description: |
+                    Optional caller-supplied remote destination. Omit it to write
+                    to the deployment's own object storage.
+                  properties:
+                    type:
+                      type: string
+                      enum: [s3, gcs, azure_blob]
+                    bucket:
+                      type: string
+                    path:
+                      type: string
+      responses:
+        '202':
+          description: Export job queued
+        '422':
+          description: A remote destination is disabled by privacy no-egress mode
+        '503':
+          description: Export infrastructure (queue or object storage) is unavailable
+
+  /v1/export/dataset:
+    post:
+      tags: [Export]
+      summary: Queue a project-owned dataset export job
+      operationId: exportDataset
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [datasetId]
+              properties:
+                datasetId:
+                  type: string
+                  format: uuid
+                format:
+                  type: string
+                  enum: [json, csv, openai_finetune]
+                includeRuns:
+                  type: boolean
+                destination:
+                  type: object
+                  description: |
+                    Optional caller-supplied remote destination. Omit it to write
+                    to the deployment's own object storage.
+                  properties:
+                    type:
+                      type: string
+                      enum: [s3, gcs, azure_blob]
+                    bucket:
+                      type: string
+                    path:
+                      type: string
+      responses:
+        '202':
+          description: Dataset export job queued
+        '400':
+          description: Invalid dataset ID or export format
+        '422':
+          description: A remote destination is disabled by privacy no-egress mode
+        '503':
+          description: Export infrastructure (queue or object storage) is unavailable
+
 components:
   securitySchemes:
     apiKey:
       type: http
       scheme: bearer
-      description: API key authentication (at_pk_xxx or at_sk_xxx)
+      description: API key authentication using the one-time sk-at-<key-id>.<secret> credential
     bearerAuth:
       type: http
       scheme: bearer
@@ -2381,6 +3317,377 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    OptionalMetric:
+      type: object
+      required: [available]
+      properties:
+        value:
+          type: number
+          nullable: true
+        available:
+          type: boolean
+
+    OutcomeOverview:
+      type: object
+      required: [projectId, period, runs, ci, sourceControl, cost, availability]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        period:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+        runs:
+          type: object
+          properties:
+            total:
+              type: integer
+            successful:
+              type: integer
+            failed:
+              type: integer
+            inProgress:
+              type: integer
+            successRate:
+              $ref: '#/components/schemas/OptionalMetric'
+        ci:
+          type: object
+          properties:
+            total:
+              type: integer
+            passed:
+              type: integer
+            failed:
+              type: integer
+            linkedRuns:
+              type: integer
+            passRate:
+              $ref: '#/components/schemas/OptionalMetric'
+        sourceControl:
+          type: object
+          properties:
+            linkedCommits:
+              type: integer
+            linkedPullRequests:
+              type: integer
+            regressionSignals:
+              type: integer
+            revertSignals:
+              type: integer
+        cost:
+          type: object
+          properties:
+            totalCost:
+              type: number
+            costPerSuccessfulOutcome:
+              $ref: '#/components/schemas/OptionalMetric'
+        availability:
+          type: object
+          properties:
+            unavailable:
+              type: array
+              items:
+                type: string
+
+    ReplayCapabilityReport:
+      type: object
+      properties:
+        canInspectTimeline:
+          type: boolean
+        canReplayRecordedGeneration:
+          type: boolean
+        canExecuteInSandbox:
+          type: boolean
+        generationCount:
+          type: integer
+        unsupportedReasons:
+          type: array
+          items:
+            type: string
+        safetyNotice:
+          type: string
+
+    ReplayPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+        checkpointId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [planned, ready, running, completed, failed, unsupported]
+        request:
+          type: object
+        capabilities:
+          $ref: '#/components/schemas/ReplayCapabilityReport'
+        result:
+          type: object
+          nullable: true
+        failureReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReplayPlanComparison:
+      type: object
+      properties:
+        originalGenerationCount:
+          type: integer
+        replayGenerationCount:
+          type: integer
+        originalTokens:
+          type: integer
+        replayTokens:
+          type: integer
+        originalCost:
+          type: number
+        replayProviderCost:
+          type: number
+        equivalent:
+          type: boolean
+        verdict:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+
+    EvalHubPackage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ownerProjectId:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [dataset, evaluator, prompt, experiment]
+        name:
+          type: string
+        visibility:
+          type: string
+          enum: [private, organization, public]
+        latestVersion:
+          type: integer
+        forkedFromPackageId:
+          type: string
+          format: uuid
+          nullable: true
+
+    EvalHubRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        packageId:
+          type: string
+          format: uuid
+        packageVersion:
+          type: integer
+        status:
+          type: string
+          enum: [ready, running, completed, unsupported, failed]
+        datasetRunId:
+          type: string
+          format: uuid
+          nullable: true
+        experimentId:
+          type: string
+          format: uuid
+          nullable: true
+        result:
+          type: object
+          nullable: true
+        capabilityMessage:
+          type: string
+        idempotencyKey:
+          type: string
+        createdBy:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    EvalHubPackageList:
+      type: object
+      properties:
+        packages:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalHubPackage'
+        totalCount:
+          type: integer
+          format: int64
+        hasMore:
+          type: boolean
+
+    EvalHubRunList:
+      type: object
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalHubRun'
+        totalCount:
+          type: integer
+          format: int64
+        hasMore:
+          type: boolean
+
+    WebhookDeliveryResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        webhookId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        statusCode:
+          type: integer
+        success:
+          type: boolean
+        error:
+          type: string
+        deliveryKey:
+          type: string
+          description: Identifies the digest payload used for duplicate suppression.
+        createdAt:
+          type: string
+          format: date-time
+
+    TeamDigestDeliveryResult:
+      type: object
+      properties:
+        deliveries:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookDeliveryResult'
+        succeeded:
+          type: integer
+        failed:
+          type: integer
+          description: Channels rejected, skipped after a duplicate-safety lookup failure, or not persisted.
+        duplicates:
+          type: integer
+          description: Channels that already received this digest or have the same delivery in progress.
+        triggerUpdateFailures:
+          type: integer
+          description: Successful deliveries whose bookkeeping update failed; the digest was still delivered.
+        deliveryKey:
+          type: string
+
+    WarehouseConnectionTest:
+      type: object
+      properties:
+        connectionId:
+          type: string
+          format: uuid
+        reachable:
+          type: boolean
+        message:
+          type: string
+        checkedAt:
+          type: string
+          format: date-time
+
+    ShareLinkCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+          enum: [trace, replay_plan]
+        resourceId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        token:
+          type: string
+          description: Returned once; only its SHA-256 hash is stored.
+        url:
+          type: string
+
+    PrivacyCapabilities:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [standard, local_private]
+        noEgress:
+          type: boolean
+        redactionEnabled:
+          type: boolean
+        capabilities:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              available:
+                type: boolean
+              reason:
+                type: string
+
+    MigrationJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        source:
+          type: string
+          example: langfuse
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED]
+        progress:
+          type: object
+        errors:
+          type: array
+          items:
+            type: string
+
     Error:
       type: object
       properties:

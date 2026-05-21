@@ -7,7 +7,7 @@ This guide covers deploying AgentTrace in a production environment. AgentTrace c
 - **PostgreSQL** - Metadata storage (users, organizations, projects, prompts, datasets)
 - **ClickHouse** - High-performance trace and observation storage
 - **Redis** - Job queue, rate limiting, and caching
-- **MinIO** (optional) - Object storage for exports
+- **S3-compatible object storage** (optional) - Object storage for exports
 
 ## Prerequisites
 
@@ -32,12 +32,12 @@ cp .env.example .env
 
 3. Start all services:
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 4. Run database migrations:
 ```bash
-docker compose exec api /app/server migrate up
+docker compose run --rm migrate
 ```
 
 5. Verify deployment:
@@ -55,9 +55,10 @@ curl http://localhost:8080/health
 | `CLICKHOUSE_PASSWORD` | ClickHouse password | `strong-password-here` |
 | `REDIS_PASSWORD` | Redis password | `strong-password-here` |
 | `JWT_SECRET` | JWT signing secret (32+ chars) | `your-256-bit-secret` |
-| `ENCRYPTION_KEY` | Encryption key for API keys (32 chars) | `32-char-encryption-key` |
 | `NEXTAUTH_URL` | Web app public URL | `https://app.example.com` |
 | `NEXTAUTH_SECRET` | NextAuth.js secret | `your-nextauth-secret` |
+| `NEXT_PUBLIC_API_URL` | Public API URL embedded in the web image | `https://app.example.com` |
+| `CORS_ALLOWED_ORIGINS` | Allowed browser origins | `https://app.example.com` |
 
 ### Optional Variables
 
@@ -69,8 +70,9 @@ curl http://localhost:8080/health
 | `POSTGRES_DB` | PostgreSQL database | `agenttrace` |
 | `CLICKHOUSE_USER` | ClickHouse user | `default` |
 | `CLICKHOUSE_DB` | ClickHouse database | `agenttrace` |
-| `MINIO_ROOT_USER` | MinIO root user | `agenttrace` |
-| `MINIO_ROOT_PASSWORD` | MinIO root password | Required if using MinIO |
+| `MINIO_ENDPOINT` | External S3-compatible endpoint | Empty |
+| `MINIO_ACCESS_KEY` | Object-storage access key | Empty |
+| `MINIO_SECRET_KEY` | Object-storage secret key | Empty |
 | `OPENAI_API_KEY` | OpenAI API key for LLM evaluations | Empty |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | Empty |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Empty |
@@ -276,17 +278,14 @@ services:
 ### Running Migrations
 
 ```bash
-# PostgreSQL migrations
-docker compose exec api /app/server migrate up
-
-# ClickHouse migrations (if separate)
-docker compose exec api /app/server migrate-clickhouse up
+# PostgreSQL and ClickHouse migrations
+docker compose run --rm migrate
 ```
 
 ### Rollback
 
 ```bash
-docker compose exec api /app/server migrate down 1
+docker compose run --rm migrate /app/migrate -path /app/migrations down
 ```
 
 ## Monitoring
@@ -427,12 +426,12 @@ docker compose pull
 
 3. Run migrations:
 ```bash
-docker compose exec api /app/server migrate up
+docker compose run --rm migrate
 ```
 
 4. Restart services:
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 5. Verify health:
@@ -454,7 +453,7 @@ kubectl create secret generic agenttrace-secrets \
   --from-literal=clickhouse-password=$(openssl rand -base64 32) \
   --from-literal=redis-password=$(openssl rand -base64 32) \
   --from-literal=jwt-secret=$(openssl rand -base64 32) \
-  --from-literal=encryption-key=$(openssl rand -hex 16) \
+  --from-literal=nextauth-secret=$(openssl rand -base64 32) \
   -n agenttrace
 
 # Apply with Kustomize
@@ -468,10 +467,10 @@ kubectl apply -f deploy/kubernetes/clickhouse.yaml
 kubectl apply -f deploy/kubernetes/redis.yaml
 kubectl apply -f deploy/kubernetes/api.yaml
 kubectl apply -f deploy/kubernetes/worker.yaml
+kubectl apply -f deploy/kubernetes/web.yaml
 kubectl apply -f deploy/kubernetes/ingress.yaml
 
-# Run migrations
-kubectl exec -it deployment/agenttrace-api -n agenttrace -- /app/server migrate up
+# API and worker init containers run migrations automatically.
 ```
 
 For production hardening, also apply:

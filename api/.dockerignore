@@ -3,7 +3,6 @@
 .vscode
 .devcontainer
 *.md
-docs/
 tests/
 coverage.out
 service.test

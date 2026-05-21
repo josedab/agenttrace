@@ -1,4 +1,4 @@
-.PHONY: all build run test lint clean migrate-up migrate-down generate docker-up docker-down
+.PHONY: all build run run-core run-full run-worker test lint clean migrate-up migrate-down generate docker-up docker-up-full docker-down dev dev-full dev-setup dev-setup-full
 
 # Go parameters
 GOCMD=go
@@ -8,12 +8,18 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 BINARY_NAME=agenttrace-server
 WORKER_BINARY=agenttrace-worker
+MIGRATE_BINARY=agenttrace-migrate
+MIGRATE_VERSION?=v4.18.3
+MIGRATE_CLI=$(GOCMD) run -tags 'postgres clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+DEV_COMPOSE=docker compose -f ../deploy/docker-compose.dev.yml
 
 # Directories
 CMD_SERVER=./cmd/server
 CMD_WORKER=./cmd/worker
 MIGRATIONS_PG=./migrations/postgres
 MIGRATIONS_CH=./migrations/clickhouse
+LOCAL_CLICKHOUSE_MIGRATE_URL=clickhouse://localhost:9000?username=agenttrace&password=agenttrace&database=agenttrace&x-multi-statement=true
+CLICKHOUSE_MIGRATE_URL?=$(LOCAL_CLICKHOUSE_MIGRATE_URL)
 
 # Database URLs (defaults for local dev)
 POSTGRES_URL?=postgres://agenttrace:agenttrace@localhost:5432/agenttrace?sslmode=disable
@@ -24,12 +30,25 @@ all: lint test build
 build:
 	$(GOBUILD) -o bin/$(BINARY_NAME) $(CMD_SERVER)
 	$(GOBUILD) -o bin/$(WORKER_BINARY) $(CMD_WORKER)
+	$(GOBUILD) -o bin/$(MIGRATE_BINARY) ./cmd/migrate
 
 run:
-	$(GOCMD) run $(CMD_SERVER)
+	@set -a; if [ -f .env ] && [ "$${AGENTTRACE_DEVCONTAINER:-false}" != "true" ]; then . ./.env; fi; set +a; exec $(GOCMD) run $(CMD_SERVER)
+
+run-core:
+	@set -a; if [ -f .env ] && [ "$${AGENTTRACE_DEVCONTAINER:-false}" != "true" ]; then . ./.env; fi; set +a; \
+		export REDIS_ENABLED=false MINIO_ENABLED=false RATE_LIMIT_ENABLED=false; \
+		exec $(GOCMD) run $(CMD_SERVER)
+
+run-full:
+	@set -a; if [ -f .env ] && [ "$${AGENTTRACE_DEVCONTAINER:-false}" != "true" ]; then . ./.env; fi; set +a; \
+		export REDIS_ENABLED=true MINIO_ENABLED=true RATE_LIMIT_ENABLED=true; \
+		exec $(GOCMD) run $(CMD_SERVER)
 
 run-worker:
-	$(GOCMD) run $(CMD_WORKER)
+	@set -a; if [ -f .env ] && [ "$${AGENTTRACE_DEVCONTAINER:-false}" != "true" ]; then . ./.env; fi; set +a; \
+		export REDIS_ENABLED=true MINIO_ENABLED=true; \
+		exec $(GOCMD) run $(CMD_WORKER)
 
 test:
 	$(GOTEST) -v -race -coverprofile=coverage.out ./...
@@ -56,32 +75,20 @@ deps:
 
 # Database migrations
 migrate-pg-up:
-	migrate -path $(MIGRATIONS_PG) -database "$(POSTGRES_URL)" up
+	DATABASE_URL="$(POSTGRES_URL)" $(GOCMD) run ./cmd/migrate -database postgres -path ./migrations up
 
 migrate-pg-down:
-	migrate -path $(MIGRATIONS_PG) -database "$(POSTGRES_URL)" down 1
+	DATABASE_URL="$(POSTGRES_URL)" $(GOCMD) run ./cmd/migrate -database postgres -path ./migrations down
 
 migrate-pg-create:
 	@read -p "Enter migration name: " name; \
-	migrate create -ext sql -dir $(MIGRATIONS_PG) -seq $$name
+	$(MIGRATE_CLI) create -ext sql -dir $(MIGRATIONS_PG) -seq $$name
 
 migrate-ch-up:
-	@for f in $(MIGRATIONS_CH)/*.up.sql; do \
-		echo "Running $$f..."; \
-		if ! clickhouse-client --host localhost --user agenttrace --password agenttrace --database agenttrace --multiquery < $$f; then \
-			echo "ERROR: Migration failed on $$f"; \
-			exit 1; \
-		fi; \
-	done
+	CLICKHOUSE_DSN="$(CLICKHOUSE_MIGRATE_URL)" $(GOCMD) run ./cmd/migrate -database clickhouse -path ./migrations up
 
 migrate-ch-down:
-	@for f in $$(ls -r $(MIGRATIONS_CH)/*.down.sql | head -1); do \
-		echo "Rolling back $$f..."; \
-		if ! clickhouse-client --host localhost --user agenttrace --password agenttrace --database agenttrace --multiquery < $$f; then \
-			echo "ERROR: Rollback failed on $$f"; \
-			exit 1; \
-		fi; \
-	done
+	CLICKHOUSE_DSN="$(CLICKHOUSE_MIGRATE_URL)" $(GOCMD) run ./cmd/migrate -database clickhouse -path ./migrations down
 
 # GraphQL generation
 generate:
@@ -89,23 +96,32 @@ generate:
 
 # Docker
 docker-up:
-	docker compose -f ../deploy/docker-compose.dev.yml up -d
+	$(DEV_COMPOSE) up -d --wait postgres clickhouse
+
+docker-up-full:
+	$(DEV_COMPOSE) --profile full up -d --wait postgres clickhouse redis minio
+	$(DEV_COMPOSE) --profile full run --rm createbuckets
 
 docker-down:
-	docker compose -f ../deploy/docker-compose.dev.yml down
+	$(DEV_COMPOSE) --profile full down
 
 docker-logs:
-	docker compose -f ../deploy/docker-compose.dev.yml logs -f
+	$(DEV_COMPOSE) logs -f
 
 # Development helpers
-dev: docker-up migrate-pg-up migrate-ch-up run
+dev: docker-up migrate-pg-up migrate-ch-up run-core
 
 dev-setup: deps docker-up
-	@echo "Waiting for databases to be ready..."
-	@sleep 5
 	$(MAKE) migrate-pg-up
 	$(MAKE) migrate-ch-up
 	@echo "Development environment ready!"
+
+dev-full: docker-up-full migrate-pg-up migrate-ch-up run-full
+
+dev-setup-full: deps docker-up-full
+	$(MAKE) migrate-pg-up
+	$(MAKE) migrate-ch-up
+	@echo "Full development environment ready!"
 
 # Build for multiple platforms
 build-all:
