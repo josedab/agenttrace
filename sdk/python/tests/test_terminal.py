@@ -1,9 +1,8 @@
 """Tests for the AgentTrace terminal module."""
 
 import os
-import subprocess
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from datetime import datetime
 
 from agenttrace.terminal import (
@@ -166,10 +165,10 @@ class TestTerminalClient:
 
         mock_client._batch_queue.add.assert_called_once()
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['type'] == 'terminal-command-create'
-        assert call_args['body']['traceId'] == 'trace-123'
-        assert call_args['body']['command'] == 'npm'
-        assert call_args['body']['args'] == ['test']
+        assert call_args["type"] == "terminal-command-create"
+        assert call_args["body"]["traceId"] == "trace-123"
+        assert call_args["body"]["command"] == "npm"
+        assert call_args["body"]["args"] == ["test"]
 
     def test_track_does_not_send_event_when_disabled(self):
         """Test that events are not sent when client is disabled."""
@@ -205,8 +204,9 @@ class TestTerminalClient:
         )
 
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['body']['timedOut'] is True
-        assert call_args['body']['killed'] is True
+        assert call_args["body"]["timedOut"] is True
+        assert call_args["body"]["killed"] is True
+        assert cmd.command == "slow-command"
 
     def test_track_truncated_output(self):
         """Test tracking with truncated output flags."""
@@ -226,8 +226,9 @@ class TestTerminalClient:
         )
 
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['body']['stdoutTruncated'] is True
-        assert call_args['body']['stderrTruncated'] is True
+        assert call_args["body"]["stdoutTruncated"] is True
+        assert call_args["body"]["stderrTruncated"] is True
+        assert cmd.command == "verbose-command"
 
 
 class TestTerminalClientRun:
@@ -363,7 +364,7 @@ class TestRunFunction:
 
     def test_run_raises_without_client(self):
         """Test that run raises error without client."""
-        with patch('agenttrace.terminal.get_client', return_value=None):
+        with patch("agenttrace.context.get_client", return_value=None):
             with pytest.raises(RuntimeError, match="No AgentTrace client"):
                 run(["echo", "hello"])
 
@@ -373,8 +374,8 @@ class TestRunFunction:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        with patch('agenttrace.terminal.get_client', return_value=mock_client):
-            with patch('agenttrace.terminal.get_current_trace', return_value=None):
+        with patch("agenttrace.context.get_client", return_value=mock_client):
+            with patch("agenttrace.context.get_current_trace", return_value=None):
                 with pytest.raises(RuntimeError, match="No active trace"):
                     run(["echo", "hello"])
 
@@ -387,8 +388,8 @@ class TestRunFunction:
         mock_trace = Mock()
         mock_trace.id = "trace-123"
 
-        with patch('agenttrace.terminal.get_client', return_value=mock_client):
-            with patch('agenttrace.terminal.get_current_trace', return_value=mock_trace):
+        with patch("agenttrace.context.get_client", return_value=mock_client):
+            with patch("agenttrace.context.get_current_trace", return_value=mock_trace):
                 cmd, result = run(["echo", "hello"])
                 assert cmd.command == "echo"
 
@@ -401,8 +402,8 @@ class TestRunFunction:
         mock_trace = Mock()
         mock_trace.id = "trace-123"
 
-        with patch('agenttrace.terminal.get_client', return_value=mock_client):
-            with patch('agenttrace.terminal.get_current_trace', return_value=mock_trace):
+        with patch("agenttrace.context.get_client", return_value=mock_client):
+            with patch("agenttrace.context.get_current_trace", return_value=mock_trace):
                 cmd, result = run("echo hello")
                 assert cmd.exit_code == 0
 
@@ -428,8 +429,8 @@ class TestTerminalScope:
 
         mock_client._batch_queue.add.assert_called_once()
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['body']['command'] == 'npm'
-        assert call_args['body']['exitCode'] == 0
+        assert call_args["body"]["command"] == "npm"
+        assert call_args["body"]["exitCode"] == 0
 
     def test_terminal_scope_with_exception(self):
         """Test terminal scope handles exceptions."""
@@ -442,13 +443,13 @@ class TestTerminalScope:
                 mock_client,
                 trace_id="trace-123",
                 command="error-command",
-            ) as ctx:
+            ):
                 raise ValueError("Test error")
 
         mock_client._batch_queue.add.assert_called_once()
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['body']['success'] is False
-        assert call_args['body']['exitCode'] == -1
+        assert call_args["body"]["success"] is False
+        assert call_args["body"]["exitCode"] == -1
 
     def test_terminal_scope_with_options(self):
         """Test terminal scope with all options."""
@@ -468,9 +469,9 @@ class TestTerminalScope:
             ctx["exit_code"] = 0
 
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['body']['observationId'] == 'obs-456'
-        assert call_args['body']['toolName'] == 'test-tool'
-        assert call_args['body']['reason'] == 'testing'
+        assert call_args["body"]["observationId"] == "obs-456"
+        assert call_args["body"]["toolName"] == "test-tool"
+        assert call_args["body"]["reason"] == "testing"
 
 
 class TestTerminalCommandInfo:

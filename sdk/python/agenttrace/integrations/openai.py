@@ -10,7 +10,7 @@ import functools
 import logging
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
-from agenttrace.context import get_client, get_current_trace, get_current_observation
+from agenttrace.context import get_client
 from agenttrace.generation import start_generation
 
 logger = logging.getLogger("agenttrace")
@@ -65,6 +65,7 @@ class OpenAIInstrumentation:
 
         try:
             import openai
+
             cls._unpatch_chat_completions(openai)
             cls._unpatch_completions(openai)
         except ImportError:
@@ -171,8 +172,15 @@ class OpenAIInstrumentation:
 
         # Extract model parameters
         model_params = {}
-        for param in ["temperature", "max_tokens", "top_p", "frequency_penalty",
-                      "presence_penalty", "stop", "seed"]:
+        for param in [
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+        ]:
             if param in kwargs:
                 model_params[param] = kwargs[param]
 
@@ -218,8 +226,15 @@ class OpenAIInstrumentation:
         messages = kwargs.get("messages", [])
 
         model_params = {}
-        for param in ["temperature", "max_tokens", "top_p", "frequency_penalty",
-                      "presence_penalty", "stop", "seed"]:
+        for param in [
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+        ]:
             if param in kwargs:
                 model_params[param] = kwargs[param]
 
@@ -263,8 +278,14 @@ class OpenAIInstrumentation:
         prompt = kwargs.get("prompt", "")
 
         model_params = {}
-        for param in ["temperature", "max_tokens", "top_p", "frequency_penalty",
-                      "presence_penalty", "stop"]:
+        for param in [
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+        ]:
             if param in kwargs:
                 model_params[param] = kwargs[param]
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from agenttrace.context import get_client
 
@@ -43,9 +43,7 @@ class PromptVersion:
             result = result.replace(f"{{{key}}}", str(value))
         return result
 
-    def compile_chat(
-        self, **variables: Any
-    ) -> List[Dict[str, str]]:
+    def compile_chat(self, **variables: Any) -> List[Dict[str, str]]:
         """
         Compile as chat messages (if prompt is in chat format).
 
@@ -70,14 +68,18 @@ class PromptVersion:
 
         for line in lines:
             # Check for role prefix
-            role_match = re.match(r"^(system|user|assistant|function):\s*(.*)$", line, re.IGNORECASE)
+            role_match = re.match(
+                r"^(system|user|assistant|function):\s*(.*)$", line, re.IGNORECASE
+            )
             if role_match:
                 # Save previous message
                 if current_role and current_content:
-                    messages.append({
-                        "role": current_role.lower(),
-                        "content": "\n".join(current_content).strip()
-                    })
+                    messages.append(
+                        {
+                            "role": current_role.lower(),
+                            "content": "\n".join(current_content).strip(),
+                        }
+                    )
                 current_role = role_match.group(1)
                 current_content = [role_match.group(2)] if role_match.group(2) else []
             else:
@@ -85,10 +87,9 @@ class PromptVersion:
 
         # Don't forget the last message
         if current_role and current_content:
-            messages.append({
-                "role": current_role.lower(),
-                "content": "\n".join(current_content).strip()
-            })
+            messages.append(
+                {"role": current_role.lower(), "content": "\n".join(current_content).strip()}
+            )
 
         return messages
 
@@ -232,7 +233,7 @@ class Prompt:
 
             return self._get_fallback()
 
-        except Exception as e:
+        except Exception:
             # Log error and use fallback
             return self._get_fallback()
 

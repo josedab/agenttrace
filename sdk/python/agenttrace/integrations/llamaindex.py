@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 from agenttrace.context import get_client
@@ -207,9 +207,7 @@ class AgentTraceCallbackHandler:
             self._end_generic_event(event_data, payload)
 
     # LLM Events
-    def _start_llm_event(
-        self, event_id: str, payload: Dict[str, Any], parent_id: str
-    ) -> None:
+    def _start_llm_event(self, event_id: str, payload: Dict[str, Any], parent_id: str) -> None:
         """Start tracing an LLM event."""
         # Extract model info
         model = payload.get("model_dict", {}).get("model", "unknown")
@@ -219,10 +217,12 @@ class AgentTraceCallbackHandler:
         formatted_messages = []
         for msg in messages:
             if hasattr(msg, "content"):
-                formatted_messages.append({
-                    "role": getattr(msg, "role", "user"),
-                    "content": msg.content,
-                })
+                formatted_messages.append(
+                    {
+                        "role": getattr(msg, "role", "user"),
+                        "content": msg.content,
+                    }
+                )
             elif isinstance(msg, dict):
                 formatted_messages.append(msg)
             else:
@@ -315,9 +315,7 @@ class AgentTraceCallbackHandler:
             "model": model,
         }
 
-    def _end_embedding_event(
-        self, event_data: Dict[str, Any], payload: Dict[str, Any]
-    ) -> None:
+    def _end_embedding_event(self, event_data: Dict[str, Any], payload: Dict[str, Any]) -> None:
         """End tracing an embedding event."""
         gen = event_data["generation"]
 
@@ -330,9 +328,7 @@ class AgentTraceCallbackHandler:
         gen.end(output=output, model=event_data.get("model"))
 
     # Query Events
-    def _start_query_event(
-        self, event_id: str, payload: Dict[str, Any], parent_id: str
-    ) -> None:
+    def _start_query_event(self, event_id: str, payload: Dict[str, Any], parent_id: str) -> None:
         """Start tracing a query event."""
         query_str = payload.get("query_str", "")
 
@@ -352,9 +348,7 @@ class AgentTraceCallbackHandler:
         }
 
     # Retrieve Events
-    def _start_retrieve_event(
-        self, event_id: str, payload: Dict[str, Any], parent_id: str
-    ) -> None:
+    def _start_retrieve_event(self, event_id: str, payload: Dict[str, Any], parent_id: str) -> None:
         """Start tracing a retrieve event."""
         query_str = payload.get("query_str", "")
 
@@ -373,9 +367,7 @@ class AgentTraceCallbackHandler:
             "start_time": datetime.utcnow(),
         }
 
-    def _end_retrieve_event(
-        self, event_data: Dict[str, Any], payload: Dict[str, Any]
-    ) -> None:
+    def _end_retrieve_event(self, event_data: Dict[str, Any], payload: Dict[str, Any]) -> None:
         """End tracing a retrieve event."""
         span = event_data["span"]
 
@@ -418,9 +410,7 @@ class AgentTraceCallbackHandler:
         }
 
     # Tree Events
-    def _start_tree_event(
-        self, event_id: str, payload: Dict[str, Any], parent_id: str
-    ) -> None:
+    def _start_tree_event(self, event_id: str, payload: Dict[str, Any], parent_id: str) -> None:
         """Start tracing a tree traversal event."""
         span = start_span(
             name="llamaindex.tree",
@@ -512,7 +502,11 @@ class AgentTraceCallbackHandler:
     ) -> None:
         """Start tracing a function call event."""
         tool = payload.get("tool", {})
-        tool_name = getattr(tool, "name", tool.get("name", "unknown")) if isinstance(tool, dict) or hasattr(tool, "name") else str(tool)
+        tool_name = (
+            getattr(tool, "name", tool.get("name", "unknown"))
+            if isinstance(tool, dict) or hasattr(tool, "name")
+            else str(tool)
+        )
         tool_input = payload.get("function_call", "")
 
         span = start_span(
@@ -552,9 +546,7 @@ class AgentTraceCallbackHandler:
             "start_time": datetime.utcnow(),
         }
 
-    def _end_generic_event(
-        self, event_data: Dict[str, Any], payload: Dict[str, Any]
-    ) -> None:
+    def _end_generic_event(self, event_data: Dict[str, Any], payload: Dict[str, Any]) -> None:
         """End tracing a generic event."""
         span_or_gen = event_data.get("span") or event_data.get("generation")
 

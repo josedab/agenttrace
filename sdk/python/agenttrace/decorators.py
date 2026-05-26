@@ -7,9 +7,12 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
-from typing import Any, Callable, Optional, TypeVar, Union, overload
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union, overload
 
 from agenttrace.context import get_client, get_current_observation, get_current_trace
+
+if TYPE_CHECKING:
+    from agenttrace.client import Generation, Span
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -64,6 +67,7 @@ def observe(
         observation_type = as_type or "span"
 
         if asyncio.iscoroutinefunction(fn):
+
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await _trace_async(
@@ -78,6 +82,7 @@ def observe(
 
             return async_wrapper  # type: ignore
         else:
+
             @functools.wraps(fn)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return _trace_sync(
@@ -122,6 +127,7 @@ def _trace_sync(
         input_data = _capture_args(fn, args, kwargs)
 
     # Create observation
+    observation: Optional[Union["Generation", "Span"]]
     if trace is None:
         # Create a new trace
         trace = client.trace(name=name, input=input_data)
@@ -185,6 +191,7 @@ async def _trace_async(
     if capture_input:
         input_data = _capture_args(fn, args, kwargs)
 
+    observation: Optional[Union["Generation", "Span"]]
     if trace is None:
         trace = client.trace(name=name, input=input_data)
         observation = None

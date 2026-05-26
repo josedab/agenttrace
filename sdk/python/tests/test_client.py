@@ -1,10 +1,10 @@
 """Tests for the AgentTrace client."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from agenttrace import AgentTrace, observe, generation
-from agenttrace.context import get_client, get_current_trace, set_client
+from agenttrace.context import set_client
 from agenttrace.prompt import PromptVersion
 
 
@@ -39,7 +39,7 @@ class TestAgentTraceClient:
     def test_trace_creation(self):
         """Test trace can be created."""
         with patch("agenttrace.client.HttpTransport"):
-            with patch("agenttrace.client.BatchQueue") as mock_queue:
+            with patch("agenttrace.client.BatchQueue"):
                 client = AgentTrace(api_key="test-key")
 
                 trace = client.trace(name="test-trace")
@@ -65,6 +65,7 @@ class TestObserveDecorator:
 
     def test_observe_with_name(self):
         """Test observe decorator with custom name."""
+
         @observe(name="custom-name")
         def my_function():
             return "result"
@@ -75,6 +76,7 @@ class TestObserveDecorator:
     @pytest.mark.asyncio
     async def test_observe_async_function(self):
         """Test observe decorator with async function."""
+
         @observe
         async def my_async_function(x: int) -> int:
             return x * 2

@@ -8,7 +8,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from agenttrace.transport.http import HttpTransport
 
@@ -112,9 +112,8 @@ class BatchQueue:
                 # Check if we should flush
                 now = time.time()
                 with self._batch_lock:
-                    should_flush = (
-                        len(self._batch) >= self._flush_at or
-                        (self._batch and now - last_flush >= self._flush_interval)
+                    should_flush = len(self._batch) >= self._flush_at or (
+                        self._batch and now - last_flush >= self._flush_interval
                     )
 
                     if should_flush:

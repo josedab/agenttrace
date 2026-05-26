@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
+from typing import Dict, Generator, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agenttrace.client import AgentTrace
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 class CheckpointType(Enum):
     """Types of checkpoints."""
+
     MANUAL = "manual"
     AUTO = "auto"
     TOOL_CALL = "tool_call"
@@ -34,6 +35,7 @@ class CheckpointType(Enum):
 @dataclass
 class CheckpointInfo:
     """Information about a created checkpoint."""
+
     id: str
     name: str
     checkpoint_type: CheckpointType
@@ -135,25 +137,27 @@ class CheckpointClient:
 
         # Send to API
         if self._client.enabled:
-            self._client._batch_queue.add({
-                "type": "checkpoint-create",
-                "body": {
-                    "id": checkpoint_id,
-                    "traceId": trace_id,
-                    "observationId": observation_id,
-                    "name": name,
-                    "description": description,
-                    "type": checkpoint_type.value,
-                    "gitCommitSha": git_commit_sha,
-                    "gitBranch": git_branch,
-                    "gitRepoUrl": git_repo_url,
-                    "filesSnapshot": files_snapshot,
-                    "filesChanged": files_changed,
-                    "totalFiles": total_files,
-                    "totalSizeBytes": total_size_bytes,
-                    "timestamp": now.isoformat() + "Z",
-                },
-            })
+            self._client._batch_queue.add(
+                {
+                    "type": "checkpoint-create",
+                    "body": {
+                        "id": checkpoint_id,
+                        "traceId": trace_id,
+                        "observationId": observation_id,
+                        "name": name,
+                        "description": description,
+                        "type": checkpoint_type.value,
+                        "gitCommitSha": git_commit_sha,
+                        "gitBranch": git_branch,
+                        "gitRepoUrl": git_repo_url,
+                        "filesSnapshot": files_snapshot,
+                        "filesChanged": files_changed,
+                        "totalFiles": total_files,
+                        "totalSizeBytes": total_size_bytes,
+                        "timestamp": now.isoformat() + "Z",
+                    },
+                }
+            )
 
         return CheckpointInfo(
             id=checkpoint_id,

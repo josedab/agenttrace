@@ -3,7 +3,7 @@
 import os
 import tempfile
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from datetime import datetime
 
 from agenttrace.checkpoint import (
@@ -38,7 +38,7 @@ class TestCheckpointClient:
 
         cp_client = CheckpointClient(mock_client)
 
-        with patch.object(cp_client, '_get_git_info', return_value={}):
+        with patch.object(cp_client, "_get_git_info", return_value={}):
             cp = cp_client.create(
                 trace_id="trace-123",
                 name="test-checkpoint",
@@ -58,11 +58,15 @@ class TestCheckpointClient:
 
         cp_client = CheckpointClient(mock_client)
 
-        with patch.object(cp_client, '_get_git_info', return_value={
-            'commit_sha': 'abc123',
-            'branch': 'main',
-            'repo_url': 'https://github.com/test/repo',
-        }):
+        with patch.object(
+            cp_client,
+            "_get_git_info",
+            return_value={
+                "commit_sha": "abc123",
+                "branch": "main",
+                "repo_url": "https://github.com/test/repo",
+            },
+        ):
             cp = cp_client.create(
                 trace_id="trace-123",
                 name="full-checkpoint",
@@ -87,16 +91,16 @@ class TestCheckpointClient:
         cp_client = CheckpointClient(mock_client)
 
         # Create temp files
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f1:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f1:
             f1.write("print('hello')")
             file1_path = f1.name
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f2:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f2:
             f2.write("print('world')")
             file2_path = f2.name
 
         try:
-            with patch.object(cp_client, '_get_git_info', return_value={}):
+            with patch.object(cp_client, "_get_git_info", return_value={}):
                 cp = cp_client.create(
                     trace_id="trace-123",
                     name="file-checkpoint",
@@ -119,7 +123,7 @@ class TestCheckpointClient:
 
         cp_client = CheckpointClient(mock_client)
 
-        with patch.object(cp_client, '_get_git_info', return_value={}):
+        with patch.object(cp_client, "_get_git_info", return_value={}):
             cp = cp_client.create(
                 trace_id="trace-123",
                 name="test-checkpoint",
@@ -139,7 +143,7 @@ class TestCheckpointClient:
 
         cp_client = CheckpointClient(mock_client)
 
-        with patch.object(cp_client, '_get_git_info', return_value={}):
+        with patch.object(cp_client, "_get_git_info", return_value={}):
             cp = cp_client.create(
                 trace_id="trace-123",
                 name="disabled-checkpoint",
@@ -155,30 +159,28 @@ class TestCheckpointClient:
         mock_client = Mock()
         cp_client = CheckpointClient(mock_client)
 
-        with patch('subprocess.run') as mock_run:
-            mock_run.return_value = Mock(
-                returncode=0,
-                stdout="abc123def\n"
-            )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0, stdout="abc123def\n")
 
             git_info = cp_client._get_git_info()
 
             # Should have called git commands
             assert mock_run.call_count >= 1
+            assert isinstance(git_info, dict)
 
     def test_get_git_info_no_git(self):
         """Test getting git info when not in a git repo."""
         mock_client = Mock()
         cp_client = CheckpointClient(mock_client)
 
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError()
 
             git_info = cp_client._get_git_info()
 
             # Should return empty dict without crashing
-            assert git_info.get('commit_sha') is None
-            assert git_info.get('branch') is None
+            assert git_info.get("commit_sha") is None
+            assert git_info.get("branch") is None
 
     def test_batch_queue_event_format(self):
         """Test that events are sent in correct format."""
@@ -188,10 +190,14 @@ class TestCheckpointClient:
 
         cp_client = CheckpointClient(mock_client)
 
-        with patch.object(cp_client, '_get_git_info', return_value={
-            'commit_sha': 'abc123',
-            'branch': 'main',
-        }):
+        with patch.object(
+            cp_client,
+            "_get_git_info",
+            return_value={
+                "commit_sha": "abc123",
+                "branch": "main",
+            },
+        ):
             cp_client.create(
                 trace_id="trace-123",
                 name="test-checkpoint",
@@ -200,11 +206,11 @@ class TestCheckpointClient:
 
         # Verify event format
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['type'] == 'checkpoint-create'
-        assert 'body' in call_args
-        assert call_args['body']['traceId'] == 'trace-123'
-        assert call_args['body']['name'] == 'test-checkpoint'
-        assert call_args['body']['type'] == 'auto'
+        assert call_args["type"] == "checkpoint-create"
+        assert "body" in call_args
+        assert call_args["body"]["traceId"] == "trace-123"
+        assert call_args["body"]["name"] == "test-checkpoint"
+        assert call_args["body"]["type"] == "auto"
 
 
 class TestCheckpointScope:
@@ -216,12 +222,8 @@ class TestCheckpointScope:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        with patch('agenttrace.checkpoint.CheckpointClient._get_git_info', return_value={}):
-            with checkpoint_scope(
-                mock_client,
-                trace_id="trace-123",
-                name="scope-test"
-            ) as cp:
+        with patch("agenttrace.checkpoint.CheckpointClient._get_git_info", return_value={}):
+            with checkpoint_scope(mock_client, trace_id="trace-123", name="scope-test") as cp:
                 assert cp.name == "scope-test"
                 assert cp.trace_id == "trace-123"
 
@@ -231,13 +233,9 @@ class TestCheckpointScope:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        with patch('agenttrace.checkpoint.CheckpointClient._get_git_info', return_value={}):
+        with patch("agenttrace.checkpoint.CheckpointClient._get_git_info", return_value={}):
             with pytest.raises(ValueError):
-                with checkpoint_scope(
-                    mock_client,
-                    trace_id="trace-123",
-                    name="error-scope"
-                ) as cp:
+                with checkpoint_scope(mock_client, trace_id="trace-123", name="error-scope"):
                     raise ValueError("Test error")
 
     def test_checkpoint_scope_with_all_options(self):
@@ -246,7 +244,7 @@ class TestCheckpointScope:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        with patch('agenttrace.checkpoint.CheckpointClient._get_git_info', return_value={}):
+        with patch("agenttrace.checkpoint.CheckpointClient._get_git_info", return_value={}):
             with checkpoint_scope(
                 mock_client,
                 trace_id="trace-123",
@@ -254,7 +252,7 @@ class TestCheckpointScope:
                 checkpoint_type=CheckpointType.TOOL_CALL,
                 observation_id="obs-789",
                 description="Full scope test",
-                files=[]
+                files=[],
             ) as cp:
                 assert cp.checkpoint_type == CheckpointType.TOOL_CALL
                 assert cp.observation_id == "obs-789"

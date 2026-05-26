@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 class FileOperationType(Enum):
     """Types of file operations."""
+
     CREATE = "create"
     READ = "read"
     UPDATE = "update"
@@ -35,6 +36,7 @@ class FileOperationType(Enum):
 @dataclass
 class FileOperationInfo:
     """Information about a tracked file operation."""
+
     id: str
     trace_id: str
     observation_id: Optional[str]
@@ -157,41 +159,43 @@ class FileOperationClient:
         if lines_added is None and content_before is not None and content_after is not None:
             before_lines = content_before.splitlines()
             after_lines = content_after.splitlines()
-            lines_added = len([l for l in after_lines if l not in before_lines])
-            lines_removed = len([l for l in before_lines if l not in after_lines])
+            lines_added = len([line for line in after_lines if line not in before_lines])
+            lines_removed = len([line for line in before_lines if line not in after_lines])
 
         lines_added = lines_added or 0
         lines_removed = lines_removed or 0
 
         # Send to API
         if self._client.enabled:
-            self._client._batch_queue.add({
-                "type": "file-operation-create",
-                "body": {
-                    "id": op_id,
-                    "traceId": trace_id,
-                    "observationId": observation_id,
-                    "operation": operation.value,
-                    "filePath": file_path,
-                    "newPath": new_path,
-                    "fileSize": file_size,
-                    "fileMode": file_mode,
-                    "contentHash": content_hash,
-                    "mimeType": mime_type,
-                    "linesAdded": lines_added,
-                    "linesRemoved": lines_removed,
-                    "diffPreview": diff_preview,
-                    "contentBeforeHash": content_before_hash,
-                    "contentAfterHash": content_after_hash,
-                    "toolName": tool_name,
-                    "reason": reason,
-                    "startedAt": started_at.isoformat() + "Z",
-                    "completedAt": completed_at.isoformat() + "Z",
-                    "durationMs": duration_ms,
-                    "success": success,
-                    "errorMessage": error_message,
-                },
-            })
+            self._client._batch_queue.add(
+                {
+                    "type": "file-operation-create",
+                    "body": {
+                        "id": op_id,
+                        "traceId": trace_id,
+                        "observationId": observation_id,
+                        "operation": operation.value,
+                        "filePath": file_path,
+                        "newPath": new_path,
+                        "fileSize": file_size,
+                        "fileMode": file_mode,
+                        "contentHash": content_hash,
+                        "mimeType": mime_type,
+                        "linesAdded": lines_added,
+                        "linesRemoved": lines_removed,
+                        "diffPreview": diff_preview,
+                        "contentBeforeHash": content_before_hash,
+                        "contentAfterHash": content_after_hash,
+                        "toolName": tool_name,
+                        "reason": reason,
+                        "startedAt": started_at.isoformat() + "Z",
+                        "completedAt": completed_at.isoformat() + "Z",
+                        "durationMs": duration_ms,
+                        "success": success,
+                        "errorMessage": error_message,
+                    },
+                }
+            )
 
         return FileOperationInfo(
             id=op_id,

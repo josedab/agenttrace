@@ -5,7 +5,6 @@ Generation context manager for tracking LLM calls.
 from __future__ import annotations
 
 from contextlib import contextmanager, asynccontextmanager
-from datetime import datetime
 from typing import Any, Dict, Optional, Generator, AsyncGenerator
 
 from agenttrace.context import (

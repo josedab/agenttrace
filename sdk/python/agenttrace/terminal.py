@@ -13,7 +13,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Generator, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from agenttrace.client import AgentTrace
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 @dataclass
 class TerminalCommandInfo:
     """Information about a tracked terminal command."""
+
     id: str
     trace_id: str
     observation_id: Optional[str]
@@ -141,38 +142,41 @@ class TerminalClient:
         env_vars_str = None
         if env_vars:
             import json
+
             env_vars_str = json.dumps(env_vars)
 
         # Send to API
         if self._client.enabled:
-            self._client._batch_queue.add({
-                "type": "terminal-command-create",
-                "body": {
-                    "id": cmd_id,
-                    "traceId": trace_id,
-                    "observationId": observation_id,
-                    "command": command,
-                    "args": args,
-                    "workingDirectory": working_directory,
-                    "shell": shell,
-                    "envVars": env_vars_str,
-                    "startedAt": started_at.isoformat() + "Z",
-                    "completedAt": completed_at.isoformat() + "Z",
-                    "durationMs": duration_ms,
-                    "exitCode": exit_code,
-                    "stdout": stdout,
-                    "stderr": stderr,
-                    "stdoutTruncated": stdout_truncated,
-                    "stderrTruncated": stderr_truncated,
-                    "success": success,
-                    "timedOut": timed_out,
-                    "killed": killed,
-                    "maxMemoryBytes": max_memory_bytes,
-                    "cpuTimeMs": cpu_time_ms,
-                    "toolName": tool_name,
-                    "reason": reason,
-                },
-            })
+            self._client._batch_queue.add(
+                {
+                    "type": "terminal-command-create",
+                    "body": {
+                        "id": cmd_id,
+                        "traceId": trace_id,
+                        "observationId": observation_id,
+                        "command": command,
+                        "args": args,
+                        "workingDirectory": working_directory,
+                        "shell": shell,
+                        "envVars": env_vars_str,
+                        "startedAt": started_at.isoformat() + "Z",
+                        "completedAt": completed_at.isoformat() + "Z",
+                        "durationMs": duration_ms,
+                        "exitCode": exit_code,
+                        "stdout": stdout,
+                        "stderr": stderr,
+                        "stdoutTruncated": stdout_truncated,
+                        "stderrTruncated": stderr_truncated,
+                        "success": success,
+                        "timedOut": timed_out,
+                        "killed": killed,
+                        "maxMemoryBytes": max_memory_bytes,
+                        "cpuTimeMs": cpu_time_ms,
+                        "toolName": tool_name,
+                        "reason": reason,
+                    },
+                }
+            )
 
         return TerminalCommandInfo(
             id=cmd_id,
@@ -203,7 +207,7 @@ class TerminalClient:
         tool_name: Optional[str] = None,
         reason: Optional[str] = None,
         max_output_bytes: int = 100000,
-    ) -> Tuple[TerminalCommandInfo, subprocess.CompletedProcess]:
+    ) -> Tuple[TerminalCommandInfo, subprocess.CompletedProcess[str]]:
         """
         Run a command and track it.
 
@@ -229,6 +233,7 @@ class TerminalClient:
             working_directory = os.getcwd()
 
         # Build command
+        cmd: Union[str, List[str]]
         if args:
             cmd = [command] + args
         else:
@@ -256,8 +261,14 @@ class TerminalClient:
         except subprocess.TimeoutExpired as e:
             timed_out = True
             killed = True
-            stdout = e.stdout[:max_output_bytes] if e.stdout else ""
-            stderr = e.stderr[:max_output_bytes] if e.stderr else ""
+            timeout_stdout = (
+                e.stdout.decode(errors="replace") if isinstance(e.stdout, bytes) else e.stdout
+            )
+            timeout_stderr = (
+                e.stderr.decode(errors="replace") if isinstance(e.stderr, bytes) else e.stderr
+            )
+            stdout = timeout_stdout[:max_output_bytes] if timeout_stdout else ""
+            stderr = timeout_stderr[:max_output_bytes] if timeout_stderr else ""
             exit_code = -1
             result = subprocess.CompletedProcess(cmd, exit_code, stdout, stderr)
         except Exception as e:
@@ -267,8 +278,12 @@ class TerminalClient:
 
         completed_at = datetime.utcnow()
 
-        stdout_truncated = len(result.stdout or "") > max_output_bytes if hasattr(result, 'stdout') else False
-        stderr_truncated = len(result.stderr or "") > max_output_bytes if hasattr(result, 'stderr') else False
+        stdout_truncated = (
+            len(result.stdout or "") > max_output_bytes if hasattr(result, "stdout") else False
+        )
+        stderr_truncated = (
+            len(result.stderr or "") > max_output_bytes if hasattr(result, "stderr") else False
+        )
 
         info = self.track(
             trace_id=trace_id,
@@ -297,7 +312,7 @@ def run(
     client: Optional["AgentTrace"] = None,
     trace_id: Optional[str] = None,
     **kwargs: Any,
-) -> Tuple[TerminalCommandInfo, subprocess.CompletedProcess]:
+) -> Tuple[TerminalCommandInfo, subprocess.CompletedProcess[str]]:
     """
     Run a command and track it with AgentTrace.
 

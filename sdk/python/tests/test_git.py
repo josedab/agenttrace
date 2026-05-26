@@ -1,9 +1,8 @@
 """Tests for the AgentTrace git module."""
 
-import pytest
 from unittest.mock import Mock, patch
 
-from agenttrace.git import GitLinkClient, GitLinkInfo, get_git_info
+from agenttrace.git import GitClient, GitLinkInfo, GitLinkType
 
 
 class TestGetGitInfo:
@@ -11,48 +10,48 @@ class TestGetGitInfo:
 
     def test_get_git_info_success(self):
         """Test getting git info successfully."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Setup mock responses for different git commands
             def side_effect(args, **kwargs):
                 mock_result = Mock()
                 mock_result.returncode = 0
-                if 'rev-parse' in args and 'HEAD' in args:
+                if "rev-parse" in args and "HEAD" in args:
                     mock_result.stdout = "abc123def456\n"
-                elif '--abbrev-ref' in args:
+                elif "--abbrev-ref" in args:
                     mock_result.stdout = "main\n"
-                elif 'remote.origin.url' in args:
+                elif "remote.origin.url" in args:
                     mock_result.stdout = "https://github.com/test/repo.git\n"
-                elif 'user.name' in args:
+                elif "user.name" in args:
                     mock_result.stdout = "Test User\n"
-                elif 'user.email' in args:
+                elif "user.email" in args:
                     mock_result.stdout = "test@example.com\n"
                 return mock_result
 
             mock_run.side_effect = side_effect
 
-            info = get_git_info()
+            info = GitClient(Mock())._get_git_info()
 
-            assert info.get('commit_sha') is not None or mock_run.call_count > 0
+            assert info.get("commit_sha") is not None or mock_run.call_count > 0
 
     def test_get_git_info_not_in_repo(self):
         """Test getting git info when not in a git repo."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_result = Mock()
             mock_result.returncode = 128
             mock_result.stdout = ""
             mock_run.return_value = mock_result
 
-            info = get_git_info()
+            info = GitClient(Mock())._get_git_info()
 
             # Should not crash, returns what it can
             assert isinstance(info, dict)
 
     def test_get_git_info_git_not_installed(self):
         """Test getting git info when git is not installed."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError()
 
-            info = get_git_info()
+            info = GitClient(Mock())._get_git_info()
 
             # Should not crash
             assert isinstance(info, dict)
@@ -67,13 +66,23 @@ class TestGitLinkClient:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        git_client = GitLinkClient(mock_client)
+        git_client = GitClient(mock_client)
 
-        with patch('agenttrace.git.get_git_info', return_value={
-            'commit_sha': 'abc123',
-            'branch': 'main',
-        }):
-            link = git_client.create(
+        with (
+            patch.object(
+                git_client,
+                "_get_git_info",
+                return_value={
+                    "commit_sha": "abc123",
+                    "branch": "main",
+                    "repo_url": None,
+                    "commit_message": None,
+                },
+            ),
+            patch.object(git_client, "_get_author_info", return_value={}),
+            patch.object(git_client, "_get_changed_files", return_value=[]),
+        ):
+            link = git_client.link(
                 trace_id="trace-123",
             )
 
@@ -87,24 +96,22 @@ class TestGitLinkClient:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        git_client = GitLinkClient(mock_client)
+        git_client = GitClient(mock_client)
 
-        link = git_client.create(
+        link = git_client.link(
             trace_id="trace-123",
             commit_sha="explicit-sha",
             branch="feature-branch",
-            repository="https://github.com/explicit/repo",
-            author="Explicit Author",
-            author_email="explicit@example.com",
-            message="Explicit commit message",
+            repo_url="https://github.com/explicit/repo",
+            commit_message="Explicit commit message",
+            files_changed=[],
+            auto_detect=False,
         )
 
         assert link.commit_sha == "explicit-sha"
         assert link.branch == "feature-branch"
-        assert link.repository == "https://github.com/explicit/repo"
-        assert link.author == "Explicit Author"
-        assert link.author_email == "explicit@example.com"
-        assert link.message == "Explicit commit message"
+        assert link.repo_url == "https://github.com/explicit/repo"
+        assert link.commit_message == "Explicit commit message"
 
     def test_create_git_link_disabled_client(self):
         """Test creating a git link when client is disabled."""
@@ -112,11 +119,12 @@ class TestGitLinkClient:
         mock_client.enabled = False
         mock_client._batch_queue = Mock()
 
-        git_client = GitLinkClient(mock_client)
+        git_client = GitClient(mock_client)
 
-        link = git_client.create(
+        link = git_client.link(
             trace_id="trace-123",
             commit_sha="disabled-sha",
+            auto_detect=False,
         )
 
         # Link info still returned
@@ -130,22 +138,24 @@ class TestGitLinkClient:
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        git_client = GitLinkClient(mock_client)
+        git_client = GitClient(mock_client)
 
-        git_client.create(
+        git_client.link(
             trace_id="trace-123",
             commit_sha="abc123",
             branch="main",
-            message="Test commit",
+            commit_message="Test commit",
+            files_changed=[],
+            auto_detect=False,
         )
 
         # Verify event format
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['type'] == 'git-link-create'
-        assert 'body' in call_args
-        assert call_args['body']['traceId'] == 'trace-123'
-        assert call_args['body']['commitSha'] == 'abc123'
-        assert call_args['body']['branch'] == 'main'
+        assert call_args["type"] == "git-link-create"
+        assert "body" in call_args
+        assert call_args["body"]["traceId"] == "trace-123"
+        assert call_args["body"]["commitSha"] == "abc123"
+        assert call_args["body"]["branch"] == "main"
 
 
 class TestGitLinkInfo:
@@ -154,17 +164,21 @@ class TestGitLinkInfo:
     def test_git_link_info_creation(self):
         """Test creating GitLinkInfo."""
         from datetime import datetime
+
         now = datetime.utcnow()
 
         info = GitLinkInfo(
             id="git-123",
             trace_id="trace-456",
+            observation_id=None,
+            link_type=GitLinkType.COMMIT,
             commit_sha="abc123def456",
             branch="main",
-            repository="https://github.com/test/repo",
-            author="Test Author",
+            repo_url="https://github.com/test/repo",
+            commit_message="Test commit message",
+            author_name="Test Author",
             author_email="author@example.com",
-            message="Test commit message",
+            files_changed=["main.py"],
             created_at=now,
         )
 
@@ -176,20 +190,24 @@ class TestGitLinkInfo:
     def test_git_link_info_optional_fields(self):
         """Test GitLinkInfo with optional fields as None."""
         from datetime import datetime
+
         now = datetime.utcnow()
 
         info = GitLinkInfo(
             id="git-123",
             trace_id="trace-456",
+            observation_id=None,
+            link_type=GitLinkType.COMMIT,
             commit_sha="abc123",
             branch=None,
-            repository=None,
-            author=None,
+            repo_url=None,
+            commit_message=None,
+            author_name=None,
             author_email=None,
-            message=None,
+            files_changed=[],
             created_at=now,
         )
 
         assert info.branch is None
-        assert info.repository is None
-        assert info.author is None
+        assert info.repo_url is None
+        assert info.author_name is None

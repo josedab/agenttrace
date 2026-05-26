@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
+from importlib import import_module
+from typing import Any, Dict, List, Optional
 
-from agenttrace.context import get_client, get_current_trace
+from agenttrace.context import get_client
 from agenttrace.span import start_span
 from agenttrace.generation import start_generation
 
@@ -45,12 +46,12 @@ class LangChainInstrumentation:
             return
 
         try:
-            from langchain_core.callbacks import BaseCallbackHandler
-            from langchain_core.callbacks.manager import CallbackManager
+            import_module("langchain_core.callbacks")
+            import_module("langchain_core.callbacks.manager")
         except ImportError:
             try:
-                from langchain.callbacks.base import BaseCallbackHandler
-                from langchain.callbacks.manager import CallbackManager
+                import_module("langchain.callbacks.base")
+                import_module("langchain.callbacks.manager")
             except ImportError:
                 logger.warning(
                     "langchain or langchain-core not installed, skipping instrumentation"
@@ -239,7 +240,13 @@ class AgentTraceCallbackHandler:
 
         # Extract model parameters
         model_params = {}
-        for param in ["temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty"]:
+        for param in [
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+        ]:
             if param in invocation_params:
                 model_params[param] = invocation_params[param]
 
@@ -425,9 +432,6 @@ class AgentTraceCallbackHandler:
         if client is None or not client.enabled:
             return
 
-        # Log agent action as metadata update on current span
-        run_id_str = self._get_run_id(run_id)
-
         # Try to find the parent chain/agent run
         if parent_run_id:
             parent_id_str = self._get_run_id(parent_run_id)
@@ -528,10 +532,12 @@ class AgentTraceCallbackHandler:
         # Format documents
         formatted_docs = []
         for doc in documents:
-            formatted_docs.append({
-                "page_content": getattr(doc, "page_content", str(doc)),
-                "metadata": getattr(doc, "metadata", {}),
-            })
+            formatted_docs.append(
+                {
+                    "page_content": getattr(doc, "page_content", str(doc)),
+                    "metadata": getattr(doc, "metadata", {}),
+                }
+            )
 
         span.end(output={"documents": formatted_docs, "count": len(documents)})
 
@@ -578,7 +584,7 @@ class AgentTraceCallbackHandler:
             generations = getattr(response, "generations", [])
             llm_output = getattr(response, "llm_output", {})
 
-            output = {
+            output: Dict[str, Any] = {
                 "generations": [],
                 "llm_output": llm_output,
             }
@@ -586,7 +592,7 @@ class AgentTraceCallbackHandler:
             for gen_list in generations:
                 gen_outputs = []
                 for gen in gen_list:
-                    gen_dict = {
+                    gen_dict: Dict[str, Any] = {
                         "text": getattr(gen, "text", ""),
                     }
                     if hasattr(gen, "message"):

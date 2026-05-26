@@ -7,6 +7,7 @@ and enables zero-configuration instrumentation.
 
 import importlib
 import importlib.metadata
+import importlib.util
 import logging
 import os
 from dataclasses import dataclass, field
@@ -175,9 +176,7 @@ def auto_instrument(
         instrumentation_module = meta.get("instrumentation")
 
         if not instrumentation_module:
-            logger.debug(
-                "No instrumentation available for %s", discovered.framework.value
-            )
+            logger.debug("No instrumentation available for %s", discovered.framework.value)
             continue
 
         try:
@@ -201,12 +200,8 @@ def auto_instrument(
         except Exception as e:
             discovered.status = DiscoveryStatus.FAILED
             discovered.error = str(e)
-            result.errors.append(
-                f"Failed to instrument {discovered.framework.value}: {e}"
-            )
-            logger.warning(
-                "Failed to auto-instrument %s: %s", discovered.framework.value, e
-            )
+            result.errors.append(f"Failed to instrument {discovered.framework.value}: {e}")
+            logger.warning("Failed to auto-instrument %s: %s", discovered.framework.value, e)
 
     return result
 

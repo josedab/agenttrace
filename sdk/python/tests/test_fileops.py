@@ -2,15 +2,14 @@
 
 import os
 import tempfile
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime
+from unittest.mock import Mock
 
 from agenttrace.fileops import (
     FileOperationClient,
     FileOperationInfo,
     FileOperationType,
-    track_file_operation,
+    file_op_scope,
 )
 
 
@@ -20,11 +19,13 @@ class TestFileOperationType:
     def test_file_operation_types(self):
         """Test all file operation types exist."""
         assert FileOperationType.READ.value == "read"
-        assert FileOperationType.WRITE.value == "write"
+        assert FileOperationType.UPDATE.value == "update"
         assert FileOperationType.CREATE.value == "create"
         assert FileOperationType.DELETE.value == "delete"
         assert FileOperationType.RENAME.value == "rename"
-        assert FileOperationType.MODIFY.value == "modify"
+        assert FileOperationType.COPY.value == "copy"
+        assert FileOperationType.MOVE.value == "move"
+        assert FileOperationType.CHMOD.value == "chmod"
 
 
 class TestFileOperationClient:
@@ -38,7 +39,7 @@ class TestFileOperationClient:
 
         fo_client = FileOperationClient(mock_client)
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content")
             file_path = f.name
 
@@ -46,11 +47,11 @@ class TestFileOperationClient:
             op = fo_client.track(
                 trace_id="trace-123",
                 operation=FileOperationType.READ,
-                path=file_path,
+                file_path=file_path,
             )
 
             assert op.operation == FileOperationType.READ
-            assert op.path == file_path
+            assert op.file_path == file_path
             assert op.trace_id == "trace-123"
         finally:
             os.unlink(file_path)
@@ -65,15 +66,15 @@ class TestFileOperationClient:
 
         op = fo_client.track(
             trace_id="trace-123",
-            operation=FileOperationType.WRITE,
-            path="/path/to/file.py",
-            lines_changed=50,
-            content_preview="def hello(): pass",
+            operation=FileOperationType.UPDATE,
+            file_path="/path/to/file.py",
+            lines_added=50,
+            content_after="def hello(): pass",
         )
 
-        assert op.operation == FileOperationType.WRITE
-        assert op.lines_changed == 50
-        assert op.content_preview == "def hello(): pass"
+        assert op.operation == FileOperationType.UPDATE
+        assert op.lines_added == 50
+        assert op.content_hash is not None
 
     def test_track_rename_operation(self):
         """Test tracking a rename operation."""
@@ -86,13 +87,13 @@ class TestFileOperationClient:
         op = fo_client.track(
             trace_id="trace-123",
             operation=FileOperationType.RENAME,
-            path="/new/path/file.py",
-            old_path="/old/path/file.py",
+            file_path="/old/path/file.py",
+            new_path="/new/path/file.py",
         )
 
         assert op.operation == FileOperationType.RENAME
-        assert op.path == "/new/path/file.py"
-        assert op.old_path == "/old/path/file.py"
+        assert op.file_path == "/old/path/file.py"
+        assert op.new_path == "/new/path/file.py"
 
     def test_track_delete_operation(self):
         """Test tracking a delete operation."""
@@ -105,11 +106,11 @@ class TestFileOperationClient:
         op = fo_client.track(
             trace_id="trace-123",
             operation=FileOperationType.DELETE,
-            path="/deleted/file.py",
+            file_path="/deleted/file.py",
         )
 
         assert op.operation == FileOperationType.DELETE
-        assert op.path == "/deleted/file.py"
+        assert op.file_path == "/deleted/file.py"
 
     def test_track_with_observation_id(self):
         """Test tracking with observation ID."""
@@ -122,8 +123,8 @@ class TestFileOperationClient:
         op = fo_client.track(
             trace_id="trace-123",
             observation_id="obs-456",
-            operation=FileOperationType.MODIFY,
-            path="/path/file.py",
+            operation=FileOperationType.UPDATE,
+            file_path="/path/file.py",
         )
 
         assert op.observation_id == "obs-456"
@@ -139,7 +140,7 @@ class TestFileOperationClient:
         op = fo_client.track(
             trace_id="trace-123",
             operation=FileOperationType.READ,
-            path="/path/file.py",
+            file_path="/path/file.py",
         )
 
         # Operation info still returned
@@ -158,40 +159,42 @@ class TestFileOperationClient:
         fo_client.track(
             trace_id="trace-123",
             observation_id="obs-456",
-            operation=FileOperationType.WRITE,
-            path="/path/file.py",
-            lines_changed=100,
+            operation=FileOperationType.UPDATE,
+            file_path="/path/file.py",
+            lines_added=100,
         )
 
         # Verify event format
         call_args = mock_client._batch_queue.add.call_args[0][0]
-        assert call_args['type'] == 'file-operation-create'
-        assert 'body' in call_args
-        assert call_args['body']['traceId'] == 'trace-123'
-        assert call_args['body']['observationId'] == 'obs-456'
-        assert call_args['body']['operation'] == 'write'
-        assert call_args['body']['path'] == '/path/file.py'
-        assert call_args['body']['linesChanged'] == 100
+        assert call_args["type"] == "file-operation-create"
+        assert "body" in call_args
+        assert call_args["body"]["traceId"] == "trace-123"
+        assert call_args["body"]["observationId"] == "obs-456"
+        assert call_args["body"]["operation"] == "update"
+        assert call_args["body"]["filePath"] == "/path/file.py"
+        assert call_args["body"]["linesAdded"] == 100
 
 
-class TestTrackFileOperation:
-    """Tests for the track_file_operation convenience function."""
+class TestFileOperationScope:
+    """Tests for the file operation context manager."""
 
-    def test_track_file_operation_function(self):
-        """Test the convenience function."""
+    def test_file_operation_scope(self):
+        """Test the convenience context manager."""
         mock_client = Mock()
         mock_client.enabled = True
         mock_client._batch_queue = Mock()
 
-        op = track_file_operation(
+        with file_op_scope(
             client=mock_client,
             trace_id="trace-123",
             operation=FileOperationType.CREATE,
-            path="/new/file.py",
-        )
+            file_path="/new/file.py",
+        ) as context:
+            context["content_after"] = "print('hello')"
 
-        assert op.operation == FileOperationType.CREATE
-        assert op.path == "/new/file.py"
+        event = mock_client._batch_queue.add.call_args[0][0]
+        assert event["body"]["operation"] == "create"
+        assert event["body"]["filePath"] == "/new/file.py"
 
 
 class TestFileOperationInfo:
@@ -204,19 +207,23 @@ class TestFileOperationInfo:
             id="op-123",
             trace_id="trace-456",
             observation_id="obs-789",
-            operation=FileOperationType.WRITE,
-            path="/path/to/file.py",
-            old_path=None,
-            size_bytes=1024,
-            lines_changed=50,
-            content_preview="def test(): pass",
-            created_at=now,
+            operation=FileOperationType.UPDATE,
+            file_path="/path/to/file.py",
+            new_path=None,
+            file_size=1024,
+            content_hash="abc123",
+            lines_added=50,
+            lines_removed=2,
+            success=True,
+            duration_ms=10,
+            started_at=now,
+            completed_at=now,
         )
 
         assert info.id == "op-123"
-        assert info.operation == FileOperationType.WRITE
-        assert info.size_bytes == 1024
-        assert info.lines_changed == 50
+        assert info.operation == FileOperationType.UPDATE
+        assert info.file_size == 1024
+        assert info.lines_added == 50
 
     def test_file_operation_info_optional_fields(self):
         """Test FileOperationInfo with optional fields."""
@@ -226,14 +233,18 @@ class TestFileOperationInfo:
             trace_id="trace-456",
             observation_id=None,
             operation=FileOperationType.READ,
-            path="/path/file.py",
-            old_path=None,
-            size_bytes=None,
-            lines_changed=None,
-            content_preview=None,
-            created_at=now,
+            file_path="/path/file.py",
+            new_path=None,
+            file_size=0,
+            content_hash=None,
+            lines_added=0,
+            lines_removed=0,
+            success=True,
+            duration_ms=0,
+            started_at=now,
+            completed_at=now,
         )
 
         assert info.observation_id is None
-        assert info.size_bytes is None
-        assert info.lines_changed is None
+        assert info.new_path is None
+        assert info.content_hash is None

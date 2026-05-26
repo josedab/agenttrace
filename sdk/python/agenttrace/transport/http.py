@@ -4,7 +4,6 @@ HTTP transport for sending data to AgentTrace.
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -116,9 +115,7 @@ class HttpTransport:
                     continue
 
                 # Client error - don't retry
-                logger.error(
-                    f"Client error {response.status_code}: {response.text}"
-                )
+                logger.error(f"Client error {response.status_code}: {response.text}")
                 return False
 
             except httpx.TimeoutException:
@@ -354,6 +351,7 @@ class AsyncHttpTransport:
     async def _async_sleep(self, seconds: float) -> None:
         """Async sleep helper."""
         import asyncio
+
         await asyncio.sleep(seconds)
 
     async def close(self) -> None:
