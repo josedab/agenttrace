@@ -2,7 +2,7 @@
  * Batch queue for efficient event submission.
  */
 
-import { HttpTransport, BatchEvent } from "./http";
+import { HttpTransport, BatchEvent } from './http';
 
 export interface BatchQueueConfig {
   transport: HttpTransport;
@@ -37,17 +37,17 @@ export class BatchQueue {
   /**
    * Add an event to the queue.
    */
-  add(event: Record<string, unknown>): boolean {
+  add(event: BatchEvent): boolean {
     if (this.stopped) {
       return false;
     }
 
     if (this.queue.length >= this.maxQueueSize) {
-      console.warn("Event queue is full, dropping event");
+      console.warn('Event queue is full, dropping event');
       return false;
     }
 
-    this.queue.push(event as BatchEvent);
+    this.queue.push(event);
 
     // Auto-flush if batch is full
     if (this.queue.length >= this.flushAt) {
@@ -73,7 +73,7 @@ export class BatchQueue {
     try {
       await this.transport.sendBatch(batch);
     } catch (error) {
-      console.error("Error sending batch:", error);
+      console.error('Error sending batch:', error);
     } finally {
       this.flushing = false;
     }
@@ -106,7 +106,7 @@ export class BatchQueue {
     }, this.flushInterval);
 
     // Don't keep the process alive just for the timer
-    if (typeof this.flushTimer.unref === "function") {
+    if (typeof this.flushTimer.unref === 'function') {
       this.flushTimer.unref();
     }
   }

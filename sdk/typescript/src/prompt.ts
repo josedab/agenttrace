@@ -2,7 +2,7 @@
  * Prompt management for fetching and compiling prompts.
  */
 
-import { getClient } from "./context";
+import { getClient } from './context';
 
 export interface PromptVersionData {
   id: string;
@@ -14,7 +14,7 @@ export interface PromptVersionData {
 }
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant" | "function";
+  role: 'system' | 'user' | 'assistant' | 'function';
   content: string;
 }
 
@@ -51,8 +51,8 @@ export class PromptVersion {
 
     for (const [key, value] of Object.entries(variables)) {
       // Support both {{var}} and {var} syntax
-      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value));
-      result = result.replace(new RegExp(`\\{${key}\\}`, "g"), String(value));
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
     }
 
     return result;
@@ -72,8 +72,8 @@ export class PromptVersion {
     const compiled = this.compile(variables);
     const messages: ChatMessage[] = [];
 
-    const lines = compiled.trim().split("\n");
-    let currentRole: ChatMessage["role"] | null = null;
+    const lines = compiled.trim().split('\n');
+    let currentRole: ChatMessage['role'] | null = null;
     let currentContent: string[] = [];
 
     for (const line of lines) {
@@ -85,11 +85,11 @@ export class PromptVersion {
         if (currentRole && currentContent.length > 0) {
           messages.push({
             role: currentRole,
-            content: currentContent.join("\n").trim(),
+            content: currentContent.join('\n').trim(),
           });
         }
 
-        currentRole = roleMatch[1].toLowerCase() as ChatMessage["role"];
+        currentRole = roleMatch[1].toLowerCase() as ChatMessage['role'];
         currentContent = roleMatch[2] ? [roleMatch[2]] : [];
       } else {
         currentContent.push(line);
@@ -100,7 +100,7 @@ export class PromptVersion {
     if (currentRole && currentContent.length > 0) {
       messages.push({
         role: currentRole,
-        content: currentContent.join("\n").trim(),
+        content: currentContent.join('\n').trim(),
       });
     }
 
@@ -117,10 +117,10 @@ export class PromptVersion {
     const variables = new Set<string>();
 
     for (const match of doubleBrace) {
-      variables.add(match.replace(/\{\{|\}\}/g, ""));
+      variables.add(match.replace(/\{\{|\}\}/g, ''));
     }
     for (const match of singleBrace) {
-      variables.add(match.replace(/\{|\}/g, ""));
+      variables.add(match.replace(/\{|\}/g, ''));
     }
 
     return Array.from(variables);
@@ -190,10 +190,7 @@ export class Prompt {
       }
 
       // Make API request through transport
-      const response = await (client as any)._transport.get<PromptVersionData>(
-        "/api/public/prompts",
-        params
-      );
+      const response = await client._get<PromptVersionData>('/api/public/prompts', params);
 
       if (response && response.id) {
         const promptVersion = new PromptVersion(response);
@@ -206,7 +203,7 @@ export class Prompt {
 
       return getFallback(options);
     } catch (error) {
-      console.warn("Failed to fetch prompt:", error);
+      console.warn('Failed to fetch prompt:', error);
       return getFallback(options);
     }
   }
@@ -252,17 +249,17 @@ function getCacheKey(options: GetPromptOptions): string {
   if (options.label !== undefined) {
     parts.push(`l:${options.label}`);
   }
-  return parts.join(":");
+  return parts.join(':');
 }
 
 function getFallback(options: GetPromptOptions): PromptVersion {
   if (options.fallback !== undefined) {
     return new PromptVersion({
-      id: "fallback",
+      id: 'fallback',
       version: 0,
       prompt: options.fallback,
       config: {},
-      labels: ["fallback"],
+      labels: ['fallback'],
       createdAt: new Date().toISOString(),
     });
   }

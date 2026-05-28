@@ -17,14 +17,6 @@ pnpm add agenttrace
 
 **Requirements**: Node.js 18+
 
-### Browser Bundle
-
-A lightweight browser-compatible build is available:
-
-```typescript
-import { AgentTrace } from 'agenttrace/browser';
-```
-
 ## Quick Start
 
 ```typescript
@@ -77,8 +69,8 @@ const client = new AgentTrace({
   projectId: 'your-project-id',
   apiUrl: 'https://api.agenttrace.io',
   debug: true,
-  flushInterval: 5000,  // ms, default 5000
-  batchSize: 100,       // default 100
+  flushInterval: 5000, // ms, default 5000
+  batchSize: 100, // default 100
 });
 ```
 
@@ -194,13 +186,13 @@ await client.flush();
 
 Main client class.
 
-| Method | Description |
-|--------|-------------|
-| `trace(options)` | Create a new trace |
-| `flush()` | Flush all pending events |
-| `score(options)` | Create a score |
-| `getPrompt(options)` | Fetch a prompt by name |
-| `shutdown()` | Flush and close the client |
+| Method               | Description                |
+| -------------------- | -------------------------- |
+| `trace(options)`     | Create a new trace         |
+| `flush()`            | Flush all pending events   |
+| `score(options)`     | Create a score             |
+| `getPrompt(options)` | Fetch a prompt by name     |
+| `shutdown()`         | Flush and close the client |
 
 ### `observe(fn, options?)`
 
@@ -208,18 +200,18 @@ Wraps a function with automatic tracing.
 
 ### `Trace`
 
-| Method | Description |
-|--------|-------------|
+| Method                | Description                     |
+| --------------------- | ------------------------------- |
 | `generation(options)` | Create a generation observation |
-| `span(options)` | Create a span observation |
-| `score(options)` | Score this trace |
-| `end(options?)` | End the trace |
+| `span(options)`       | Create a span observation       |
+| `score(options)`      | Score this trace                |
+| `end(options?)`       | End the trace                   |
 
 ### `Generation` / `Span`
 
-| Method | Description |
-|--------|-------------|
-| `end(options?)` | End the observation |
+| Method            | Description                 |
+| ----------------- | --------------------------- |
+| `end(options?)`   | End the observation         |
 | `update(options)` | Update observation metadata |
 
 ## Development

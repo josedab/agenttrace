@@ -15,6 +15,10 @@ export interface BatchEvent {
   body: Record<string, unknown>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * HTTP transport for communicating with the AgentTrace API.
  */
@@ -26,7 +30,7 @@ export class HttpTransport {
   private maxRetries: number;
 
   constructor(config: HttpTransportConfig) {
-    this.host = config.host.replace(/\/$/, "");
+    this.host = config.host.replace(/\/$/, '');
     this.apiKey = config.apiKey;
     this.publicKey = config.publicKey;
     this.timeout = config.timeout ?? 10000;
@@ -35,13 +39,13 @@ export class HttpTransport {
 
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${this.apiKey}`,
-      "User-Agent": "agenttrace-typescript/0.1.0",
+      'User-Agent': 'agenttrace-typescript/0.1.0',
     };
 
     if (this.publicKey) {
-      headers["X-Langfuse-Public-Key"] = this.publicKey;
+      headers['X-Langfuse-Public-Key'] = this.publicKey;
     }
 
     return headers;
@@ -62,7 +66,7 @@ export class HttpTransport {
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
         const response = await fetch(url, {
-          method: "POST",
+          method: 'POST',
           headers: this.getHeaders(),
           body: JSON.stringify(payload),
           signal: controller.signal,
@@ -74,9 +78,9 @@ export class HttpTransport {
           // Log partial failures
           if (response.status === 207) {
             try {
-              const result = await response.json();
-              if (result.errors) {
-                console.warn("Partial batch failures:", result.errors);
+              const result: unknown = await response.json();
+              if (isRecord(result) && result.errors) {
+                console.warn('Partial batch failures:', result.errors);
               }
             } catch {
               // Ignore parse errors
@@ -87,7 +91,7 @@ export class HttpTransport {
 
         if (response.status === 429) {
           // Rate limited
-          const retryAfter = parseInt(response.headers.get("Retry-After") || "5", 10);
+          const retryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
           console.warn(`Rate limited, waiting ${retryAfter}s`);
           await this.sleep(retryAfter * 1000);
           continue;
@@ -107,7 +111,7 @@ export class HttpTransport {
         console.error(`Client error ${response.status}:`, await response.text());
         return false;
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
+        if (error instanceof Error && error.name === 'AbortError') {
           const waitTime = Math.pow(2, attempt) * 500;
           console.warn(
             `Request timeout, retrying in ${waitTime}ms (attempt ${attempt + 1}/${this.maxRetries})`
@@ -116,7 +120,7 @@ export class HttpTransport {
           continue;
         }
 
-        console.error("Request error:", error);
+        console.error('Request error:', error);
         const waitTime = Math.pow(2, attempt) * 500;
         await this.sleep(waitTime);
       }
@@ -142,7 +146,7 @@ export class HttpTransport {
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
         const response = await fetch(url, {
-          method: "GET",
+          method: 'GET',
           headers: this.getHeaders(),
           signal: controller.signal,
         });
@@ -158,7 +162,7 @@ export class HttpTransport {
         }
 
         if (response.status === 429) {
-          const retryAfter = parseInt(response.headers.get("Retry-After") || "5", 10);
+          const retryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
           await this.sleep(retryAfter * 1000);
           continue;
         }
@@ -171,7 +175,7 @@ export class HttpTransport {
 
         console.error(`GET ${path} failed:`, response.status);
         return null;
-      } catch (error) {
+      } catch {
         const waitTime = Math.pow(2, attempt) * 500;
         await this.sleep(waitTime);
       }
@@ -192,7 +196,7 @@ export class HttpTransport {
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
         const response = await fetch(url, {
-          method: "POST",
+          method: 'POST',
           headers: this.getHeaders(),
           body: JSON.stringify(data),
           signal: controller.signal,
@@ -205,7 +209,7 @@ export class HttpTransport {
         }
 
         if (response.status === 429) {
-          const retryAfter = parseInt(response.headers.get("Retry-After") || "5", 10);
+          const retryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
           await this.sleep(retryAfter * 1000);
           continue;
         }
@@ -218,7 +222,7 @@ export class HttpTransport {
 
         console.error(`POST ${path} failed:`, response.status);
         return null;
-      } catch (error) {
+      } catch {
         const waitTime = Math.pow(2, attempt) * 500;
         await this.sleep(waitTime);
       }

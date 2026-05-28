@@ -5,9 +5,8 @@
  * full visibility and debugging capabilities.
  */
 
-import { spawn, SpawnOptions } from "child_process";
-import { cwd } from "process";
-import type { AgentTrace } from "./client";
+import { spawn, SpawnOptions } from 'child_process';
+import type { AgentTrace } from './client';
 
 export interface TerminalCommandOptions {
   command: string;
@@ -105,12 +104,12 @@ export class TerminalClient {
     const completedAt = options.completedAt || now;
     const durationMs = completedAt.getTime() - startedAt.getTime();
 
-    const workingDirectory = options.workingDirectory || cwd();
+    const workingDirectory = options.workingDirectory || process.cwd();
     const args = options.args || [];
-    const stdout = options.stdout || "";
-    const stderr = options.stderr || "";
+    const stdout = options.stdout || '';
+    const stderr = options.stderr || '';
     const exitCode = options.exitCode ?? 0;
-    const success = options.success ?? (exitCode === 0);
+    const success = options.success ?? exitCode === 0;
 
     // Convert env vars to JSON string
     const envVarsStr = options.envVars ? JSON.stringify(options.envVars) : undefined;
@@ -118,7 +117,7 @@ export class TerminalClient {
     // Send to API
     if (this._client.enabled) {
       this._client._addEvent({
-        type: "terminal-command-create",
+        type: 'terminal-command-create',
         body: {
           id: cmdId,
           traceId,
@@ -167,15 +166,19 @@ export class TerminalClient {
   /**
    * Run a command and track it.
    */
-  async run(traceId: string, command: string, options: RunCommandOptions = {}): Promise<RunCommandResult> {
+  async run(
+    traceId: string,
+    command: string,
+    options: RunCommandOptions = {}
+  ): Promise<RunCommandResult> {
     const startedAt = new Date();
-    const workingDirectory = options.workingDirectory || cwd();
+    const workingDirectory = options.workingDirectory || process.cwd();
     const maxOutputBytes = options.maxOutputBytes || 100000;
 
     return new Promise((resolve) => {
       const args = options.args || [];
-      let stdout = "";
-      let stderr = "";
+      let stdout = '';
+      let stderr = '';
       let timedOut = false;
       let killed = false;
 
@@ -192,23 +195,23 @@ export class TerminalClient {
         timeoutId = setTimeout(() => {
           timedOut = true;
           killed = true;
-          proc.kill("SIGTERM");
+          proc.kill('SIGTERM');
         }, options.timeout);
       }
 
-      proc.stdout?.on("data", (data: Buffer) => {
+      proc.stdout?.on('data', (data: Buffer) => {
         if (stdout.length < maxOutputBytes) {
           stdout += data.toString().slice(0, maxOutputBytes - stdout.length);
         }
       });
 
-      proc.stderr?.on("data", (data: Buffer) => {
+      proc.stderr?.on('data', (data: Buffer) => {
         if (stderr.length < maxOutputBytes) {
           stderr += data.toString().slice(0, maxOutputBytes - stderr.length);
         }
       });
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         if (timeoutId) clearTimeout(timeoutId);
 
         const completedAt = new Date();
@@ -243,7 +246,7 @@ export class TerminalClient {
         });
       });
 
-      proc.on("error", (error) => {
+      proc.on('error', (error) => {
         if (timeoutId) clearTimeout(timeoutId);
 
         const completedAt = new Date();
@@ -281,18 +284,18 @@ export async function runCommand(
   command: string,
   options: RunCommandOptions & { client?: AgentTrace; traceId?: string } = {}
 ): Promise<RunCommandResult> {
-  const { getClient, getCurrentTrace } = await import("./context");
+  const { getClient, getCurrentTrace } = await import('./context');
 
   const client = options.client || getClient();
   if (!client) {
-    throw new Error("No AgentTrace client available. Initialize one first.");
+    throw new Error('No AgentTrace client available. Initialize one first.');
   }
 
   let traceId = options.traceId;
   if (!traceId) {
     const trace = getCurrentTrace();
     if (!trace) {
-      throw new Error("No active trace. Create a trace first.");
+      throw new Error('No active trace. Create a trace first.');
     }
     traceId = trace.id;
   }
@@ -302,12 +305,12 @@ export async function runCommand(
 }
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }

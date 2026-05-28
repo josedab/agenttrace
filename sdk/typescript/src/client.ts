@@ -2,13 +2,19 @@
  * AgentTrace TypeScript SDK - Main Client
  */
 
-import { HttpTransport } from "./transport/http";
-import { BatchQueue } from "./transport/batch";
-import { setClient, setCurrentTrace } from "./context";
-import { CheckpointClient, type CheckpointOptions, type CheckpointInfo } from "./checkpoint";
-import { GitClient, type GitLinkOptions, type GitLinkInfo } from "./git";
-import { FileOperationClient, type FileOperationOptions, type FileOperationInfo } from "./fileops";
-import { TerminalClient, type TerminalCommandOptions, type TerminalCommandInfo, type RunCommandOptions, type RunCommandResult } from "./terminal";
+import { HttpTransport, type BatchEvent } from './transport/http';
+import { BatchQueue } from './transport/batch';
+import { setClient, setCurrentTrace } from './context';
+import { CheckpointClient, type CheckpointOptions, type CheckpointInfo } from './checkpoint';
+import { GitClient, type GitLinkOptions, type GitLinkInfo } from './git';
+import { FileOperationClient, type FileOperationOptions, type FileOperationInfo } from './fileops';
+import {
+  TerminalClient,
+  type TerminalCommandOptions,
+  type TerminalCommandInfo,
+  type RunCommandOptions,
+  type RunCommandResult,
+} from './terminal';
 
 export interface AgentTraceConfig {
   apiKey: string;
@@ -39,7 +45,7 @@ export interface SpanOptions {
   parentObservationId?: string;
   metadata?: Record<string, unknown>;
   input?: unknown;
-  level?: "DEBUG" | "DEFAULT" | "WARNING" | "ERROR";
+  level?: 'DEBUG' | 'DEFAULT' | 'WARNING' | 'ERROR';
 }
 
 export interface GenerationOptions {
@@ -50,7 +56,7 @@ export interface GenerationOptions {
   modelParameters?: Record<string, unknown>;
   input?: unknown;
   metadata?: Record<string, unknown>;
-  level?: "DEBUG" | "DEFAULT" | "WARNING" | "ERROR";
+  level?: 'DEBUG' | 'DEFAULT' | 'WARNING' | 'ERROR';
 }
 
 export interface ScoreOptions {
@@ -58,7 +64,7 @@ export interface ScoreOptions {
   name: string;
   value: number | boolean | string;
   observationId?: string;
-  dataType?: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  dataType?: 'NUMERIC' | 'BOOLEAN' | 'CATEGORICAL';
   comment?: string;
 }
 
@@ -102,7 +108,7 @@ export class AgentTrace {
 
   constructor(config: AgentTraceConfig) {
     this.apiKey = config.apiKey;
-    this.host = (config.host || "https://api.agenttrace.io").replace(/\/$/, "");
+    this.host = (config.host || 'https://api.agenttrace.io').replace(/\/$/, '');
     this.publicKey = config.publicKey;
     this.projectId = config.projectId;
     this.enabled = config.enabled ?? true;
@@ -123,18 +129,7 @@ export class AgentTrace {
     // Set as global client
     setClient(this);
 
-    // Flush on process exit
-    if (typeof process !== "undefined") {
-      process.on("beforeExit", () => this.flush());
-      process.on("SIGINT", () => {
-        this.shutdown();
-        process.exit(0);
-      });
-      process.on("SIGTERM", () => {
-        this.shutdown();
-        process.exit(0);
-      });
-    }
+    registerExitClient(this);
   }
 
   /**
@@ -164,16 +159,16 @@ export class AgentTrace {
     if (!this.enabled) return;
 
     this._batchQueue.add({
-      type: "score-create",
+      type: 'score-create',
       body: {
         id: generateId(),
         traceId: options.traceId,
         observationId: options.observationId,
         name: options.name,
         value: options.value,
-        dataType: options.dataType || "NUMERIC",
+        dataType: options.dataType || 'NUMERIC',
         comment: options.comment,
-        source: "API",
+        source: 'API',
       },
     });
   }
@@ -189,14 +184,59 @@ export class AgentTrace {
    * Shutdown the client and flush remaining events.
    */
   async shutdown(): Promise<void> {
-    await this.flush();
-    this._batchQueue.stop();
+    try {
+      await this.flush();
+    } finally {
+      this._batchQueue.stop();
+      exitClients.delete(this);
+    }
   }
 
   /** @internal */
-  _addEvent(event: Record<string, unknown>): void {
+  _addEvent(event: BatchEvent): void {
     this._batchQueue.add(event);
   }
+
+  /** @internal */
+  _get<T>(path: string, params?: Record<string, string>): Promise<T | null> {
+    return this._transport.get<T>(path, params);
+  }
+}
+
+const exitClients = new Set<AgentTrace>();
+let exitHandlersRegistered = false;
+let shuttingDown = false;
+
+function registerExitClient(client: AgentTrace): void {
+  exitClients.add(client);
+  if (exitHandlersRegistered || typeof process === 'undefined') {
+    return;
+  }
+
+  exitHandlersRegistered = true;
+  process.on('beforeExit', () => {
+    void flushExitClients();
+  });
+  process.once('SIGINT', () => {
+    void shutdownExitClients(130);
+  });
+  process.once('SIGTERM', () => {
+    void shutdownExitClients(143);
+  });
+}
+
+async function flushExitClients(): Promise<void> {
+  await Promise.allSettled(Array.from(exitClients, (client) => client.flush()));
+}
+
+async function shutdownExitClients(exitCode: number): Promise<void> {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  await Promise.allSettled(Array.from(exitClients, (client) => client.shutdown()));
+  process.exit(exitCode);
 }
 
 /**
@@ -247,7 +287,7 @@ export class Trace {
     if (!this._client.enabled) return;
 
     this._client._addEvent({
-      type: "trace-create",
+      type: 'trace-create',
       body: {
         id: this.id,
         name: this.name,
@@ -280,7 +320,7 @@ export class Trace {
       parentObservationId: options.parentObservationId,
       metadata: options.metadata || {},
       input: options.input,
-      level: options.level || "DEFAULT",
+      level: options.level || 'DEFAULT',
     });
   }
 
@@ -304,23 +344,25 @@ export class Trace {
       modelParameters: options.modelParameters || {},
       input: options.input,
       metadata: options.metadata || {},
-      level: options.level || "DEFAULT",
+      level: options.level || 'DEFAULT',
     });
   }
 
   /**
    * Update trace properties.
    */
-  update(updates: Partial<{
-    name: string;
-    userId: string;
-    sessionId: string;
-    metadata: Record<string, unknown>;
-    tags: string[];
-    input: unknown;
-    output: unknown;
-    public: boolean;
-  }>): this {
+  update(
+    updates: Partial<{
+      name: string;
+      userId: string;
+      sessionId: string;
+      metadata: Record<string, unknown>;
+      tags: string[];
+      input: unknown;
+      output: unknown;
+      public: boolean;
+    }>
+  ): this {
     if (updates.name !== undefined) this.name = updates.name;
     if (updates.userId !== undefined) this.userId = updates.userId;
     if (updates.sessionId !== undefined) this.sessionId = updates.sessionId;
@@ -332,7 +374,7 @@ export class Trace {
 
     if (this._client.enabled) {
       this._client._addEvent({
-        type: "trace-update",
+        type: 'trace-update',
         body: {
           id: this.id,
           name: this.name,
@@ -369,10 +411,14 @@ export class Trace {
   /**
    * Add a score to this trace.
    */
-  score(name: string, value: number | boolean | string, options?: {
-    dataType?: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
-    comment?: string;
-  }): void {
+  score(
+    name: string,
+    value: number | boolean | string,
+    options?: {
+      dataType?: 'NUMERIC' | 'BOOLEAN' | 'CATEGORICAL';
+      comment?: string;
+    }
+  ): void {
     this._client.score({
       traceId: this.id,
       name,
@@ -468,7 +514,7 @@ export class Span {
     if (!this._client.enabled) return;
 
     this._client._addEvent({
-      type: "span-create",
+      type: 'span-create',
       body: {
         id: this.id,
         traceId: this.traceId,
@@ -496,7 +542,7 @@ export class Span {
 
     if (this._client.enabled) {
       this._client._addEvent({
-        type: "span-update",
+        type: 'span-update',
         body: {
           id: this.id,
           output: this.output,
@@ -559,7 +605,7 @@ export class Generation {
     if (!this._client.enabled) return;
 
     this._client._addEvent({
-      type: "generation-create",
+      type: 'generation-create',
       body: {
         id: this.id,
         traceId: this.traceId,
@@ -578,12 +624,14 @@ export class Generation {
   /**
    * Update the generation.
    */
-  update(updates: Partial<{
-    output: unknown;
-    usage: UsageDetails;
-    model: string;
-    metadata: Record<string, unknown>;
-  }>): this {
+  update(
+    updates: Partial<{
+      output: unknown;
+      usage: UsageDetails;
+      model: string;
+      metadata: Record<string, unknown>;
+    }>
+  ): this {
     if (updates.output !== undefined) this.output = updates.output;
     if (updates.usage !== undefined) this.usage = updates.usage;
     if (updates.model !== undefined) this.model = updates.model;
@@ -594,11 +642,7 @@ export class Generation {
   /**
    * End the generation.
    */
-  end(options?: {
-    output?: unknown;
-    usage?: UsageDetails;
-    model?: string;
-  }): void {
+  end(options?: { output?: unknown; usage?: UsageDetails; model?: string }): void {
     if (this._ended) return;
 
     this._ended = true;
@@ -610,7 +654,7 @@ export class Generation {
 
     if (this._client.enabled) {
       this._client._addEvent({
-        type: "generation-update",
+        type: 'generation-update',
         body: {
           id: this.id,
           output: this.output,
@@ -627,13 +671,13 @@ export class Generation {
  * Generate a unique ID.
  */
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   // Fallback for older environments
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }

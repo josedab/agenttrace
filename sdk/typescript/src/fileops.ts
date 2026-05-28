@@ -5,11 +5,12 @@
  * agent execution for full visibility into agent actions.
  */
 
-import { statSync, existsSync } from "fs";
-import { createHash } from "crypto";
-import type { AgentTrace } from "./client";
+import { statSync, existsSync } from 'fs';
+import { createHash } from 'crypto';
+import type { AgentTrace } from './client';
 
-export type FileOperationType = "create" | "read" | "update" | "delete" | "rename" | "copy" | "move" | "chmod";
+export type FileOperationType =
+  'create' | 'read' | 'update' | 'delete' | 'rename' | 'copy' | 'move' | 'chmod';
 
 export interface FileOperationOptions {
   operation: FileOperationType;
@@ -84,7 +85,6 @@ export class FileOperationClient {
     // Calculate file info
     let fileSize = 0;
     let fileMode: string | undefined;
-    let mimeType: string | undefined;
     let contentHash: string | undefined;
     let contentBeforeHash: string | undefined;
     let contentAfterHash: string | undefined;
@@ -93,18 +93,18 @@ export class FileOperationClient {
       try {
         const stat = statSync(options.filePath);
         fileSize = stat.size;
-        fileMode = (stat.mode & 0o777).toString(8).padStart(3, "0");
+        fileMode = (stat.mode & 0o777).toString(8).padStart(3, '0');
       } catch {
         // Ignore
       }
     }
 
     if (options.contentBefore) {
-      contentBeforeHash = createHash("sha256").update(options.contentBefore).digest("hex");
+      contentBeforeHash = createHash('sha256').update(options.contentBefore).digest('hex');
     }
 
     if (options.contentAfter) {
-      contentAfterHash = createHash("sha256").update(options.contentAfter).digest("hex");
+      contentAfterHash = createHash('sha256').update(options.contentAfter).digest('hex');
       contentHash = contentAfterHash;
     }
 
@@ -113,12 +113,12 @@ export class FileOperationClient {
     let linesRemoved = options.linesRemoved ?? 0;
 
     if (options.linesAdded === undefined && options.contentBefore && options.contentAfter) {
-      const beforeLines = new Set(options.contentBefore.split("\n"));
-      const afterLines = options.contentAfter.split("\n");
-      linesAdded = afterLines.filter(l => !beforeLines.has(l)).length;
+      const beforeLines = new Set(options.contentBefore.split('\n'));
+      const afterLines = options.contentAfter.split('\n');
+      linesAdded = afterLines.filter((l) => !beforeLines.has(l)).length;
 
       const afterSet = new Set(afterLines);
-      linesRemoved = options.contentBefore.split("\n").filter(l => !afterSet.has(l)).length;
+      linesRemoved = options.contentBefore.split('\n').filter((l) => !afterSet.has(l)).length;
     }
 
     const success = options.success !== false;
@@ -126,7 +126,7 @@ export class FileOperationClient {
     // Send to API
     if (this._client.enabled) {
       this._client._addEvent({
-        type: "file-operation-create",
+        type: 'file-operation-create',
         body: {
           id: opId,
           traceId,
@@ -137,7 +137,6 @@ export class FileOperationClient {
           fileSize,
           fileMode,
           contentHash,
-          mimeType,
           linesAdded,
           linesRemoved,
           diffPreview: options.diffPreview,
@@ -182,10 +181,15 @@ export async function withFileOp<T>(
   operation: FileOperationType,
   filePath: string,
   fn: (context: { contentBefore?: string; contentAfter?: string }) => Promise<T>,
-  options: Omit<FileOperationOptions, "operation" | "filePath"> = {}
+  options: Omit<FileOperationOptions, 'operation' | 'filePath'> = {}
 ): Promise<T> {
   const startedAt = new Date();
-  const context: { contentBefore?: string; contentAfter?: string; success: boolean; errorMessage?: string } = {
+  const context: {
+    contentBefore?: string;
+    contentAfter?: string;
+    success: boolean;
+    errorMessage?: string;
+  } = {
     success: true,
   };
 
@@ -214,12 +218,12 @@ export async function withFileOp<T>(
 }
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
