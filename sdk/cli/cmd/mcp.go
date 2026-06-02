@@ -1,16 +1,35 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	agenttrace "github.com/agenttrace/agenttrace-go"
 	"github.com/spf13/cobra"
 )
 
 var (
-	mcpPort int
+	mcpPort      int
+	mcpHost      string
+	mcpProjectID string
+)
+
+// MCP server timeouts bound how long a single connection may occupy the server.
+const (
+	mcpReadHeaderTimeout = 5 * time.Second
+	mcpReadTimeout       = 30 * time.Second
+	mcpWriteTimeout      = 60 * time.Second
+	mcpIdleTimeout       = 120 * time.Second
 )
 
 var mcpCmd = &cobra.Command{
@@ -21,6 +40,10 @@ var mcpCmd = &cobra.Command{
 This allows IDEs and AI assistants to interact with AgentTrace
 for tracing, prompt management, and more.
 
+The server holds an API key and exposes project data, so it binds to the
+loopback interface only. Remote access must be provided by an authenticated
+tunnel or reverse proxy that you control.
+
 Example:
   agenttrace mcp --port 8080`,
 	RunE: runMCP,
@@ -28,6 +51,18 @@ Example:
 
 func init() {
 	mcpCmd.Flags().IntVar(&mcpPort, "port", 8765, "Port to run the MCP server on")
+	mcpCmd.Flags().StringVar(
+		&mcpHost,
+		"host",
+		defaultMCPHost,
+		"Loopback address to bind the MCP server to",
+	)
+	mcpCmd.Flags().StringVar(
+		&mcpProjectID,
+		"project-id",
+		"",
+		"Optional project ID header (API keys remain scoped to their own project)",
+	)
 }
 
 func runMCP(cmd *cobra.Command, args []string) error {
@@ -42,10 +77,20 @@ func runMCP(cmd *cobra.Command, args []string) error {
 		Host:   host,
 	})
 	defer client.Shutdown()
+	apiClient, err := newMCPAPIClient(host, apiKey, mcpProjectID)
+	if err != nil {
+		return err
+	}
 
 	// Create MCP server
 	server := &MCPServer{
-		client: client,
+		client:    client,
+		apiClient: apiClient,
+	}
+
+	address, err := mcpListenAddress(mcpHost, mcpPort)
+	if err != nil {
+		return err
 	}
 
 	mux := http.NewServeMux()
@@ -61,22 +106,126 @@ func runMCP(cmd *cobra.Command, args []string) error {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	addr := fmt.Sprintf(":%d", mcpPort)
-	fmt.Printf("Starting MCP server on http://localhost%s\n", addr)
+	fmt.Printf("Starting MCP server on %s\n", mcpDisplayURL(address))
 	fmt.Println("Available tools:")
 	fmt.Println("  - agenttrace_trace_start: Start a new trace")
 	fmt.Println("  - agenttrace_trace_end: End the current trace")
 	fmt.Println("  - agenttrace_generation: Log an LLM generation")
 	fmt.Println("  - agenttrace_score: Submit a score")
 	fmt.Println("  - agenttrace_prompt_get: Fetch a prompt")
+	fmt.Println("  - agenttrace_trace_search: Search project traces (read-only)")
+	fmt.Println("  - agenttrace_trace_get: Get a redacted trace summary (read-only)")
+	fmt.Println("  - agenttrace_evaluation_summary: Summarize project evaluations (read-only)")
 
-	return http.ListenAndServe(addr, mux)
+	httpServer := newMCPHTTPServer(address, mux)
+	return httpServer.ListenAndServe()
 }
 
-// MCPServer handles MCP protocol requests
+func newMCPHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: mcpReadHeaderTimeout,
+		ReadTimeout:       mcpReadTimeout,
+		WriteTimeout:      mcpWriteTimeout,
+		IdleTimeout:       mcpIdleTimeout,
+	}
+}
+
+// defaultMCPHost keeps the MCP server reachable only from this machine.
+const defaultMCPHost = "127.0.0.1"
+
+// mcpListenAddress builds the listen address and refuses any non-loopback bind.
+// The server carries an API key and answers unauthenticated requests, so
+// exposing it on a routable interface would hand project data to the network.
+func mcpListenAddress(host string, port int) (string, error) {
+	if port < 1 || port > 65535 {
+		return "", fmt.Errorf("--port must be between 1 and 65535")
+	}
+	if host == "" {
+		host = defaultMCPHost
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		if !strings.EqualFold(host, "localhost") {
+			return "", fmt.Errorf(
+				"--host must be a loopback address; use a tunnel with authentication for remote access",
+			)
+		}
+		ip = net.ParseIP(defaultMCPHost)
+	}
+	if !ip.IsLoopback() {
+		return "", fmt.Errorf(
+			"--host %s is not a loopback address; the MCP server serves unauthenticated local requests",
+			host,
+		)
+	}
+	return net.JoinHostPort(ip.String(), strconv.Itoa(port)), nil
+}
+
+// mcpDisplayURL renders the address that was actually bound.
+func mcpDisplayURL(address string) string {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "http://" + address
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
+// MCPServer handles MCP protocol requests.
+// Tool calls arrive on independent HTTP connections, so the active trace is
+// guarded; without it two concurrent calls could observe a torn state.
 type MCPServer struct {
-	client       *agenttrace.Client
+	client    *agenttrace.Client
+	apiClient *mcpAPIClient
+
+	traceMu      sync.Mutex
 	currentTrace *agenttrace.Trace
+}
+
+type mcpAPIClient struct {
+	baseURL   string
+	apiKey    string
+	projectID string
+	client    *http.Client
+}
+
+func newMCPAPIClient(baseURL, apiKey, projectID string) (*mcpAPIClient, error) {
+	parsed, err := url.Parse(strings.TrimRight(baseURL, "/"))
+	if err != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
+		parsed.Host == "" ||
+		parsed.User != nil {
+		return nil, fmt.Errorf("invalid AgentTrace API host")
+	}
+	return &mcpAPIClient{
+		baseURL:   parsed.String(),
+		apiKey:    apiKey,
+		projectID: projectID,
+		client:    &http.Client{Timeout: 15 * time.Second},
+	}, nil
+}
+
+func (c *mcpAPIClient) getJSON(ctx context.Context, path string, destination any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.projectID != "" {
+		request.Header.Set("X-Project-ID", c.projectID)
+	}
+
+	response, err := c.client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return fmt.Errorf("AgentTrace API returned %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return json.NewDecoder(response.Body).Decode(destination)
 }
 
 // MCPCapabilities represents server capabilities
@@ -88,9 +237,9 @@ type MCPCapabilities struct {
 
 // MCPTool represents an MCP tool
 type MCPTool struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	InputSchema map[string]any    `json:"inputSchema"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"inputSchema"`
 }
 
 // MCPToolCallRequest represents a tool call request
@@ -239,6 +388,53 @@ func (s *MCPServer) handleToolsList(w http.ResponseWriter, r *http.Request) {
 				"required": []string{"name"},
 			},
 		},
+		{
+			Name:        "agenttrace_trace_search",
+			Description: "Search traces in the API-key scoped AgentTrace project without modifying data",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type":        "string",
+						"description": "Optional full-text trace query",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum results (1-50)",
+					},
+					"from": map[string]any{
+						"type":        "string",
+						"description": "Optional RFC3339 lower time bound",
+					},
+					"to": map[string]any{
+						"type":        "string",
+						"description": "Optional RFC3339 upper time bound",
+					},
+				},
+			},
+		},
+		{
+			Name:        "agenttrace_trace_get",
+			Description: "Get a source-free trace summary from the API-key scoped project",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"trace_id": map[string]any{
+						"type":        "string",
+						"description": "Trace ID",
+					},
+				},
+				"required": []string{"trace_id"},
+			},
+		},
+		{
+			Name:        "agenttrace_evaluation_summary",
+			Description: "Summarize evaluators and Eval Hub run states for the scoped project",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -262,7 +458,7 @@ func (s *MCPServer) handleToolsCall(w http.ResponseWriter, r *http.Request) {
 
 	switch req.Name {
 	case "agenttrace_trace_start":
-		result, isError = s.toolTraceStart(req.Arguments)
+		result, isError = s.toolTraceStart(r.Context(), req.Arguments)
 	case "agenttrace_trace_end":
 		result, isError = s.toolTraceEnd(req.Arguments)
 	case "agenttrace_generation":
@@ -270,7 +466,13 @@ func (s *MCPServer) handleToolsCall(w http.ResponseWriter, r *http.Request) {
 	case "agenttrace_score":
 		result, isError = s.toolScore(req.Arguments)
 	case "agenttrace_prompt_get":
-		result, isError = s.toolPromptGet(req.Arguments)
+		result, isError = s.toolPromptGet(r.Context(), req.Arguments)
+	case "agenttrace_trace_search":
+		result, isError = s.toolTraceSearch(r.Context(), req.Arguments)
+	case "agenttrace_trace_get":
+		result, isError = s.toolTraceGet(r.Context(), req.Arguments)
+	case "agenttrace_evaluation_summary":
+		result, isError = s.toolEvaluationSummary(r.Context(), req.Arguments)
 	default:
 		result = fmt.Sprintf("Unknown tool: %s", req.Name)
 		isError = true
@@ -291,40 +493,57 @@ func (s *MCPServer) respondError(w http.ResponseWriter, msg string) {
 	})
 }
 
-func (s *MCPServer) toolTraceStart(args map[string]any) (string, bool) {
+func (s *MCPServer) toolTraceStart(
+	ctx context.Context,
+	args map[string]any,
+) (string, bool) {
 	name, _ := args["name"].(string)
 	if name == "" {
 		return "name is required", true
+	}
+	if s.client == nil {
+		return "AgentTrace client is not configured", true
 	}
 
 	userID, _ := args["user_id"].(string)
 	sessionID, _ := args["session_id"].(string)
 
-	s.currentTrace = s.client.Trace(nil, agenttrace.TraceOptions{
+	s.traceMu.Lock()
+	defer s.traceMu.Unlock()
+	if s.currentTrace != nil {
+		return "An active trace already exists. End it before starting another trace.", true
+	}
+	trace := s.client.Trace(ctx, agenttrace.TraceOptions{
 		Name:      name,
 		UserID:    userID,
 		SessionID: sessionID,
 	})
+	s.currentTrace = trace
 
-	return fmt.Sprintf("Trace started: %s (ID: %s)", name, s.currentTrace.ID()), false
+	return fmt.Sprintf("Trace started: %s (ID: %s)", name, trace.ID()), false
 }
 
 func (s *MCPServer) toolTraceEnd(args map[string]any) (string, bool) {
-	if s.currentTrace == nil {
+	s.traceMu.Lock()
+	defer s.traceMu.Unlock()
+	trace := s.currentTrace
+	if trace == nil {
 		return "No active trace", true
 	}
 
 	output, _ := args["output"].(string)
 
-	s.currentTrace.End(&agenttrace.TraceEndOptions{Output: output})
-	traceID := s.currentTrace.ID()
+	trace.End(&agenttrace.TraceEndOptions{Output: output})
 	s.currentTrace = nil
 
-	return fmt.Sprintf("Trace ended: %s", traceID), false
+	return fmt.Sprintf("Trace ended: %s", trace.ID()), false
 }
 
 func (s *MCPServer) toolGeneration(args map[string]any) (string, bool) {
-	if s.currentTrace == nil {
+	s.traceMu.Lock()
+	defer s.traceMu.Unlock()
+	trace := s.currentTrace
+	if trace == nil {
 		return "No active trace. Start a trace first.", true
 	}
 
@@ -339,7 +558,7 @@ func (s *MCPServer) toolGeneration(args map[string]any) (string, bool) {
 	inputTokens, _ := args["input_tokens"].(float64)
 	outputTokens, _ := args["output_tokens"].(float64)
 
-	gen := s.currentTrace.Generation(agenttrace.GenerationOptions{
+	gen := trace.Generation(agenttrace.GenerationOptions{
 		Name:  name,
 		Model: model,
 		Input: input,
@@ -363,7 +582,10 @@ func (s *MCPServer) toolGeneration(args map[string]any) (string, bool) {
 }
 
 func (s *MCPServer) toolScore(args map[string]any) (string, bool) {
-	if s.currentTrace == nil {
+	s.traceMu.Lock()
+	defer s.traceMu.Unlock()
+	trace := s.currentTrace
+	if trace == nil {
 		return "No active trace. Start a trace first.", true
 	}
 
@@ -379,42 +601,193 @@ func (s *MCPServer) toolScore(args map[string]any) (string, bool) {
 
 	comment, _ := args["comment"].(string)
 
-	s.currentTrace.Score(name, value, &agenttrace.ScoreAddOptions{
+	trace.Score(name, value, &agenttrace.ScoreAddOptions{
 		Comment: comment,
 	})
 
 	return fmt.Sprintf("Score submitted: %s = %.2f", name, value), false
 }
 
-func (s *MCPServer) toolPromptGet(args map[string]any) (string, bool) {
+func (s *MCPServer) toolPromptGet(ctx context.Context, args map[string]any) (string, bool) {
 	name, _ := args["name"].(string)
 	if name == "" {
 		return "name is required", true
 	}
-
-	opts := agenttrace.GetPromptOptions{Name: name}
-
-	if version, ok := args["version"].(float64); ok {
-		v := int(version)
-		opts.Version = &v
-	}
-	if label, ok := args["label"].(string); ok {
-		opts.Label = label
+	if s.apiClient == nil {
+		return "AgentTrace API client is not configured", true
 	}
 
-	prompt, err := agenttrace.GetPrompt(opts)
-	if err != nil {
+	params := url.Values{}
+	if version := getInt(args, "version"); version > 0 {
+		params.Set("version", strconv.Itoa(version))
+	}
+	if label := getString(args, "label"); label != "" {
+		params.Set("label", label)
+	}
+	path := "/api/public/prompts/" + url.PathEscape(name)
+	if encoded := params.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	var response struct {
+		LatestVersion *struct {
+			Content string `json:"content"`
+		} `json:"latestVersion"`
+	}
+	if err := s.apiClient.getJSON(ctx, path, &response); err != nil {
 		return fmt.Sprintf("Failed to get prompt: %v", err), true
 	}
-
-	// Compile with variables if provided
-	variables, _ := args["variables"].(map[string]any)
-	if variables != nil {
-		compiled := prompt.Compile(variables)
-		return compiled, false
+	if response.LatestVersion == nil {
+		return "Prompt has no available version", true
 	}
 
-	return prompt.Prompt, false
+	variables, _ := args["variables"].(map[string]any)
+	compiled := response.LatestVersion.Content
+	for key, value := range variables {
+		compiled = strings.ReplaceAll(compiled, "{{"+key+"}}", fmt.Sprint(value))
+	}
+	return compiled, false
+}
+
+func (s *MCPServer) toolTraceSearch(ctx context.Context, args map[string]any) (string, bool) {
+	if s.apiClient == nil {
+		return "AgentTrace API client is not configured", true
+	}
+	limit := getInt(args, "limit")
+	if limit == 0 {
+		limit = 20
+	}
+	if limit < 1 || limit > 50 {
+		return "limit must be between 1 and 50", true
+	}
+
+	params := url.Values{}
+	params.Set("limit", strconv.Itoa(limit))
+	if query := getString(args, "query"); query != "" {
+		params.Set("q", query)
+	}
+	if from := getString(args, "from"); from != "" {
+		if _, err := time.Parse(time.RFC3339, from); err != nil {
+			return "from must be RFC3339", true
+		}
+		params.Set("fromTimestamp", from)
+	}
+	if to := getString(args, "to"); to != "" {
+		if _, err := time.Parse(time.RFC3339, to); err != nil {
+			return "to must be RFC3339", true
+		}
+		params.Set("toTimestamp", to)
+	}
+
+	var response map[string]any
+	path := "/api/public/traces"
+	if params.Get("q") != "" {
+		path = "/api/public/traces/search"
+	}
+	if err := s.apiClient.getJSON(ctx, path+"?"+params.Encode(), &response); err != nil {
+		return fmt.Sprintf("Failed to search traces: %v", err), true
+	}
+	return prettyJSON(sanitizeMCPReadResponse(response)), false
+}
+
+func (s *MCPServer) toolTraceGet(ctx context.Context, args map[string]any) (string, bool) {
+	traceID := getString(args, "trace_id")
+	if traceID == "" {
+		return "trace_id is required", true
+	}
+	if s.apiClient == nil {
+		return "AgentTrace API client is not configured", true
+	}
+
+	var response map[string]any
+	if err := s.apiClient.getJSON(
+		ctx,
+		"/api/public/traces/"+url.PathEscape(traceID),
+		&response,
+	); err != nil {
+		return fmt.Sprintf("Failed to get trace: %v", err), true
+	}
+	return prettyJSON(sanitizeMCPReadResponse(response)), false
+}
+
+func (s *MCPServer) toolEvaluationSummary(ctx context.Context, _ map[string]any) (string, bool) {
+	if s.apiClient == nil {
+		return "AgentTrace API client is not configured", true
+	}
+
+	var evaluatorResponse struct {
+		Evaluators []struct {
+			Enabled bool `json:"enabled"`
+		} `json:"evaluators"`
+	}
+	if err := s.apiClient.getJSON(ctx, "/api/public/evaluators?limit=100", &evaluatorResponse); err != nil {
+		return fmt.Sprintf("Failed to list evaluators: %v", err), true
+	}
+	var runResponse struct {
+		Runs []struct {
+			Status string `json:"status"`
+		} `json:"runs"`
+	}
+	if err := s.apiClient.getJSON(ctx, "/api/public/eval-hub/runs?limit=100", &runResponse); err != nil {
+		return fmt.Sprintf("Failed to list evaluation runs: %v", err), true
+	}
+
+	activeEvaluators := 0
+	for _, evaluator := range evaluatorResponse.Evaluators {
+		if evaluator.Enabled {
+			activeEvaluators++
+		}
+	}
+	runStatuses := make(map[string]int)
+	for _, run := range runResponse.Runs {
+		runStatuses[run.Status]++
+	}
+	return prettyJSON(map[string]any{
+		"evaluators": map[string]int{
+			"total":  len(evaluatorResponse.Evaluators),
+			"active": activeEvaluators,
+		},
+		"runs": map[string]any{
+			"total":    len(runResponse.Runs),
+			"byStatus": runStatuses,
+		},
+	}), false
+}
+
+func sanitizeMCPReadResponse(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			switch strings.ToLower(key) {
+			case "input", "output", "metadata", "stdout", "stderr", "command",
+				"workingdir", "workingdirectory", "diff", "contentbefore",
+				"contentafter", "filesnapshot", "storagepath":
+				continue
+			default:
+				result[key] = sanitizeMCPReadResponse(item)
+			}
+		}
+		return result
+	case []any:
+		result := make([]any, 0, len(typed))
+		for _, item := range typed {
+			result = append(result, sanitizeMCPReadResponse(item))
+		}
+		return result
+	default:
+		return typed
+	}
+}
+
+func prettyJSON(value any) string {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(true)
+	if err := encoder.Encode(value); err != nil {
+		return "{}"
+	}
+	return strings.TrimSpace(buffer.String())
 }
 
 func getString(m map[string]any, key string) string {

@@ -1,6 +1,8 @@
 module github.com/agenttrace/agenttrace-cli
 
-go 1.24
+go 1.25.0
+
+toolchain go1.25.12
 
 require (
 	github.com/agenttrace/agenttrace-go v0.1.0

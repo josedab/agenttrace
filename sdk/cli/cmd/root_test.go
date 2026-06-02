@@ -44,6 +44,7 @@ func TestRootCommand(t *testing.T) {
 		}
 		assert.Contains(t, names, "wrap")
 		assert.Contains(t, names, "mcp")
+		assert.Contains(t, names, "init")
 	})
 }
 

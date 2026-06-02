@@ -23,10 +23,13 @@ var rootCmd = &cobra.Command{
 	Long: `AgentTrace CLI provides tools for tracing and observing AI coding agents.
 
 Commands:
+  init    - Detect a project and create safe minimal configuration
   wrap    - Wrap a command and trace its execution
   mcp     - Start an MCP server for IDE integration
+  migrate - Import a supported Langfuse JSON export
 
 Example:
+  agenttrace init
   agenttrace wrap -- python agent.py
   agenttrace wrap --name "my-agent" -- npm run dev
   agenttrace mcp --port 8080`,
@@ -34,6 +37,8 @@ Example:
 }
 
 func init() {
+	configureInitCommand()
+
 	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "AgentTrace API key (or set AGENTTRACE_API_KEY)")
 	rootCmd.PersistentFlags().StringVar(&host, "host", "https://api.agenttrace.io", "AgentTrace API host")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
@@ -44,6 +49,7 @@ func init() {
 	rootCmd.AddCommand(autoInstrumentCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(promptsCmd)
+	rootCmd.AddCommand(initCmd)
 }
 
 // Execute runs the CLI
