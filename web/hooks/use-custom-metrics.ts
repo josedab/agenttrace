@@ -13,7 +13,7 @@ export function useCustomMetrics() {
 export function useCreateMetric() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.customMetrics.create(data),
+    mutationFn: (data: Record<string, unknown>) => api.customMetrics.create(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["custom-metrics"] }),
   });
 }

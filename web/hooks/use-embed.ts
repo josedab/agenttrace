@@ -13,7 +13,7 @@ export function useEmbedConfig() {
 export function useCreateEmbedConfig() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { allowedDomains: string[]; branding?: Record<string, any>; dashboardIds?: string[] }) =>
+    mutationFn: (data: { allowedDomains: string[]; branding?: Record<string, unknown>; dashboardIds?: string[] }) =>
       api.embed.createConfig(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["embed-config"] }),
   });
@@ -22,7 +22,7 @@ export function useCreateEmbedConfig() {
 export function useUpdateEmbedConfig() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { allowedDomains?: string[]; branding?: Record<string, any>; dashboardIds?: string[] }) =>
+    mutationFn: (data: { allowedDomains?: string[]; branding?: Record<string, unknown>; dashboardIds?: string[] }) =>
       api.embed.updateConfig(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["embed-config"] }),
   });

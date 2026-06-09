@@ -21,7 +21,7 @@ export function useBlueprint(id: string) {
 export function useGenerateBlueprint() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskDescription: string; constraints?: Record<string, any> }) =>
+    mutationFn: (data: { taskDescription: string; constraints?: Record<string, unknown> }) =>
       api.agentBuilder.generate(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent-builder-blueprints"] }),
   });

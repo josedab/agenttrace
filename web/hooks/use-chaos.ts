@@ -13,7 +13,7 @@ export function useChaosExperiments() {
 export function useCreateExperiment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.chaos.create(data),
+    mutationFn: (data: Record<string, unknown>) => api.chaos.create(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["chaos"] }),
   });
 }

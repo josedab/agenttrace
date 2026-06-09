@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, type UpdateTraceInput } from "@/lib/api";
 
 export function useTrace(traceId: string) {
   return useQuery({
@@ -36,14 +36,7 @@ export function useUpdateTrace() {
       data,
     }: {
       traceId: string;
-      data: {
-        name?: string;
-        userId?: string;
-        sessionId?: string;
-        metadata?: Record<string, any>;
-        tags?: string[];
-        public?: boolean;
-      };
+      data: UpdateTraceInput;
     }) => api.traces.update(traceId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["trace", variables.traceId] });

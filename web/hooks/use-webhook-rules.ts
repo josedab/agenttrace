@@ -7,7 +7,7 @@ export interface WebhookRule {
   id: string;
   name: string;
   event: string;
-  conditions: Record<string, any>;
+  conditions: Record<string, unknown>;
   action: { type: string; url: string; headers?: Record<string, string> };
   enabled: boolean;
   createdAt: string;
@@ -18,8 +18,8 @@ export interface WebhookTemplate {
   name: string;
   description: string;
   event: string;
-  conditions: Record<string, any>;
-  action: Record<string, any>;
+  conditions: Record<string, unknown>;
+  action: Record<string, unknown>;
 }
 
 export function useWebhookRules() {
@@ -32,7 +32,7 @@ export function useWebhookRules() {
 export function useCreateWebhookRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; event: string; conditions: any; action: any }) =>
+    mutationFn: (data: { name: string; event: string; conditions: Record<string, unknown>; action: WebhookRule["action"] }) =>
       api.webhookRules.create(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["webhook-rules"] }),
   });

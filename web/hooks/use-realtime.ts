@@ -1,11 +1,54 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import * as React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
-interface RealtimeEvent {
-  type: "trace:created" | "trace:updated" | "observation:created" | "score:created";
-  data: unknown;
+interface RealtimeEventData extends Record<string, unknown> {
+  traceId?: string;
+  projectId?: string;
+}
+
+type RealtimeEvent =
+  | {
+      type: 'trace:created' | 'trace:updated';
+      data: RealtimeEventData;
+    }
+  | {
+      type: 'observation:created';
+      data: RealtimeEventData & { cost?: number };
+    }
+  | {
+      type: 'score:created';
+      data: RealtimeEventData;
+    };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isRealtimeEvent(value: unknown): value is RealtimeEvent {
+  if (!isRecord(value) || !isRecord(value.data)) {
+    return false;
+  }
+
+  const { data, type } = value;
+  if (
+    (data.traceId !== undefined && typeof data.traceId !== 'string') ||
+    (data.projectId !== undefined && typeof data.projectId !== 'string')
+  ) {
+    return false;
+  }
+
+  switch (type) {
+    case 'trace:created':
+    case 'trace:updated':
+    case 'score:created':
+      return true;
+    case 'observation:created':
+      return data.cost === undefined || typeof data.cost === 'number';
+    default:
+      return false;
+  }
 }
 
 interface UseRealtimeOptions {
@@ -27,7 +70,7 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
 
     const connect = () => {
       try {
-        const eventSource = new EventSource("/api/events");
+        const eventSource = new EventSource('/api/events');
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
@@ -35,9 +78,9 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
           setError(null);
         };
 
-        eventSource.onerror = (e) => {
+        eventSource.onerror = () => {
           setConnected(false);
-          setError(new Error("Connection lost"));
+          setError(new Error('Connection lost'));
 
           // Attempt to reconnect after 5 seconds
           setTimeout(() => {
@@ -50,33 +93,37 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
 
         eventSource.onmessage = (e) => {
           try {
-            const event: RealtimeEvent = JSON.parse(e.data);
+            const parsedEvent: unknown = JSON.parse(e.data);
+            if (!isRealtimeEvent(parsedEvent)) {
+              throw new Error('Invalid realtime event payload');
+            }
+            const event = parsedEvent;
 
             // Handle different event types
             switch (event.type) {
-              case "trace:created":
-              case "trace:updated":
-                queryClient.invalidateQueries({ queryKey: ["traces"] });
+              case 'trace:created':
+              case 'trace:updated':
+                queryClient.invalidateQueries({ queryKey: ['traces'] });
                 if (event.data.traceId) {
                   queryClient.invalidateQueries({
-                    queryKey: ["trace", event.data.traceId],
+                    queryKey: ['trace', event.data.traceId],
                   });
                 }
                 break;
 
-              case "observation:created":
+              case 'observation:created':
                 if (event.data.traceId) {
                   queryClient.invalidateQueries({
-                    queryKey: ["trace-observations", event.data.traceId],
+                    queryKey: ['trace-observations', event.data.traceId],
                   });
                 }
                 break;
 
-              case "score:created":
-                queryClient.invalidateQueries({ queryKey: ["scores"] });
+              case 'score:created':
+                queryClient.invalidateQueries({ queryKey: ['scores'] });
                 if (event.data.traceId) {
                   queryClient.invalidateQueries({
-                    queryKey: ["trace-scores", event.data.traceId],
+                    queryKey: ['trace-scores', event.data.traceId],
                   });
                 }
                 break;
@@ -85,13 +132,13 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
             // Call custom event handler
             onEvent?.(event);
           } catch (err) {
-            console.error("Failed to parse SSE event:", err);
+            console.error('Failed to parse SSE event:', err);
           }
         };
 
         return eventSource;
       } catch (err) {
-        setError(err as Error);
+        setError(err instanceof Error ? err : new Error(String(err)));
         return null;
       }
     };
@@ -165,7 +212,7 @@ export function useLiveTraceCount() {
 
   useRealtime({
     onEvent: (event) => {
-      if (event.type === "trace:created") {
+      if (event.type === 'trace:created') {
         setCount((prev) => prev + 1);
       }
     },
@@ -180,8 +227,9 @@ export function useLiveCost() {
 
   useRealtime({
     onEvent: (event) => {
-      if (event.type === "observation:created" && event.data.cost) {
-        setCost((prev) => prev + event.data.cost);
+      const eventCost = event.data.cost;
+      if (event.type === 'observation:created' && typeof eventCost === 'number') {
+        setCost((prev) => prev + eventCost);
       }
     },
   });

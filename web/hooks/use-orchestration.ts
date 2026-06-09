@@ -21,7 +21,7 @@ export function useOrchestrationSession(id: string) {
 export function useCreateSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; agentIds: string[]; config?: Record<string, any> }) =>
+    mutationFn: (data: { name: string; agentIds: string[]; config?: Record<string, unknown> }) =>
       api.orchestration.createSession(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orchestration-sessions"] }),
   });
@@ -30,7 +30,7 @@ export function useCreateSession() {
 export function useExecuteCommand(sessionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (cmd: { type: string; payload?: Record<string, any> }) =>
+    mutationFn: (cmd: { type: string; payload?: Record<string, unknown> }) =>
       api.orchestration.executeCommand(sessionId, cmd),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orchestration-sessions", sessionId] }),
   });

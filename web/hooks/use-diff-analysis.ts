@@ -59,6 +59,14 @@ export interface QualityTrend {
   trend: string;
 }
 
+export interface FileChangeInput {
+  filePath: string;
+  changeType: "added" | "modified" | "deleted";
+  diff?: string;
+  beforeContent?: string;
+  afterContent?: string;
+}
+
 export function useDiffAnalyses() {
   return useQuery({
     queryKey: ["diff-analyses"],
@@ -91,7 +99,7 @@ export function useQualityTrend(days = 30) {
 export function useAnalyzeDiff() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { traceId: string; fileChanges: any[] }) =>
+    mutationFn: (data: { traceId: string; fileChanges: FileChangeInput[] }) =>
       api.diffAnalysis.analyze(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["diff-analyses"] });

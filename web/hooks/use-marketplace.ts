@@ -39,7 +39,7 @@ export function useMarketplacePackage(id: string) {
 export function usePublishPackage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; description: string; config: any; tags?: string[] }) =>
+    mutationFn: (data: { name: string; description: string; config: Record<string, unknown>; tags?: string[] }) =>
       api.marketplace.publish(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["marketplace"] }),
   });

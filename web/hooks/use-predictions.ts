@@ -13,7 +13,7 @@ export function usePredictions() {
 export function usePredictCost() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskDescription: string; model?: string; constraints?: Record<string, any> }) =>
+    mutationFn: (data: { taskDescription: string; model?: string; constraints?: Record<string, unknown> }) =>
       api.predictions.predict(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["predictions"] }),
   });

@@ -30,7 +30,7 @@ export function useComplianceReports() {
 export function useGenerateReport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { templateId: string; name: string; parameters?: Record<string, any> }) =>
+    mutationFn: (data: { templateId: string; name: string; parameters?: Record<string, unknown> }) =>
       api.complianceReports.generate(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["compliance-reports"] }),
   });

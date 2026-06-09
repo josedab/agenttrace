@@ -3,6 +3,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
+export interface GenerateSyntheticDataInput {
+  name: string;
+  sourceDatasetId?: string;
+  count: number;
+  variationStrategy?: string;
+  parameters?: Record<string, unknown>;
+}
+
 export function useSyntheticDatasets() {
   return useQuery({
     queryKey: ["synthetic-data", "datasets"],
@@ -13,7 +21,7 @@ export function useSyntheticDatasets() {
 export function useGenerateSynthetic() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.syntheticData.generate(data),
+    mutationFn: (data: GenerateSyntheticDataInput) => api.syntheticData.generate(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["synthetic-data"] }),
   });
 }

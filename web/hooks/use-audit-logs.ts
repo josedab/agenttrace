@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
-import { api, AuditLog, AuditSummary, AuditExportJob } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export interface AuditLogFilters {
   userId?: string;

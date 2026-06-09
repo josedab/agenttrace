@@ -54,7 +54,6 @@ export function useCostRecommendations() {
 }
 
 export function useCostReport() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (period?: { startDate: string; endDate: string }) =>
       api.costOptimizer.generateReport(period) as Promise<CostReport>,

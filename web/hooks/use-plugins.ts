@@ -21,7 +21,7 @@ export function usePlugin(id: string) {
 export function useInstallPlugin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; source: string; version?: string; config?: Record<string, any> }) =>
+    mutationFn: (data: { name: string; source: string; version?: string; config?: Record<string, unknown> }) =>
       api.plugins.install(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["plugins"] }),
   });
@@ -45,7 +45,7 @@ export function useDisablePlugin() {
 
 export function useExecutePlugin() {
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, any> }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       api.plugins.execute(id, data),
   });
 }

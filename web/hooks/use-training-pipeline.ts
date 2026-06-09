@@ -30,7 +30,7 @@ export function useTrainingDatasets() {
 export function useCreateDataset() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; filters?: Record<string, any>; format?: string }) =>
+    mutationFn: (data: { name: string; filters?: Record<string, unknown>; format?: string }) =>
       api.training.createDataset(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["training", "datasets"] }),
   });

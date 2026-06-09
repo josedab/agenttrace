@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 export interface TraceFilters {
   search?: string;
@@ -19,24 +19,25 @@ export interface TraceFilters {
 
 export function useTraces(filters: TraceFilters = {}) {
   return useInfiniteQuery({
-    queryKey: ["traces", filters],
+    queryKey: ['traces', filters],
     queryFn: async ({ pageParam }) => {
       const response = await api.traces.list({
-        cursor: pageParam,
+        offset: pageParam,
         limit: 50,
         ...filters,
       });
       return response;
     },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.hasMore ? pages.reduce((offset, page) => offset + page.traces.length, 0) : undefined,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 }
 
 export function useTraceCount(filters: TraceFilters = {}) {
   return useQuery({
-    queryKey: ["trace-count", filters],
+    queryKey: ['trace-count', filters],
     queryFn: () => api.traces.count(filters),
     refetchInterval: 60000, // Refetch every minute
   });
@@ -44,14 +45,14 @@ export function useTraceCount(filters: TraceFilters = {}) {
 
 export function useTraceSessions(limit = 10) {
   return useQuery({
-    queryKey: ["trace-sessions", limit],
+    queryKey: ['trace-sessions', limit],
     queryFn: () => api.traces.sessions({ limit }),
   });
 }
 
-export function useTraceStats(dateRange: string = "7d") {
+export function useTraceStats(dateRange: string = '7d') {
   return useQuery({
-    queryKey: ["trace-stats", dateRange],
+    queryKey: ['trace-stats', dateRange],
     queryFn: () => api.traces.stats({ dateRange }),
   });
 }

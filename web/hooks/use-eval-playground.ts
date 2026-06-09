@@ -10,10 +10,28 @@ export interface PlaygroundExecuteInput {
   timeout?: number;
 }
 
+export interface PlaygroundTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  code: string;
+  language: "javascript" | "python";
+}
+
+export interface PlaygroundResult {
+  traceId: string;
+  score: number | null;
+  label: string | null;
+  reasoning: string | null;
+  error: string | null;
+  durationMs: number;
+}
+
 export function usePlaygroundTemplates() {
   return useQuery({
     queryKey: ["eval-playground-templates"],
-    queryFn: () => api.get<{ templates: any[] }>("/api/public/eval-playground/templates"),
+    queryFn: () => api.get<{ templates: PlaygroundTemplate[] }>("/api/public/eval-playground/templates"),
   });
 }
 
@@ -39,7 +57,7 @@ export function useCreatePlaygroundSession() {
 export function useExecutePlayground() {
   return useMutation({
     mutationFn: (input: PlaygroundExecuteInput) =>
-      api.post<{ results: any[] }>("/api/public/eval-playground/execute", input),
+      api.post<{ results: PlaygroundResult[] }>("/api/public/eval-playground/execute", input),
   });
 }
 

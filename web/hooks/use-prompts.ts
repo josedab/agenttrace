@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 export interface PromptFilters {
   search?: string;
@@ -11,14 +11,14 @@ export interface PromptFilters {
 
 export function usePrompts(filters: PromptFilters = {}) {
   return useQuery({
-    queryKey: ["prompts", filters],
+    queryKey: ['prompts', filters],
     queryFn: () => api.prompts.list(filters),
   });
 }
 
 export function usePrompt(promptName: string) {
   return useQuery({
-    queryKey: ["prompt", promptName],
+    queryKey: ['prompt', promptName],
     queryFn: () => api.prompts.get(promptName),
     enabled: !!promptName,
   });
@@ -26,7 +26,7 @@ export function usePrompt(promptName: string) {
 
 export function usePromptVersions(promptName: string) {
   return useQuery({
-    queryKey: ["prompt-versions", promptName],
+    queryKey: ['prompt-versions', promptName],
     queryFn: () => api.prompts.listVersions(promptName),
     enabled: !!promptName,
   });
@@ -34,7 +34,7 @@ export function usePromptVersions(promptName: string) {
 
 export function usePromptVersion(promptName: string, version: number) {
   return useQuery({
-    queryKey: ["prompt-version", promptName, version],
+    queryKey: ['prompt-version', promptName, version],
     queryFn: () => api.prompts.getVersion(promptName, version),
     enabled: !!promptName && version !== undefined,
   });
@@ -47,11 +47,11 @@ export function useCreatePrompt() {
     mutationFn: (data: {
       name: string;
       prompt: string;
-      config?: Record<string, any>;
+      config?: Record<string, unknown>;
       labels?: string[];
     }) => api.prompts.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prompts"] });
+      queryClient.invalidateQueries({ queryKey: ['prompts'] });
     },
   });
 }
@@ -67,12 +67,12 @@ export function useUpdatePrompt() {
       promptName: string;
       data: {
         prompt: string;
-        config?: Record<string, any>;
+        config?: Record<string, unknown>;
       };
     }) => api.prompts.createVersion(promptName, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["prompt", variables.promptName] });
-      queryClient.invalidateQueries({ queryKey: ["prompt-versions", variables.promptName] });
+      queryClient.invalidateQueries({ queryKey: ['prompt', variables.promptName] });
+      queryClient.invalidateQueries({ queryKey: ['prompt-versions', variables.promptName] });
     },
   });
 }
@@ -91,8 +91,8 @@ export function useSetPromptLabel() {
       label: string;
     }) => api.prompts.setLabel(promptName, version, label),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["prompt", variables.promptName] });
-      queryClient.invalidateQueries({ queryKey: ["prompt-versions", variables.promptName] });
+      queryClient.invalidateQueries({ queryKey: ['prompt', variables.promptName] });
+      queryClient.invalidateQueries({ queryKey: ['prompt-versions', variables.promptName] });
     },
   });
 }
@@ -101,16 +101,11 @@ export function useRemovePromptLabel() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      promptName,
-      label,
-    }: {
-      promptName: string;
-      label: string;
-    }) => api.prompts.removeLabel(promptName, label),
+    mutationFn: ({ promptName, label }: { promptName: string; label: string }) =>
+      api.prompts.removeLabel(promptName, label),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["prompt", variables.promptName] });
-      queryClient.invalidateQueries({ queryKey: ["prompt-versions", variables.promptName] });
+      queryClient.invalidateQueries({ queryKey: ['prompt', variables.promptName] });
+      queryClient.invalidateQueries({ queryKey: ['prompt-versions', variables.promptName] });
     },
   });
 }
@@ -121,7 +116,7 @@ export function useDeletePrompt() {
   return useMutation({
     mutationFn: (promptName: string) => api.prompts.delete(promptName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prompts"] });
+      queryClient.invalidateQueries({ queryKey: ['prompts'] });
     },
   });
 }
@@ -136,7 +131,7 @@ export function useCompilePrompt() {
       promptName: string;
       version?: number;
       label?: string;
-      variables: Record<string, any>;
+      variables: Record<string, string>;
     }) => api.prompts.compile(promptName, version, variables),
   });
 }

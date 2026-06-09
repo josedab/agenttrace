@@ -28,7 +28,7 @@ export function useActiveAgentVersions(agentName?: string) {
 export function useCreateVersion() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { agentName: string; config: Record<string, any>; changeLog?: string }) =>
+    mutationFn: (data: { agentName: string; config: Record<string, unknown>; changeLog?: string }) =>
       api.agentVersions.create(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent-versions"] }),
   });

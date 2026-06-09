@@ -34,7 +34,7 @@ export function usePendingReviews() {
 export function useSubmitReview() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { traceId: string; actions: any[] }) =>
+    mutationFn: (data: { traceId: string; actions: SandboxReview["proposedActions"] }) =>
       api.sandbox.submitReview(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sandbox"] }),
   });
@@ -67,7 +67,7 @@ export function useSandboxPolicies() {
 export function useCreatePolicy() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; rules: any[] }) =>
+    mutationFn: (data: { name: string; rules: SandboxPolicy["rules"] }) =>
       api.sandbox.createPolicy(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sandbox", "policies"] }),
   });

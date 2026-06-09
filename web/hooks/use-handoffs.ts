@@ -21,7 +21,7 @@ export function useHandoffStats() {
 export function useInitiateHandoff() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.handoffs.initiate(data),
+    mutationFn: (data: Record<string, unknown>) => api.handoffs.initiate(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["handoffs"] }),
   });
 }

@@ -3,6 +3,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
+export interface CreateSLOInput {
+  name: string;
+  metric: string;
+  target: number;
+  window: string;
+  description?: string;
+}
+
 export function useSLOs() {
   return useQuery({
     queryKey: ["slos"],
@@ -13,7 +21,7 @@ export function useSLOs() {
 export function useCreateSLO() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => api.slos.create(data),
+    mutationFn: (data: CreateSLOInput) => api.slos.create(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["slos"] }),
   });
 }

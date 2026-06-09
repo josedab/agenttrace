@@ -34,6 +34,10 @@ export interface CostAutopilotDashboard {
   predictions: CostPrediction[];
 }
 
+interface CostAutopilotDashboardWithRecommendations extends CostAutopilotDashboard {
+  recommendations?: CostRoutingRecommendation[];
+}
+
 export interface ModelPricing {
   model: string;
   provider: string;
@@ -113,7 +117,10 @@ export function useCostAttribution(period: string = "current_month", groupBy: st
 export function useCostRoutingRecommendations() {
   return useQuery({
     queryKey: ["cost-routing-recommendations"],
-    queryFn: () => api.costAutopilot.getDashboard().then((d: any) => d.recommendations || []) as Promise<CostRoutingRecommendation[]>,
+    queryFn: () =>
+      (
+        api.costAutopilot.getDashboard() as Promise<CostAutopilotDashboardWithRecommendations>
+      ).then((d) => d.recommendations ?? []) as Promise<CostRoutingRecommendation[]>,
   });
 }
 

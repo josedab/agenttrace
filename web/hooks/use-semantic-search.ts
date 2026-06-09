@@ -7,7 +7,7 @@ export interface SearchResult {
   traceId: string;
   score: number;
   highlight: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface SearchResponse {
@@ -16,9 +16,9 @@ export interface SearchResponse {
   queryTime: number;
 }
 
-export function useSemanticSearch(query: string) {
+export function useSemanticSearch(_query: string) {
   return useMutation({
-    mutationFn: (data: { query: string; filters?: Record<string, any>; limit?: number }) =>
+    mutationFn: (data: { query: string; filters?: Record<string, unknown>; limit?: number }) =>
       api.search.query(data),
   });
 }

@@ -27,7 +27,7 @@ export function useFleetPolicies() {
 export function useCreateFleetPolicy() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; rules: Record<string, any>; scope?: string }) =>
+    mutationFn: (data: { name: string; rules: Record<string, unknown>; scope?: string }) =>
       api.fleet.createPolicy(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["fleet-policies"] }),
   });
@@ -36,7 +36,7 @@ export function useCreateFleetPolicy() {
 export function useBulkUpdate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { agentIds: string[]; updates: Record<string, any> }) =>
+    mutationFn: (data: { agentIds: string[]; updates: Record<string, unknown> }) =>
       api.fleet.bulkUpdate(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fleet-agents"] });
