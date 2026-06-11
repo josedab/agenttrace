@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import * as React from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,42 +11,26 @@ import {
   SkipForward,
   Loader2,
   AlertCircle,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 
 interface AnnotationQueue {
   id: string;
   name: string;
   scoreName: string;
-  scoreDataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  scoreDataType: 'NUMERIC' | 'BOOLEAN' | 'CATEGORICAL';
   categories?: string[];
   pendingCount: number;
   completedCount: number;
   totalCount: number;
-}
-
-interface AnnotationItem {
-  id: string;
-  traceId: string;
-  input: unknown;
-  output: unknown;
-  expectedOutput?: unknown;
-  metadata?: Record<string, unknown>;
 }
 
 interface AnnotationInterfaceProps {
@@ -56,11 +40,15 @@ interface AnnotationInterfaceProps {
 export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
   const queryClient = useQueryClient();
   const [currentIndex, setCurrentIndex] = React.useState(0);
-  const [comment, setComment] = React.useState("");
+  const [comment, setComment] = React.useState('');
   const [numericScore, setNumericScore] = React.useState<number>(0.5);
 
-  const { data: items, isLoading, error } = useQuery({
-    queryKey: ["annotation-items", queue.id],
+  const {
+    data: items,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['annotation-items', queue.id],
     queryFn: () => api.annotationQueues.getItems(queue.id),
   });
 
@@ -79,17 +67,17 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
         comment,
       }),
     onSuccess: () => {
-      toast.success("Score submitted");
-      queryClient.invalidateQueries({ queryKey: ["annotation-items", queue.id] });
-      queryClient.invalidateQueries({ queryKey: ["annotation-queue", queue.id] });
-      setComment("");
+      toast.success('Score submitted');
+      queryClient.invalidateQueries({ queryKey: ['annotation-items', queue.id] });
+      queryClient.invalidateQueries({ queryKey: ['annotation-queue', queue.id] });
+      setComment('');
       // Move to next item
       if (items && currentIndex < items.length - 1) {
         setCurrentIndex(currentIndex + 1);
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to submit score");
+      toast.error(error.message || 'Failed to submit score');
     },
   });
 
@@ -109,7 +97,7 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
   if (error || !items) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
         <p className="text-destructive">Failed to load annotation items</p>
       </div>
     );
@@ -119,18 +107,16 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <ThumbsUp className="h-12 w-12 text-green-500 mb-4" />
+          <ThumbsUp className="mb-4 h-12 w-12 text-green-500" />
           <h3 className="text-lg font-semibold">All caught up!</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            No more items pending review.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">No more items pending review.</p>
         </CardContent>
       </Card>
     );
   }
 
   const currentItem = items[currentIndex];
-  const progress = ((queue.completedCount) / queue.totalCount) * 100;
+  const progress = (queue.completedCount / queue.totalCount) * 100;
 
   const handleSubmitBoolean = (value: boolean) => {
     submitMutation.mutate({
@@ -181,7 +167,7 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
           onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
           disabled={currentIndex === 0}
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
+          <ChevronLeft className="mr-1 h-4 w-4" />
           Previous
         </Button>
         <span className="text-sm text-muted-foreground">
@@ -190,26 +176,24 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() =>
-            setCurrentIndex(Math.min(items.length - 1, currentIndex + 1))
-          }
+          onClick={() => setCurrentIndex(Math.min(items.length - 1, currentIndex + 1))}
           disabled={currentIndex === items.length - 1}
         >
           Next
-          <ChevronRight className="h-4 w-4 ml-1" />
+          <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
 
       {/* Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Input */}
         <Card>
           <CardHeader>
             <CardTitle>Input</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-64 whitespace-pre-wrap">
-              {typeof currentItem.input === "string"
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
+              {typeof currentItem.input === 'string'
                 ? currentItem.input
                 : JSON.stringify(currentItem.input, null, 2)}
             </pre>
@@ -220,17 +204,18 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
         <Card>
           <CardHeader>
             <CardTitle>Output</CardTitle>
-            {currentItem.expectedOutput && (
+            {currentItem.expectedOutput !== undefined && currentItem.expectedOutput !== null && (
               <CardDescription>
-                Expected: {typeof currentItem.expectedOutput === "string"
+                Expected:{' '}
+                {typeof currentItem.expectedOutput === 'string'
                   ? currentItem.expectedOutput
                   : JSON.stringify(currentItem.expectedOutput)}
               </CardDescription>
             )}
           </CardHeader>
           <CardContent>
-            <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-64 whitespace-pre-wrap">
-              {typeof currentItem.output === "string"
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
+              {typeof currentItem.output === 'string'
                 ? currentItem.output
                 : JSON.stringify(currentItem.output, null, 2)}
             </pre>
@@ -242,37 +227,35 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
       <Card>
         <CardHeader>
           <CardTitle>Score: {queue.scoreName}</CardTitle>
-          <CardDescription>
-            Provide your evaluation for this item
-          </CardDescription>
+          <CardDescription>Provide your evaluation for this item</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {queue.scoreDataType === "BOOLEAN" && (
+          {queue.scoreDataType === 'BOOLEAN' && (
             <div className="flex items-center gap-4">
               <Button
                 size="lg"
                 variant="outline"
-                className="flex-1 h-16"
+                className="h-16 flex-1"
                 onClick={() => handleSubmitBoolean(true)}
                 disabled={submitMutation.isPending}
               >
-                <ThumbsUp className="h-6 w-6 mr-2 text-green-500" />
+                <ThumbsUp className="mr-2 h-6 w-6 text-green-500" />
                 Pass
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="flex-1 h-16"
+                className="h-16 flex-1"
                 onClick={() => handleSubmitBoolean(false)}
                 disabled={submitMutation.isPending}
               >
-                <ThumbsDown className="h-6 w-6 mr-2 text-red-500" />
+                <ThumbsDown className="mr-2 h-6 w-6 text-red-500" />
                 Fail
               </Button>
             </div>
           )}
 
-          {queue.scoreDataType === "NUMERIC" && (
+          {queue.scoreDataType === 'NUMERIC' && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Score (0 - 1)</Label>
@@ -289,10 +272,10 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
                   <Badge
                     variant={
                       numericScore >= 0.7
-                        ? "default"
+                        ? 'default'
                         : numericScore >= 0.4
-                        ? "secondary"
-                        : "destructive"
+                          ? 'secondary'
+                          : 'destructive'
                     }
                     className="w-16 justify-center"
                   >
@@ -300,19 +283,14 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
                   </Badge>
                 </div>
               </div>
-              <Button
-                onClick={handleSubmitNumeric}
-                disabled={submitMutation.isPending}
-              >
-                {submitMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
+              <Button onClick={handleSubmitNumeric} disabled={submitMutation.isPending}>
+                {submitMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Score
               </Button>
             </div>
           )}
 
-          {queue.scoreDataType === "CATEGORICAL" && queue.categories && (
+          {queue.scoreDataType === 'CATEGORICAL' && queue.categories && (
             <div className="flex flex-wrap gap-2">
               {queue.categories.map((category) => (
                 <Button
@@ -349,7 +327,7 @@ export function AnnotationInterface({ queue }: AnnotationInterfaceProps) {
               onClick={() => skipMutation.mutate(currentItem.id)}
               disabled={skipMutation.isPending}
             >
-              <SkipForward className="h-4 w-4 mr-1" />
+              <SkipForward className="mr-1 h-4 w-4" />
               Skip
             </Button>
           </div>
@@ -374,13 +352,13 @@ export function AnnotationInterfaceSkeleton() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Input</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted p-4 rounded-lg h-48 animate-pulse" />
+            <div className="h-48 animate-pulse rounded-lg bg-muted p-4" />
           </CardContent>
         </Card>
         <Card>
@@ -388,7 +366,7 @@ export function AnnotationInterfaceSkeleton() {
             <CardTitle>Output</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted p-4 rounded-lg h-48 animate-pulse" />
+            <div className="h-48 animate-pulse rounded-lg bg-muted p-4" />
           </CardContent>
         </Card>
       </div>
@@ -398,7 +376,7 @@ export function AnnotationInterfaceSkeleton() {
           <CardTitle>Score</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-24 animate-pulse bg-muted rounded-lg" />
+          <div className="h-24 animate-pulse rounded-lg bg-muted" />
         </CardContent>
       </Card>
     </div>

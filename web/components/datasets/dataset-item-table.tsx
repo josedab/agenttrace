@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Database, Trash2, Eye, ChevronRight, ChevronDown } from "lucide-react";
 
-import { api } from "@/lib/api";
+import { api, type DatasetItem } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -30,7 +30,7 @@ interface DatasetItemTableProps {
 
 export function DatasetItemTable({ datasetId }: DatasetItemTableProps) {
   const queryClient = useQueryClient();
-  const [selectedItem, setSelectedItem] = React.useState<any>(null);
+  const [selectedItem, setSelectedItem] = React.useState<DatasetItem | null>(null);
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
 
   const { data: items, isLoading } = useQuery({

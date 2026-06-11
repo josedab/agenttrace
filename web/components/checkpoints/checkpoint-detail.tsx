@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { format } from "date-fns";
-import { toast } from "sonner";
+import * as React from 'react';
+import Link from 'next/link';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
 import {
   GitBranch,
   RotateCcw,
@@ -15,18 +15,12 @@ import {
   Check,
   ExternalLink,
   FolderTree,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { useCheckpoint, useRestoreCheckpoint } from "@/hooks/use-checkpoints";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useCheckpoint, useRestoreCheckpoint } from '@/hooks/use-checkpoints';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,15 +30,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface CheckpointDetailProps {
   projectId: string;
@@ -67,15 +56,20 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
   const [copiedHash, setCopiedHash] = React.useState<string | null>(null);
 
   const handleRestore = () => {
-    restoreMutation.mutate(checkpointId, {
-      onSuccess: () => {
-        toast.success("Checkpoint restored successfully");
-        setShowRestoreDialog(false);
-      },
-      onError: (error: Error) => {
-        toast.error(error.message || "Failed to restore checkpoint");
-      },
-    });
+    if (!checkpoint) return;
+
+    restoreMutation.mutate(
+      { checkpointId, traceId: checkpoint.traceId },
+      {
+        onSuccess: () => {
+          toast.success('Checkpoint restored successfully');
+          setShowRestoreDialog(false);
+        },
+        onError: (error: Error) => {
+          toast.error(error.message || 'Failed to restore checkpoint');
+        },
+      }
+    );
   };
 
   const copyHash = (hash: string) => {
@@ -85,12 +79,19 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
   };
 
   const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
+
+  React.useEffect(() => {
+    const files = checkpoint?.files;
+    if (files && files.length > 0 && !selectedFile) {
+      setSelectedFile(files[0]);
+    }
+  }, [checkpoint, selectedFile]);
 
   if (isLoading) {
     return (
@@ -118,13 +119,6 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
     );
   }
 
-  // Select first file by default
-  React.useEffect(() => {
-    if (checkpoint?.files?.length > 0 && !selectedFile) {
-      setSelectedFile(checkpoint.files[0]);
-    }
-  }, [checkpoint, selectedFile]);
-
   return (
     <>
       <div className="grid gap-6 lg:grid-cols-3">
@@ -139,13 +133,13 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label className="text-sm font-medium text-muted-foreground">ID</label>
-              <p className="text-sm font-mono">{checkpoint.id}</p>
+              <p className="font-mono text-sm">{checkpoint.id}</p>
             </div>
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-muted-foreground">Type</label>
               <div>
-                {checkpoint.type === "auto" ? (
+                {checkpoint.type === 'auto' ? (
                   <Badge variant="secondary" className="gap-1">
                     <Zap className="h-3 w-3" />
                     Auto
@@ -161,16 +155,16 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-muted-foreground">Created</label>
-              <p className="text-sm">{format(new Date(checkpoint.createdAt), "PPpp")}</p>
+              <p className="text-sm">{format(new Date(checkpoint.createdAt), 'PPpp')}</p>
             </div>
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-muted-foreground">Trace</label>
               <Link
                 href={`/traces/${checkpoint.traceId}`}
-                className="text-sm text-primary hover:underline flex items-center gap-1"
+                className="flex items-center gap-1 text-sm text-primary hover:underline"
               >
-                {checkpoint.traceName}
+                {checkpoint.traceId}
                 <ExternalLink className="h-3 w-3" />
               </Link>
             </div>
@@ -194,11 +188,8 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
               </p>
             </div>
 
-            <Button
-              onClick={() => setShowRestoreDialog(true)}
-              className="w-full mt-4"
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
+            <Button onClick={() => setShowRestoreDialog(true)} className="mt-4 w-full">
+              <RotateCcw className="mr-2 h-4 w-4" />
               Restore Checkpoint
             </Button>
           </CardContent>
@@ -211,9 +202,7 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
               <FolderTree className="h-5 w-5" />
               Files
             </CardTitle>
-            <CardDescription>
-              Browse files included in this checkpoint.
-            </CardDescription>
+            <CardDescription>Browse files included in this checkpoint.</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="files" className="w-full">
@@ -224,28 +213,28 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
 
               <TabsContent value="files" className="mt-4">
                 <ScrollArea className="h-[400px] rounded-md border">
-                  <div className="p-4 space-y-2">
+                  <div className="space-y-2 p-4">
                     {checkpoint.files?.map((file) => (
                       <div
                         key={file.path}
-                        className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${
+                        className={`flex cursor-pointer items-center justify-between rounded-md p-3 transition-colors ${
                           selectedFile?.path === file.path
-                            ? "bg-primary/10 border border-primary/20"
-                            : "hover:bg-muted"
+                            ? 'border border-primary/20 bg-primary/10'
+                            : 'hover:bg-muted'
                         }`}
                         onClick={() => setSelectedFile(file)}
                       >
                         <div className="flex items-center gap-3">
                           <FileCode className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium font-mono">{file.path}</p>
+                            <p className="font-mono text-sm font-medium">{file.path}</p>
                             <p className="text-xs text-muted-foreground">
                               {formatBytes(file.size)}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
                             {file.hash.slice(0, 8)}
                           </code>
                           <Button
@@ -277,28 +266,28 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileCode className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-mono">{selectedFile.path}</span>
+                        <span className="font-mono text-sm">{selectedFile.path}</span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
                           navigator.clipboard.writeText(selectedFile.content);
-                          toast.success("Content copied to clipboard");
+                          toast.success('Content copied to clipboard');
                         }}
                       >
-                        <Copy className="h-4 w-4 mr-2" />
+                        <Copy className="mr-2 h-4 w-4" />
                         Copy
                       </Button>
                     </div>
                     <ScrollArea className="h-[350px] rounded-md border bg-muted/30">
-                      <pre className="p-4 text-sm font-mono whitespace-pre-wrap">
+                      <pre className="whitespace-pre-wrap p-4 font-mono text-sm">
                         {selectedFile.content}
                       </pre>
                     </ScrollArea>
                   </div>
                 ) : (
-                  <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                  <div className="flex h-[350px] items-center justify-center text-muted-foreground">
                     Select a file to view its content
                   </div>
                 )}
@@ -314,25 +303,22 @@ export function CheckpointDetail({ projectId, checkpointId }: CheckpointDetailPr
           <AlertDialogHeader>
             <AlertDialogTitle>Restore Checkpoint?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will restore the agent state to this checkpoint from{" "}
-              {format(new Date(checkpoint.createdAt), "PPpp")}.
-              Current files will be overwritten with the checkpoint contents.
+              This will restore the agent state to this checkpoint from{' '}
+              {format(new Date(checkpoint.createdAt), 'PPpp')}. Current files will be overwritten
+              with the checkpoint contents.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRestore}
-              disabled={restoreMutation.isPending}
-            >
+            <AlertDialogAction onClick={handleRestore} disabled={restoreMutation.isPending}>
               {restoreMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Restoring...
                 </>
               ) : (
                 <>
-                  <RotateCcw className="h-4 w-4 mr-2" />
+                  <RotateCcw className="mr-2 h-4 w-4" />
                   Restore
                 </>
               )}

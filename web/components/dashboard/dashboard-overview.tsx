@@ -8,7 +8,7 @@ import { TraceVolumeChart } from "@/components/dashboard/trace-volume-chart";
 import { CostBreakdownChart } from "@/components/dashboard/cost-breakdown-chart";
 import { LatencyPercentileChart } from "@/components/dashboard/latency-percentile-chart";
 import { RecentTraces } from "@/components/dashboard/recent-traces";
-import { Activity, DollarSign, Clock, Layers, TrendingUp, TrendingDown } from "lucide-react";
+import { Activity, DollarSign, Clock, Layers } from "lucide-react";
 
 export function DashboardOverview() {
   const { data: metrics, isLoading } = useQuery({

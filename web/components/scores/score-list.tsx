@@ -1,19 +1,13 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { Bot, User, Code, ExternalLink } from "lucide-react";
+import * as React from 'react';
+import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+import { Bot, User, Code, ExternalLink } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import type { Score } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -21,21 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-
-interface Score {
-  id: string;
-  traceId: string;
-  observationId?: string;
-  name: string;
-  value: number | boolean | string;
-  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
-  source: "API" | "EVAL" | "ANNOTATION";
-  comment?: string;
-  createdAt: string;
-  evaluatorId?: string;
-  userId?: string;
-}
+} from '@/components/ui/table';
 
 interface ScoreListProps {
   scores: Score[];
@@ -48,9 +28,9 @@ const sourceIcons = {
 };
 
 const sourceLabels = {
-  API: "API",
-  EVAL: "Evaluator",
-  ANNOTATION: "Human",
+  API: 'API',
+  EVAL: 'Evaluator',
+  ANNOTATION: 'Human',
 };
 
 export function ScoreList({ scores }: ScoreListProps) {
@@ -63,7 +43,7 @@ export function ScoreList({ scores }: ScoreListProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-lg">
+        <div className="rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -81,9 +61,7 @@ export function ScoreList({ scores }: ScoreListProps) {
                 return (
                   <TableRow key={score.id}>
                     <TableCell>
-                      <code className="text-sm bg-muted px-1.5 py-0.5 rounded">
-                        {score.name}
-                      </code>
+                      <code className="rounded bg-muted px-1.5 py-0.5 text-sm">{score.name}</code>
                     </TableCell>
                     <TableCell>
                       <ScoreValue score={score} />
@@ -91,9 +69,7 @@ export function ScoreList({ scores }: ScoreListProps) {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <SourceIcon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {sourceLabels[score.source]}
-                        </span>
+                        <span className="text-sm">{sourceLabels[score.source]}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -107,7 +83,7 @@ export function ScoreList({ scores }: ScoreListProps) {
                     </TableCell>
                     <TableCell>
                       {score.comment ? (
-                        <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                        <p className="max-w-[200px] truncate text-sm text-muted-foreground">
                           {score.comment}
                         </p>
                       ) : (
@@ -133,26 +109,18 @@ export function ScoreList({ scores }: ScoreListProps) {
 }
 
 function ScoreValue({ score }: { score: Score }) {
-  if (score.dataType === "BOOLEAN") {
+  if (score.dataType === 'BOOLEAN') {
     return (
-      <Badge variant={score.value ? "default" : "destructive"}>
-        {score.value ? "Pass" : "Fail"}
+      <Badge variant={score.value ? 'default' : 'destructive'}>
+        {score.value ? 'Pass' : 'Fail'}
       </Badge>
     );
   }
 
-  if (score.dataType === "NUMERIC") {
-    const numValue = typeof score.value === "number" ? score.value : 0;
+  if (score.dataType === 'NUMERIC') {
+    const numValue = typeof score.value === 'number' ? score.value : 0;
     return (
-      <Badge
-        variant={
-          numValue >= 0.7
-            ? "default"
-            : numValue >= 0.4
-            ? "secondary"
-            : "destructive"
-        }
-      >
+      <Badge variant={numValue >= 0.7 ? 'default' : numValue >= 0.4 ? 'secondary' : 'destructive'}>
         {numValue.toFixed(2)}
       </Badge>
     );

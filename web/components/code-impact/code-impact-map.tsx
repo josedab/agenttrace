@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import * as React from "react";
+import * as React from 'react';
 import {
   FileCode2,
   FilePlus2,
@@ -10,54 +10,50 @@ import {
   FolderTree,
   BarChart3,
   Languages,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-
-interface FileImpact {
-  path: string;
-  operation: "created" | "modified" | "deleted";
-  linesAdded: number;
-  linesRemoved: number;
-  language: string;
-  complexity: "low" | "medium" | "high";
-}
-
-interface ImpactSummary {
-  totalFiles: number;
-  totalLinesAdded: number;
-  totalLinesRemoved: number;
-  languages: string[];
-}
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useCodeImpact } from '@/hooks/use-code-impact';
 
 interface CodeImpactMapProps {
   traceId?: string;
 }
 
 const operationConfig = {
-  created: { color: "bg-green-500/10 text-green-700 border-green-500/20", icon: FilePlus2, label: "Created" },
-  modified: { color: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20", icon: FileEdit, label: "Modified" },
-  deleted: { color: "bg-red-500/10 text-red-700 border-red-500/20", icon: FileMinus2, label: "Deleted" },
+  created: {
+    color: 'bg-green-500/10 text-green-700 border-green-500/20',
+    icon: FilePlus2,
+    label: 'Created',
+  },
+  modified: {
+    color: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
+    icon: FileEdit,
+    label: 'Modified',
+  },
+  deleted: {
+    color: 'bg-red-500/10 text-red-700 border-red-500/20',
+    icon: FileMinus2,
+    label: 'Deleted',
+  },
 };
 
 const complexityConfig = {
-  low: "bg-green-500/10 text-green-700",
-  medium: "bg-yellow-500/10 text-yellow-700",
-  high: "bg-red-500/10 text-red-700",
+  low: 'bg-green-500/10 text-green-700',
+  medium: 'bg-yellow-500/10 text-yellow-700',
+  high: 'bg-red-500/10 text-red-700',
 };
 
 export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
-  const [traceId, setTraceId] = React.useState(initialTraceId ?? "");
-  const [submittedId, setSubmittedId] = React.useState(initialTraceId ?? "");
+  const [traceId, setTraceId] = React.useState(initialTraceId ?? '');
+  const [submittedId, setSubmittedId] = React.useState(initialTraceId ?? '');
 
-  // TODO: Replace with useCodeImpact(submittedId) hook when available
-  const isLoading = false;
-  const files: FileImpact[] = [];
-  const summary: ImpactSummary | null = null;
+  const { data: impact, isLoading } = useCodeImpact(submittedId || null);
+  const files = impact?.files ?? [];
+  const summary = impact?.summary;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +63,7 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
   return (
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-md">
+        <div className="relative max-w-md flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Enter trace ID..."
@@ -102,9 +98,7 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
               <BarChart3 className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                +{summary.totalLinesAdded}
-              </div>
+              <div className="text-2xl font-bold text-green-600">+{summary.totalLinesAdded}</div>
             </CardContent>
           </Card>
           <Card>
@@ -115,22 +109,18 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
               <BarChart3 className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                -{summary.totalLinesRemoved}
-              </div>
+              <div className="text-2xl font-bold text-red-600">-{summary.totalLinesRemoved}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Languages
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Languages</CardTitle>
               <Languages className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{summary.languages.length}</div>
-              <p className="text-xs text-muted-foreground truncate">
-                {summary.languages.join(", ")}
+              <p className="truncate text-xs text-muted-foreground">
+                {summary.languages.join(', ')}
               </p>
             </CardContent>
           </Card>
@@ -140,7 +130,7 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
       {isLoading && (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
       )}
@@ -159,12 +149,12 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
                   key={file.path}
                   className="flex items-center justify-between rounded-lg border p-3"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <OpIcon className={cn("h-4 w-4 shrink-0", config.color.split(" ")[1])} />
+                  <div className="flex min-w-0 items-center gap-3">
+                    <OpIcon className={cn('h-4 w-4 shrink-0', config.color.split(' ')[1])} />
                     <div className="min-w-0">
-                      <p className="text-sm font-mono truncate">{file.path}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className={cn("text-xs", config.color)}>
+                      <p className="truncate font-mono text-sm">{file.path}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant="outline" className={cn('text-xs', config.color)}>
                           {config.label}
                         </Badge>
                         <Badge variant="outline" className="text-xs">
@@ -172,16 +162,16 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
                         </Badge>
                         <Badge
                           variant="outline"
-                          className={cn("text-xs", complexityConfig[file.complexity])}
+                          className={cn('text-xs', complexityConfig[file.complexity])}
                         >
                           {file.complexity} complexity
                         </Badge>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0 text-sm">
-                    <span className="text-green-600 font-mono">+{file.linesAdded}</span>
-                    <span className="text-red-600 font-mono">-{file.linesRemoved}</span>
+                  <div className="flex shrink-0 items-center gap-3 text-sm">
+                    <span className="font-mono text-green-600">+{file.linesAdded}</span>
+                    <span className="font-mono text-red-600">-{file.linesRemoved}</span>
                   </div>
                 </div>
               );
@@ -191,12 +181,10 @@ export function CodeImpactMap({ traceId: initialTraceId }: CodeImpactMapProps) {
       )}
 
       {submittedId && !isLoading && files.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <FileCode2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <div className="py-12 text-center text-muted-foreground">
+          <FileCode2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
           <p className="text-lg font-medium">No code impact data found</p>
-          <p className="text-sm mt-2">
-            Enter a valid trace ID to view the code impact map
-          </p>
+          <p className="mt-2 text-sm">Enter a valid trace ID to view the code impact map</p>
         </div>
       )}
     </div>

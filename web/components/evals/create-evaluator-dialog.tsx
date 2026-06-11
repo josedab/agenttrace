@@ -63,7 +63,6 @@ export function CreateEvaluatorDialog() {
   });
 
   const selectedType = watch("type");
-  const selectedTemplate = watch("template");
 
   const createMutation = useMutation({
     mutationFn: (data: CreateEvaluatorFormData) =>

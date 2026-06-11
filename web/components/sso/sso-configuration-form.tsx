@@ -1,21 +1,15 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { toast } from "sonner";
-import { Plus, X, Info } from "lucide-react";
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
+import { Plus, X, Info } from 'lucide-react';
 
-import { useCreateSSOConfiguration, CreateSSOConfigurationInput } from "@/hooks/use-sso";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useCreateSSOConfiguration } from '@/hooks/use-sso';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -24,111 +18,122 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const samlSchema = z.object({
-  provider: z.literal("saml"),
+  provider: z.literal('saml'),
   enabled: z.boolean().default(true),
-  issuer: z.string().min(1, "Issuer is required"),
-  ssoUrl: z.string().url("Must be a valid URL"),
-  certificate: z.string().min(1, "Certificate is required"),
-  allowedDomains: z.array(z.string()).min(1, "At least one domain is required"),
+  issuer: z.string().min(1, 'Issuer is required'),
+  ssoUrl: z.string().url('Must be a valid URL'),
+  certificate: z.string().min(1, 'Certificate is required'),
+  allowedDomains: z.array(z.string()).min(1, 'At least one domain is required'),
   defaultRole: z.string().optional(),
 });
 
 const oidcSchema = z.object({
-  provider: z.literal("oidc"),
+  provider: z.literal('oidc'),
   enabled: z.boolean().default(true),
-  clientId: z.string().min(1, "Client ID is required"),
-  clientSecret: z.string().min(1, "Client Secret is required"),
-  discoveryUrl: z.string().url("Must be a valid URL"),
-  allowedDomains: z.array(z.string()).min(1, "At least one domain is required"),
+  clientId: z.string().min(1, 'Client ID is required'),
+  clientSecret: z.string().min(1, 'Client Secret is required'),
+  discoveryUrl: z.string().url('Must be a valid URL'),
+  allowedDomains: z.array(z.string()).min(1, 'At least one domain is required'),
   defaultRole: z.string().optional(),
 });
 
-const formSchema = z.discriminatedUnion("provider", [samlSchema, oidcSchema]);
+const formSchema = z.discriminatedUnion('provider', [samlSchema, oidcSchema]);
 
 type FormValues = z.infer<typeof formSchema>;
+type SSOProvider = FormValues['provider'];
+
+function getDefaultValues(provider: SSOProvider): FormValues {
+  const common = {
+    enabled: true,
+    allowedDomains: [],
+    defaultRole: 'member',
+  };
+
+  if (provider === 'saml') {
+    return {
+      ...common,
+      provider,
+      issuer: '',
+      ssoUrl: '',
+      certificate: '',
+    };
+  }
+
+  return {
+    ...common,
+    provider,
+    clientId: '',
+    clientSecret: '',
+    discoveryUrl: '',
+  };
+}
+
+function isSSOProvider(value: string): value is SSOProvider {
+  return value === 'saml' || value === 'oidc';
+}
 
 interface SSOConfigurationFormProps {
   organizationId: string;
 }
 
 export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormProps) {
-  const [provider, setProvider] = React.useState<"saml" | "oidc">("oidc");
-  const [domainInput, setDomainInput] = React.useState("");
+  const [provider, setProvider] = React.useState<SSOProvider>('oidc');
+  const [domainInput, setDomainInput] = React.useState('');
   const createMutation = useCreateSSOConfiguration(organizationId);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      provider: "oidc",
-      enabled: true,
-      allowedDomains: [],
-      defaultRole: "member",
-    } as FormValues,
+    defaultValues: getDefaultValues('oidc'),
   });
 
-  const allowedDomains = form.watch("allowedDomains") || [];
+  const allowedDomains = form.watch('allowedDomains') || [];
 
   const addDomain = () => {
     const domain = domainInput.trim().toLowerCase();
     if (domain && !allowedDomains.includes(domain)) {
-      form.setValue("allowedDomains", [...allowedDomains, domain]);
-      setDomainInput("");
+      form.setValue('allowedDomains', [...allowedDomains, domain]);
+      setDomainInput('');
     }
   };
 
   const removeDomain = (domain: string) => {
     form.setValue(
-      "allowedDomains",
+      'allowedDomains',
       allowedDomains.filter((d) => d !== domain)
     );
   };
 
   const onSubmit = (data: FormValues) => {
-    createMutation.mutate(data as CreateSSOConfigurationInput, {
+    createMutation.mutate(data, {
       onSuccess: () => {
-        toast.success("SSO configuration created");
-        form.reset();
+        toast.success('SSO configuration created');
+        form.reset(getDefaultValues(provider));
       },
       onError: (error: Error) => {
-        toast.error(error.message || "Failed to create SSO configuration");
+        toast.error(error.message || 'Failed to create SSO configuration');
       },
     });
   };
 
-  const handleProviderChange = (newProvider: "saml" | "oidc") => {
+  const handleProviderChange = (newProvider: SSOProvider) => {
     setProvider(newProvider);
-    form.reset({
-      provider: newProvider,
-      enabled: true,
-      allowedDomains: [],
-      defaultRole: "member",
-    } as FormValues);
+    form.reset(getDefaultValues(newProvider));
   };
 
   return (
@@ -142,13 +147,20 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Tabs value={provider} onValueChange={(v) => handleProviderChange(v as "saml" | "oidc")}>
+            <Tabs
+              value={provider}
+              onValueChange={(value) => {
+                if (isSSOProvider(value)) {
+                  handleProviderChange(value);
+                }
+              }}
+            >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="oidc">OpenID Connect (OIDC)</TabsTrigger>
                 <TabsTrigger value="saml">SAML 2.0</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="oidc" className="space-y-4 mt-4">
+              <TabsContent value="oidc" className="mt-4 space-y-4">
                 <FormField
                   control={form.control}
                   name="clientId"
@@ -156,11 +168,9 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                     <FormItem>
                       <FormLabel>Client ID</FormLabel>
                       <FormControl>
-                        <Input placeholder="your-client-id" {...field} value={field.value || ""} />
+                        <Input placeholder="your-client-id" {...field} value={field.value || ''} />
                       </FormControl>
-                      <FormDescription>
-                        The client ID from your identity provider.
-                      </FormDescription>
+                      <FormDescription>The client ID from your identity provider.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -173,7 +183,12 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                     <FormItem>
                       <FormLabel>Client Secret</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} value={field.value || ""} />
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          {...field}
+                          value={field.value || ''}
+                        />
                       </FormControl>
                       <FormDescription>
                         The client secret from your identity provider.
@@ -205,19 +220,17 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                         <Input
                           placeholder="https://accounts.google.com/.well-known/openid-configuration"
                           {...field}
-                          value={field.value || ""}
+                          value={field.value || ''}
                         />
                       </FormControl>
-                      <FormDescription>
-                        The OpenID Connect discovery endpoint URL.
-                      </FormDescription>
+                      <FormDescription>The OpenID Connect discovery endpoint URL.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </TabsContent>
 
-              <TabsContent value="saml" className="space-y-4 mt-4">
+              <TabsContent value="saml" className="mt-4 space-y-4">
                 <FormField
                   control={form.control}
                   name="issuer"
@@ -225,7 +238,11 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                     <FormItem>
                       <FormLabel>Entity ID / Issuer</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://idp.example.com" {...field} value={field.value || ""} />
+                        <Input
+                          placeholder="https://idp.example.com"
+                          {...field}
+                          value={field.value || ''}
+                        />
                       </FormControl>
                       <FormDescription>
                         The unique identifier for your identity provider.
@@ -245,12 +262,10 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                         <Input
                           placeholder="https://idp.example.com/sso/saml"
                           {...field}
-                          value={field.value || ""}
+                          value={field.value || ''}
                         />
                       </FormControl>
-                      <FormDescription>
-                        The SAML Single Sign-On service URL.
-                      </FormDescription>
+                      <FormDescription>The SAML Single Sign-On service URL.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -268,7 +283,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                           className="font-mono text-sm"
                           rows={6}
                           {...field}
-                          value={field.value || ""}
+                          value={field.value || ''}
                         />
                       </FormControl>
                       <FormDescription>
@@ -282,7 +297,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
             </Tabs>
 
             {/* Common fields */}
-            <div className="space-y-4 pt-4 border-t">
+            <div className="space-y-4 border-t pt-4">
               <FormItem>
                 <FormLabel>Allowed Domains</FormLabel>
                 <div className="flex gap-2">
@@ -291,7 +306,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                     value={domainInput}
                     onChange={(e) => setDomainInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                      if (e.key === 'Enter') {
                         e.preventDefault();
                         addDomain();
                       }
@@ -305,7 +320,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                   Only users with email addresses from these domains can use SSO.
                 </FormDescription>
                 {allowedDomains.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     {allowedDomains.map((domain) => (
                       <Badge key={domain} variant="secondary" className="gap-1">
                         {domain}
@@ -321,7 +336,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                   </div>
                 )}
                 {form.formState.errors.allowedDomains && (
-                  <p className="text-sm text-destructive mt-1">
+                  <p className="mt-1 text-sm text-destructive">
                     {form.formState.errors.allowedDomains.message}
                   </p>
                 )}
@@ -365,10 +380,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -377,7 +389,7 @@ export function SSOConfigurationForm({ organizationId }: SSOConfigurationFormPro
 
             <div className="flex justify-end">
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creating..." : "Create Configuration"}
+                {createMutation.isPending ? 'Creating...' : 'Create Configuration'}
               </Button>
             </div>
           </form>

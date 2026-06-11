@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ClipboardList, Users } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";

@@ -1,29 +1,21 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { format, subDays } from "date-fns";
-import { DollarSign, TrendingUp, TrendingDown, Calendar } from "lucide-react";
+import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -31,9 +23,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { CostBreakdownChart } from "@/components/dashboard/cost-breakdown-chart";
-import { CostTrendChart } from "@/components/analytics/cost-trend-chart";
+} from '@/components/ui/table';
+import { CostBreakdownChart } from '@/components/dashboard/cost-breakdown-chart';
+import { CostTrendChart } from '@/components/analytics/cost-trend-chart';
 
 interface CostBreakdownItem {
   name: string;
@@ -45,26 +37,23 @@ interface CostBreakdownItem {
 }
 
 export default function CostAnalyticsPage() {
-  const [dateRange, setDateRange] = React.useState("7d");
-  const [groupBy, setGroupBy] = React.useState("model");
+  const [dateRange, setDateRange] = React.useState('7d');
+  const [groupBy, setGroupBy] = React.useState('model');
 
   const { data: costData, isLoading } = useQuery({
-    queryKey: ["cost-analytics", dateRange, groupBy],
+    queryKey: ['cost-analytics', dateRange, groupBy],
     queryFn: () => api.analytics.getCostAnalytics({ dateRange, groupBy }),
   });
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Cost Analytics"
-        description="Track and analyze your LLM spending."
-      />
+      <PageHeader title="Cost Analytics" description="Track and analyze your LLM spending." />
 
       {/* Filters */}
       <div className="flex items-center gap-4">
         <Select value={dateRange} onValueChange={setDateRange}>
           <SelectTrigger className="w-[150px]">
-            <Calendar className="h-4 w-4 mr-2" />
+            <Calendar className="mr-2 h-4 w-4" />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -88,7 +77,7 @@ export default function CostAnalyticsPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Cost</CardDescription>
@@ -99,19 +88,19 @@ export default function CostAnalyticsPage() {
             ) : (
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">
-                  ${costData?.totalCost?.toFixed(2) ?? "0.00"}
+                  ${costData?.totalCost?.toFixed(2) ?? '0.00'}
                 </span>
                 {costData?.costChange !== undefined && (
                   <span
                     className={cn(
-                      "text-xs flex items-center",
-                      costData.costChange >= 0 ? "text-red-500" : "text-green-500"
+                      'flex items-center text-xs',
+                      costData.costChange >= 0 ? 'text-red-500' : 'text-green-500'
                     )}
                   >
                     {costData.costChange >= 0 ? (
-                      <TrendingUp className="h-3 w-3 mr-0.5" />
+                      <TrendingUp className="mr-0.5 h-3 w-3" />
                     ) : (
-                      <TrendingDown className="h-3 w-3 mr-0.5" />
+                      <TrendingDown className="mr-0.5 h-3 w-3" />
                     )}
                     {Math.abs(costData.costChange).toFixed(1)}%
                   </span>
@@ -130,7 +119,7 @@ export default function CostAnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <span className="text-2xl font-bold">
-                ${costData?.inputCost?.toFixed(2) ?? "0.00"}
+                ${costData?.inputCost?.toFixed(2) ?? '0.00'}
               </span>
             )}
           </CardContent>
@@ -145,7 +134,7 @@ export default function CostAnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <span className="text-2xl font-bold">
-                ${costData?.outputCost?.toFixed(2) ?? "0.00"}
+                ${costData?.outputCost?.toFixed(2) ?? '0.00'}
               </span>
             )}
           </CardContent>
@@ -160,7 +149,7 @@ export default function CostAnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <span className="text-2xl font-bold">
-                ${costData?.avgCostPerTrace?.toFixed(4) ?? "0.0000"}
+                ${costData?.avgCostPerTrace?.toFixed(4) ?? '0.0000'}
               </span>
             )}
           </CardContent>
@@ -168,7 +157,7 @@ export default function CostAnalyticsPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Cost Over Time</CardTitle>
@@ -185,7 +174,9 @@ export default function CostAnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Cost by {groupBy === "model" ? "Model" : groupBy === "project" ? "Project" : "User"}</CardTitle>
+            <CardTitle>
+              Cost by {groupBy === 'model' ? 'Model' : groupBy === 'project' ? 'Project' : 'User'}
+            </CardTitle>
             <CardDescription>Cost distribution</CardDescription>
           </CardHeader>
           <CardContent>
@@ -203,7 +194,8 @@ export default function CostAnalyticsPage() {
         <CardHeader>
           <CardTitle>Detailed Breakdown</CardTitle>
           <CardDescription>
-            Cost breakdown by {groupBy === "model" ? "model" : groupBy === "project" ? "project" : "user"}
+            Cost breakdown by{' '}
+            {groupBy === 'model' ? 'model' : groupBy === 'project' ? 'project' : 'user'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -214,12 +206,12 @@ export default function CostAnalyticsPage() {
               ))}
             </div>
           ) : (
-            <div className="border rounded-lg">
+            <div className="rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>
-                      {groupBy === "model" ? "Model" : groupBy === "project" ? "Project" : "User"}
+                      {groupBy === 'model' ? 'Model' : groupBy === 'project' ? 'Project' : 'User'}
                     </TableHead>
                     <TableHead className="text-right">Traces</TableHead>
                     <TableHead className="text-right">Input Tokens</TableHead>
@@ -232,9 +224,7 @@ export default function CostAnalyticsPage() {
                   {costData?.breakdown?.map((item: CostBreakdownItem) => (
                     <TableRow key={item.name}>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-right">
-                        {item.traces?.toLocaleString()}
-                      </TableCell>
+                      <TableCell className="text-right">{item.traces?.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
                         {item.inputTokens?.toLocaleString()}
                       </TableCell>
@@ -242,7 +232,7 @@ export default function CostAnalyticsPage() {
                         {item.outputTokens?.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        ${item.cost?.toFixed(4)}
+                        ${item.totalCost?.toFixed(4)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {item.percentage?.toFixed(1)}%

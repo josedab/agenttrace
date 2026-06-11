@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { toast } from "sonner";
-import { Plus, Loader2, Copy, Check, AlertTriangle } from "lucide-react";
+import * as React from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
+import { Plus, Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -21,37 +21,35 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+} from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const createKeySchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, 'Name is required'),
   expiresIn: z.string(),
-  scopes: z.array(z.string()).min(1, "At least one scope is required"),
+  scopes: z.array(z.string()).min(1, 'At least one scope is required'),
 });
 
 type CreateKeyFormData = z.infer<typeof createKeySchema>;
 
 const availableScopes = [
-  { id: "traces:read", label: "Read Traces" },
-  { id: "traces:write", label: "Write Traces" },
-  { id: "prompts:read", label: "Read Prompts" },
-  { id: "prompts:write", label: "Write Prompts" },
-  { id: "datasets:read", label: "Read Datasets" },
-  { id: "datasets:write", label: "Write Datasets" },
-  { id: "scores:read", label: "Read Scores" },
-  { id: "scores:write", label: "Write Scores" },
+  { id: 'traces:read', label: 'Read Traces' },
+  { id: 'traces:write', label: 'Write Traces' },
+  { id: 'observations:read', label: 'Read Observations' },
+  { id: 'observations:write', label: 'Write Observations' },
+  { id: 'scores:read', label: 'Read Scores' },
+  { id: 'scores:write', label: 'Write Scores' },
+  { id: 'prompts:read', label: 'Read Prompts' },
+  { id: 'prompts:write', label: 'Write Prompts' },
+  { id: 'datasets:read', label: 'Read Datasets' },
+  { id: 'datasets:write', label: 'Write Datasets' },
 ];
 
 export function CreateApiKeyDialog() {
@@ -70,27 +68,35 @@ export function CreateApiKeyDialog() {
   } = useForm<CreateKeyFormData>({
     resolver: zodResolver(createKeySchema),
     defaultValues: {
-      expiresIn: "never",
-      scopes: ["traces:read", "traces:write"],
+      expiresIn: '90d',
+      scopes: [
+        'traces:read',
+        'traces:write',
+        'observations:read',
+        'observations:write',
+        'scores:read',
+        'scores:write',
+        'prompts:read',
+      ],
     },
   });
 
-  const selectedScopes = watch("scopes");
+  const selectedScopes = watch('scopes');
 
   const createMutation = useMutation({
     mutationFn: (data: CreateKeyFormData) =>
       api.apiKeys.create({
         name: data.name,
-        expiresIn: data.expiresIn === "never" ? undefined : data.expiresIn,
+        expiresIn: data.expiresIn,
         scopes: data.scopes,
       }),
     onSuccess: (result) => {
-      toast.success("API key created");
-      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      toast.success('API key created');
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       setCreatedKey(result.key);
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to create API key");
+      toast.error(error.message || 'Failed to create API key');
     },
   });
 
@@ -118,26 +124,24 @@ export function CreateApiKeyDialog() {
     const updated = current.includes(scopeId)
       ? current.filter((s) => s !== scopeId)
       : [...current, scopeId];
-    setValue("scopes", updated, { shouldValidate: true });
+    setValue('scopes', updated, { shouldValidate: true });
   };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <DialogTrigger asChild>
         <Button onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="mr-2 h-4 w-4" />
           Create API Key
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>
-            {createdKey ? "API Key Created" : "Create API Key"}
-          </DialogTitle>
+          <DialogTitle>{createdKey ? 'API Key Created' : 'Create API Key'}</DialogTitle>
           <DialogDescription>
             {createdKey
               ? "Copy your API key now. You won't be able to see it again."
-              : "Create a new API key for SDK access."}
+              : 'Create a new API key for SDK access.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -147,13 +151,12 @@ export function CreateApiKeyDialog() {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Important</AlertTitle>
               <AlertDescription>
-                This is the only time you'll see this key. Copy it now and store
-                it securely.
+                This is the only time you’ll see this key. Copy it now and store it securely.
               </AlertDescription>
             </Alert>
 
             <div className="flex items-center gap-2">
-              <code className="flex-1 p-3 bg-muted rounded-md text-sm font-mono break-all">
+              <code className="flex-1 break-all rounded-md bg-muted p-3 font-mono text-sm">
                 {createdKey}
               </code>
               <Button variant="outline" size="icon" aria-label="Copy API key" onClick={copyKey}>
@@ -174,16 +177,8 @@ export function CreateApiKeyDialog() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="My API Key"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-sm text-destructive">
-                    {errors.name.message}
-                  </p>
-                )}
+                <Input id="name" placeholder="My API Key" {...register('name')} />
+                {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
                 <p className="text-xs text-muted-foreground">
                   A friendly name to identify this key
                 </p>
@@ -192,14 +187,13 @@ export function CreateApiKeyDialog() {
               <div className="space-y-2">
                 <Label>Expiration</Label>
                 <Select
-                  value={watch("expiresIn")}
-                  onValueChange={(value) => setValue("expiresIn", value)}
+                  value={watch('expiresIn')}
+                  onValueChange={(value) => setValue('expiresIn', value)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="never">Never expires</SelectItem>
                     <SelectItem value="7d">7 days</SelectItem>
                     <SelectItem value="30d">30 days</SelectItem>
                     <SelectItem value="90d">90 days</SelectItem>
@@ -214,7 +208,7 @@ export function CreateApiKeyDialog() {
                   {availableScopes.map((scope) => (
                     <div
                       key={scope.id}
-                      className="flex items-center gap-2 p-2 border rounded-md cursor-pointer hover:bg-muted"
+                      className="flex cursor-pointer items-center gap-2 rounded-md border p-2 hover:bg-muted"
                       onClick={() => toggleScope(scope.id)}
                     >
                       <Checkbox
@@ -226,9 +220,7 @@ export function CreateApiKeyDialog() {
                   ))}
                 </div>
                 {errors.scopes && (
-                  <p className="text-sm text-destructive">
-                    {errors.scopes.message}
-                  </p>
+                  <p className="text-sm text-destructive">{errors.scopes.message}</p>
                 )}
               </div>
             </div>
@@ -238,9 +230,7 @@ export function CreateApiKeyDialog() {
                 Cancel
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Key
               </Button>
             </DialogFooter>

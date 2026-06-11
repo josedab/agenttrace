@@ -11,8 +11,6 @@ import {
   BarChart3,
   Plus,
   ArrowUpRight,
-  ArrowDownRight,
-  Minus,
   Percent,
   Target,
   Zap,

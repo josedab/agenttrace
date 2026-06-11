@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { toast } from "sonner";
-import { Play, Loader2 } from "lucide-react";
+import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
+import { Play, Loader2 } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -22,17 +22,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 
 const runExperimentSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, 'Name is required'),
   evaluatorId: z.string().optional(),
   metadata: z.string().optional(),
 });
@@ -50,7 +50,7 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
   const [open, setOpen] = React.useState(false);
 
   const { data: evaluators } = useQuery({
-    queryKey: ["evaluators"],
+    queryKey: ['evaluators'],
     queryFn: () => api.evaluators.list(),
     enabled: open,
   });
@@ -60,7 +60,6 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
     handleSubmit,
     reset,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<RunExperimentFormData>({
     resolver: zodResolver(runExperimentSchema),
@@ -71,30 +70,37 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
 
   const runMutation = useMutation({
     mutationFn: (data: RunExperimentFormData) => {
-      let metadata: unknown;
+      let metadata: Record<string, unknown> | undefined;
       if (data.metadata) {
         try {
-          metadata = JSON.parse(data.metadata);
+          const parsedMetadata: unknown = JSON.parse(data.metadata);
+          if (
+            typeof parsedMetadata !== 'object' ||
+            parsedMetadata === null ||
+            Array.isArray(parsedMetadata)
+          ) {
+            throw new Error('Metadata must be a JSON object');
+          }
+          metadata = parsedMetadata as Record<string, unknown>;
         } catch {
-          throw new Error("Metadata must be valid JSON");
+          throw new Error('Metadata must be valid JSON');
         }
       }
 
       return api.datasets.createRun(datasetId, {
         name: data.name,
-        evaluatorId: data.evaluatorId,
         metadata,
       });
     },
     onSuccess: (run) => {
-      toast.success("Experiment started");
-      queryClient.invalidateQueries({ queryKey: ["dataset-runs", datasetId] });
+      toast.success('Experiment started');
+      queryClient.invalidateQueries({ queryKey: ['dataset-runs', datasetId] });
       setOpen(false);
       reset();
       router.push(`/datasets/${datasetId}/runs/${run.id}`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to start experiment");
+      toast.error(error.message || 'Failed to start experiment');
     },
   });
 
@@ -106,7 +112,7 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Play className="h-4 w-4 mr-2" />
+          <Play className="mr-2 h-4 w-4" />
           Run Experiment
         </Button>
       </DialogTrigger>
@@ -121,21 +127,13 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Run Name</Label>
-              <Input
-                id="name"
-                placeholder="My Experiment Run"
-                {...register("name")}
-              />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
-              )}
+              <Input id="name" placeholder="My Experiment Run" {...register('name')} />
+              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="evaluator">Evaluator (optional)</Label>
-              <Select
-                onValueChange={(value) => setValue("evaluatorId", value)}
-              >
+              <Select onValueChange={(value) => setValue('evaluatorId', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an evaluator" />
                 </SelectTrigger>
@@ -160,7 +158,7 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
                 placeholder='{"model": "gpt-4", "temperature": 0.7}'
                 rows={3}
                 className="font-mono text-sm"
-                {...register("metadata")}
+                {...register('metadata')}
               />
               {errors.metadata && (
                 <p className="text-sm text-destructive">{errors.metadata.message}</p>
@@ -171,17 +169,11 @@ export function RunExperimentDialog({ datasetId, datasetName }: RunExperimentDia
             </div>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={runMutation.isPending}>
-              {runMutation.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
+              {runMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Start Experiment
             </Button>
           </DialogFooter>

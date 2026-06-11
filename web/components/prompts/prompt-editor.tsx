@@ -12,13 +12,10 @@ import { Save, Play, History, Tag, Loader2, AlertCircle, Copy } from "lucide-rea
 import { api } from "@/lib/api";
 import { extractPromptVariables } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { PromptVersionList } from "@/components/prompts/prompt-version-list";
 import { PromptLabels } from "@/components/prompts/prompt-labels";
 
@@ -280,7 +277,7 @@ compiled = prompt.compile(input="Hello")`}
   );
 }
 
-function CodeBlock({ code, language }: { code: string; language: string }) {
+function CodeBlock({ code, language: _language }: { code: string; language: string }) {
   const copyCode = () => {
     navigator.clipboard.writeText(code);
     toast.success("Code copied to clipboard");

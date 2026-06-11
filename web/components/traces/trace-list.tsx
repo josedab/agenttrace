@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
-import { Clock, DollarSign, Layers, AlertCircle, ChevronRight } from "lucide-react";
+import * as React from 'react';
+import Link from 'next/link';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
+import { Clock, DollarSign, Layers, AlertCircle, ChevronRight } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -17,7 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 
 interface TraceListProps {
   searchParams: {
@@ -33,35 +33,32 @@ interface TraceListProps {
 }
 
 export function TraceList({ searchParams }: TraceListProps) {
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    error,
-  } = useInfiniteQuery({
-    queryKey: ["traces", searchParams],
-    queryFn: async ({ pageParam }) => {
-      const result = await api.traces.list({
-        cursor: pageParam,
-        limit: 50,
-        search: searchParams.q,
-        level: searchParams.level,
-        startDate: searchParams.startDate,
-        endDate: searchParams.endDate,
-        minLatency: searchParams.minLatency ? parseInt(searchParams.minLatency) : undefined,
-        maxLatency: searchParams.maxLatency ? parseInt(searchParams.maxLatency) : undefined,
-        minCost: searchParams.minCost ? parseFloat(searchParams.minCost) : undefined,
-        maxCost: searchParams.maxCost ? parseFloat(searchParams.maxCost) : undefined,
-      });
-      return result;
-    },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    initialPageParam: undefined as string | undefined,
-  });
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } =
+    useInfiniteQuery({
+      queryKey: ['traces', searchParams],
+      queryFn: async ({ pageParam }) => {
+        const result = await api.traces.list({
+          offset: pageParam,
+          limit: 50,
+          search: searchParams.q,
+          level: searchParams.level,
+          startDate: searchParams.startDate,
+          endDate: searchParams.endDate,
+          minLatency: searchParams.minLatency ? parseInt(searchParams.minLatency) : undefined,
+          maxLatency: searchParams.maxLatency ? parseInt(searchParams.maxLatency) : undefined,
+          minCost: searchParams.minCost ? parseFloat(searchParams.minCost) : undefined,
+          maxCost: searchParams.maxCost ? parseFloat(searchParams.maxCost) : undefined,
+        });
+        return result;
+      },
+      getNextPageParam: (lastPage, pages) =>
+        lastPage.hasMore
+          ? pages.reduce((offset, page) => offset + page.traces.length, 0)
+          : undefined,
+      initialPageParam: 0,
+    });
 
-  const traces = data?.pages.flatMap((page) => page.data) ?? [];
+  const traces = data?.pages.flatMap((page) => page.traces) ?? [];
 
   if (isLoading) {
     return <TraceListLoading />;
@@ -70,7 +67,7 @@ export function TraceList({ searchParams }: TraceListProps) {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
         <p className="text-destructive">Failed to load traces</p>
       </div>
     );
@@ -78,10 +75,10 @@ export function TraceList({ searchParams }: TraceListProps) {
 
   if (traces.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-card">
-        <Layers className="h-12 w-12 text-muted-foreground mb-4" />
+      <div className="flex flex-col items-center justify-center rounded-lg border bg-card py-12">
+        <Layers className="mb-4 h-12 w-12 text-muted-foreground" />
         <p className="text-lg font-medium">No traces found</p>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="mt-1 text-sm text-muted-foreground">
           Start instrumenting your agents to see traces here
         </p>
       </div>
@@ -90,7 +87,7 @@ export function TraceList({ searchParams }: TraceListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="border rounded-lg">
+      <div className="rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -108,24 +105,21 @@ export function TraceList({ searchParams }: TraceListProps) {
             {traces.map((trace) => (
               <TableRow key={trace.id}>
                 <TableCell>
-                  <Link
-                    href={`/traces/${trace.id}`}
-                    className="font-medium hover:underline"
-                  >
+                  <Link href={`/traces/${trace.id}`} className="font-medium hover:underline">
                     {trace.name || trace.id.slice(0, 8)}
                   </Link>
-                  <p className="text-xs text-muted-foreground font-mono">
+                  <p className="font-mono text-xs text-muted-foreground">
                     {trace.id.slice(0, 16)}...
                   </p>
                 </TableCell>
                 <TableCell className="max-w-[200px]">
                   <p className="truncate text-sm text-muted-foreground">
-                    {truncate(trace.input || "-", 50)}
+                    {truncate(trace.input || '-', 50)}
                   </p>
                 </TableCell>
                 <TableCell className="max-w-[200px]">
                   <p className="truncate text-sm text-muted-foreground">
-                    {truncate(trace.output || "-", 50)}
+                    {truncate(trace.output || '-', 50)}
                   </p>
                 </TableCell>
                 <TableCell>
@@ -138,7 +132,7 @@ export function TraceList({ searchParams }: TraceListProps) {
                       {formatLatency(trace.latency)}
                     </div>
                   ) : (
-                    "-"
+                    '-'
                   )}
                 </TableCell>
                 <TableCell>
@@ -148,7 +142,7 @@ export function TraceList({ searchParams }: TraceListProps) {
                       {trace.totalCost.toFixed(4)}
                     </div>
                   ) : (
-                    "-"
+                    '-'
                   )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
@@ -169,12 +163,8 @@ export function TraceList({ searchParams }: TraceListProps) {
 
       {hasNextPage && (
         <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-          >
-            {isFetchingNextPage ? "Loading..." : "Load more"}
+          <Button variant="outline" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+            {isFetchingNextPage ? 'Loading...' : 'Load more'}
           </Button>
         </div>
       )}
@@ -184,7 +174,7 @@ export function TraceList({ searchParams }: TraceListProps) {
 
 function TraceListLoading() {
   return (
-    <div className="border rounded-lg">
+    <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -202,26 +192,26 @@ function TraceListLoading() {
           {[...Array(10)].map((_, i) => (
             <TableRow key={i}>
               <TableCell>
-                <div className="h-4 w-32 bg-muted animate-pulse rounded" />
-                <div className="h-3 w-24 bg-muted animate-pulse rounded mt-1" />
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="mt-1 h-3 w-24 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell>
-                <div className="h-4 w-40 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell>
-                <div className="h-4 w-40 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell>
-                <div className="h-5 w-16 bg-muted animate-pulse rounded" />
+                <div className="h-5 w-16 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell>
-                <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-16 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell>
-                <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-16 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell>
-                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
               </TableCell>
               <TableCell></TableCell>
             </TableRow>
@@ -237,10 +227,10 @@ function LevelBadge({ level }: { level: string }) {
     <Badge
       variant="outline"
       className={cn(
-        "text-xs",
-        level === "ERROR" && "border-destructive text-destructive",
-        level === "WARNING" && "border-yellow-500 text-yellow-500",
-        level === "DEBUG" && "border-blue-500 text-blue-500"
+        'text-xs',
+        level === 'ERROR' && 'border-destructive text-destructive',
+        level === 'WARNING' && 'border-yellow-500 text-yellow-500',
+        level === 'DEBUG' && 'border-blue-500 text-blue-500'
       )}
     >
       {level}
@@ -248,14 +238,15 @@ function LevelBadge({ level }: { level: string }) {
   );
 }
 
-function truncate(str: string, length: number): string {
+function truncate(value: unknown, length: number): string {
+  const str = typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value));
   if (str.length <= length) return str;
-  return str.slice(0, length) + "...";
+  return str.slice(0, length) + '...';
 }
 
 function formatLatency(ms: number): string {
   if (ms >= 1000) {
-    return (ms / 1000).toFixed(2) + "s";
+    return (ms / 1000).toFixed(2) + 's';
   }
-  return ms.toFixed(0) + "ms";
+  return ms.toFixed(0) + 'ms';
 }

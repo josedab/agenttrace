@@ -1,20 +1,20 @@
-import { Suspense } from "react";
-import { PageHeader } from "@/components/layout/page-header";
-import { ReplayDashboard } from "./replay-dashboard";
+import { Suspense } from 'react';
+import { PageHeader } from '@/components/layout/page-header';
+import { ReplayDashboard } from './replay-dashboard';
 
 export const metadata = {
-  title: "Agent Replay | AgentTrace",
-  description: "Time-travel debugging and session replay for agent traces",
+  title: 'Trace Replay Debugger | AgentTrace',
+  description: 'Inspect trace timelines and construct safe replay plans',
 };
 
 export default function ReplayPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Agent Replay"
-        description="Time-travel debugging with session replay, branching, and collaborative sharing"
+        title="Trace replay debugger"
+        description="Inspect recorded execution, select a checkpoint, and compare a safe replay branch without running captured code on the API host."
       />
-      <Suspense fallback={<div className="h-96 bg-muted animate-pulse rounded-lg" />}>
+      <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
         <ReplayDashboard />
       </Suspense>
     </div>

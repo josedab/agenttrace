@@ -4,11 +4,12 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import {
   usePlaygroundTemplates,
   useExecutePlayground,
+  type PlaygroundResult,
+  type PlaygroundTemplate,
 } from "@/hooks/use-eval-playground";
 import { Play, Share2, FileCode, CheckCircle, XCircle } from "lucide-react";
 
@@ -18,11 +19,11 @@ export function EvalPlayground() {
   );
   const [language, setLanguage] = useState<"javascript" | "python">("javascript");
   const [traceIds, setTraceIds] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<PlaygroundResult[]>([]);
 
   const { data: templatesData } = usePlaygroundTemplates();
   const executeMutation = useExecutePlayground();
-  const templates = (templatesData as any)?.templates || [];
+  const templates = templatesData?.templates ?? [];
 
   const handleRun = async () => {
     const ids = traceIds
@@ -37,13 +38,13 @@ export function EvalPlayground() {
         language,
         traceIds: ids,
       });
-      setResults((response as any)?.results || []);
-    } catch (e) {
+      setResults(response?.results ?? []);
+    } catch {
       // Error handled by mutation state
     }
   };
 
-  const loadTemplate = (template: any) => {
+  const loadTemplate = (template: PlaygroundTemplate) => {
     setCode(template.code);
     setLanguage(template.language);
   };
@@ -177,7 +178,7 @@ export function EvalPlayground() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {templates.map((template: any) => (
+                {templates.map((template: PlaygroundTemplate) => (
                   <div
                     key={template.id}
                     className="p-3 rounded-lg border cursor-pointer hover:bg-accent transition-colors"

@@ -3,12 +3,11 @@
 import * as React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Play, Loader2, Copy, RefreshCw } from "lucide-react";
+import { Play, Loader2, Copy } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { extractPromptVariables, compilePrompt } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -57,11 +56,13 @@ export function PromptPlayground({ promptName }: PromptPlaygroundProps) {
 
   // Initialize variables when template changes
   React.useEffect(() => {
-    const newVars: Record<string, string> = {};
-    templateVariables.forEach((v) => {
-      newVars[v] = variables[v] || "";
+    setVariables((prev) => {
+      const newVars: Record<string, string> = {};
+      templateVariables.forEach((v) => {
+        newVars[v] = prev[v] || "";
+      });
+      return newVars;
     });
-    setVariables(newVars);
   }, [templateVariables]);
 
   // Update compiled prompt when variables change

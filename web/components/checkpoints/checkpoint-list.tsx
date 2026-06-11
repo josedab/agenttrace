@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { formatDistanceToNow, format } from "date-fns";
-import { toast } from "sonner";
+import * as React from 'react';
+import Link from 'next/link';
+import { formatDistanceToNow, format } from 'date-fns';
+import { toast } from 'sonner';
 import {
   GitBranch,
   RotateCcw,
@@ -13,24 +13,23 @@ import {
   Loader2,
   Clock,
   Zap,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { useCheckpoints, useRestoreCheckpoint, CheckpointFilters as CheckpointFiltersType } from "@/hooks/use-checkpoints";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  useCheckpoints,
+  useRestoreCheckpoint,
+  CheckpointFilters as CheckpointFiltersType,
+} from '@/hooks/use-checkpoints';
+import type { Checkpoint } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -38,7 +37,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,33 +47,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
+} from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface CheckpointListProps {
   projectId: string;
   filters?: CheckpointFiltersType;
 }
 
-interface Checkpoint {
-  id: string;
-  traceId: string;
-  traceName: string;
-  type: "auto" | "manual";
-  description: string | null;
-  fileCount: number;
-  totalSize: number;
-  createdAt: string;
-}
-
 export function CheckpointList({ projectId, filters }: CheckpointListProps) {
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useCheckpoints(projectId, filters);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useCheckpoints(
+    projectId,
+    filters
+  );
   const restoreMutation = useRestoreCheckpoint(projectId);
 
   const [checkpointToRestore, setCheckpointToRestore] = React.useState<Checkpoint | null>(null);
@@ -83,24 +68,30 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
 
   const handleRestore = () => {
     if (checkpointToRestore) {
-      restoreMutation.mutate(checkpointToRestore.id, {
-        onSuccess: () => {
-          toast.success("Checkpoint restored successfully");
-          setCheckpointToRestore(null);
+      restoreMutation.mutate(
+        {
+          checkpointId: checkpointToRestore.id,
+          traceId: checkpointToRestore.traceId,
         },
-        onError: (error: Error) => {
-          toast.error(error.message || "Failed to restore checkpoint");
-        },
-      });
+        {
+          onSuccess: () => {
+            toast.success('Checkpoint restored successfully');
+            setCheckpointToRestore(null);
+          },
+          onError: (error: Error) => {
+            toast.error(error.message || 'Failed to restore checkpoint');
+          },
+        }
+      );
     }
   };
 
   const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   if (isLoading) {
@@ -129,18 +120,17 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
             <GitBranch className="h-5 w-5" />
             Checkpoints
           </CardTitle>
-          <CardDescription>
-            Agent state snapshots for debugging and recovery.
-          </CardDescription>
+          <CardDescription>Agent state snapshots for debugging and recovery.</CardDescription>
         </CardHeader>
         <CardContent>
           {checkpoints.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No checkpoints found. Checkpoints are created automatically when agents make significant changes.
+            <div className="py-8 text-center text-muted-foreground">
+              No checkpoints found. Checkpoints are created automatically when agents make
+              significant changes.
             </div>
           ) : (
             <>
-              <div className="border rounded-lg">
+              <div className="rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -163,11 +153,9 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
                           >
                             <GitBranch className="h-4 w-4 text-muted-foreground" />
                             <div>
-                              <span className="font-mono text-sm">
-                                {checkpoint.id.slice(0, 8)}
-                              </span>
+                              <span className="font-mono text-sm">{checkpoint.id.slice(0, 8)}</span>
                               {checkpoint.description && (
-                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                <p className="max-w-[200px] truncate text-xs text-muted-foreground">
                                   {checkpoint.description}
                                 </p>
                               )}
@@ -179,11 +167,11 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
                             href={`/traces/${checkpoint.traceId}`}
                             className="text-sm hover:underline"
                           >
-                            {checkpoint.traceName}
+                            {checkpoint.traceId}
                           </Link>
                         </TableCell>
                         <TableCell>
-                          {checkpoint.type === "auto" ? (
+                          {checkpoint.type === 'auto' ? (
                             <Badge variant="secondary" className="gap-1">
                               <Zap className="h-3 w-3" />
                               Auto
@@ -223,14 +211,12 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem asChild>
                                 <Link href={`/checkpoints/${checkpoint.id}`}>
-                                  <ChevronRight className="h-4 w-4 mr-2" />
+                                  <ChevronRight className="mr-2 h-4 w-4" />
                                   View Details
                                 </Link>
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setCheckpointToRestore(checkpoint)}
-                              >
-                                <RotateCcw className="h-4 w-4 mr-2" />
+                              <DropdownMenuItem onClick={() => setCheckpointToRestore(checkpoint)}>
+                                <RotateCcw className="mr-2 h-4 w-4" />
                                 Restore
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -243,7 +229,7 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
               </div>
 
               {hasNextPage && (
-                <div className="flex justify-center mt-4">
+                <div className="mt-4 flex justify-center">
                   <Button
                     variant="outline"
                     onClick={() => fetchNextPage()}
@@ -251,11 +237,11 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
                   >
                     {isFetchingNextPage ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Loading...
                       </>
                     ) : (
-                      "Load More"
+                      'Load More'
                     )}
                   </Button>
                 </div>
@@ -271,26 +257,22 @@ export function CheckpointList({ projectId, filters }: CheckpointListProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Restore Checkpoint?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will restore the agent state to the checkpoint from{" "}
-              {checkpointToRestore &&
-                format(new Date(checkpointToRestore.createdAt), "PPpp")}
-              . This action will overwrite current files.
+              This will restore the agent state to the checkpoint from{' '}
+              {checkpointToRestore && format(new Date(checkpointToRestore.createdAt), 'PPpp')}. This
+              action will overwrite current files.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRestore}
-              disabled={restoreMutation.isPending}
-            >
+            <AlertDialogAction onClick={handleRestore} disabled={restoreMutation.isPending}>
               {restoreMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Restoring...
                 </>
               ) : (
                 <>
-                  <RotateCcw className="h-4 w-4 mr-2" />
+                  <RotateCcw className="mr-2 h-4 w-4" />
                   Restore
                 </>
               )}

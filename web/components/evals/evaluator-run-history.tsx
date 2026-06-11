@@ -1,20 +1,14 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, format } from "date-fns";
-import { CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
+import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { formatDistanceToNow, format } from 'date-fns';
+import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { api } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -22,11 +16,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 
 interface EvaluatorRun {
   id: string;
-  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   startedAt: string;
   completedAt?: string;
   totalCount: number;
@@ -41,13 +35,17 @@ interface EvaluatorRunHistoryProps {
 }
 
 export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
-  const { data: runs, isLoading, error } = useQuery({
-    queryKey: ["evaluator-runs", evaluatorId],
+  const {
+    data: runs,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['evaluator-runs', evaluatorId],
     queryFn: () => api.evaluators.listRuns(evaluatorId),
     refetchInterval: (query) => {
       // Keep polling if any run is in progress
       const hasRunning = query.state.data?.some(
-        (run: EvaluatorRun) => run.status === "RUNNING" || run.status === "PENDING"
+        (run: EvaluatorRun) => run.status === 'RUNNING' || run.status === 'PENDING'
       );
       return hasRunning ? 3000 : false;
     },
@@ -92,7 +90,7 @@ export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
       </CardHeader>
       <CardContent>
         {runs && runs.length > 0 ? (
-          <div className="border rounded-lg">
+          <div className="rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -116,7 +114,7 @@ export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
                         })}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(new Date(run.startedAt), "MMM d, HH:mm")}
+                        {format(new Date(run.startedAt), 'MMM d, HH:mm')}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -129,10 +127,8 @@ export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
                           )}
                           s
                         </span>
-                      ) : run.status === "RUNNING" ? (
-                        <span className="text-sm text-muted-foreground">
-                          In progress...
-                        </span>
+                      ) : run.status === 'RUNNING' ? (
+                        <span className="text-sm text-muted-foreground">In progress...</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
@@ -154,10 +150,10 @@ export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
                         <Badge
                           variant={
                             run.avgScore >= 0.7
-                              ? "default"
+                              ? 'default'
                               : run.avgScore >= 0.4
-                              ? "secondary"
-                              : "destructive"
+                                ? 'secondary'
+                                : 'destructive'
                           }
                         >
                           {run.avgScore.toFixed(2)}
@@ -172,8 +168,8 @@ export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
             </Table>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            No runs yet. Click "Run Now" to start an evaluation.
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No runs yet. Click “Run Now” to start an evaluation.
           </p>
         )}
       </CardContent>
@@ -183,31 +179,31 @@ export function EvaluatorRunHistory({ evaluatorId }: EvaluatorRunHistoryProps) {
 
 function RunStatusBadge({ status }: { status: string }) {
   switch (status) {
-    case "PENDING":
+    case 'PENDING':
       return (
         <Badge variant="outline">
-          <Clock className="h-3 w-3 mr-1" />
+          <Clock className="mr-1 h-3 w-3" />
           Pending
         </Badge>
       );
-    case "RUNNING":
+    case 'RUNNING':
       return (
         <Badge variant="secondary">
-          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
           Running
         </Badge>
       );
-    case "COMPLETED":
+    case 'COMPLETED':
       return (
         <Badge variant="default" className="bg-green-500">
-          <CheckCircle className="h-3 w-3 mr-1" />
+          <CheckCircle className="mr-1 h-3 w-3" />
           Completed
         </Badge>
       );
-    case "FAILED":
+    case 'FAILED':
       return (
         <Badge variant="destructive">
-          <XCircle className="h-3 w-3 mr-1" />
+          <XCircle className="mr-1 h-3 w-3" />
           Failed
         </Badge>
       );

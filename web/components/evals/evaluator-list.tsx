@@ -5,7 +5,6 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { MoreHorizontal, Settings, Trash2, Play, Bot, User, Code } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

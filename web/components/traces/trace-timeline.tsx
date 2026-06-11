@@ -4,7 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cpu, MessageSquare, Zap, Timer, Wrench } from "lucide-react";
+import { Cpu, Zap, Timer, Wrench } from "lucide-react";
 
 interface Observation {
   id: string;

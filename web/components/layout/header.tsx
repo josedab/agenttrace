@@ -1,24 +1,13 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
-import {
-  Bell,
-  Search,
-  LogOut,
-  Settings,
-  User,
-  HelpCircle,
-  Moon,
-  Sun,
-  Monitor,
-} from "lucide-react";
-import { useTheme } from "next-themes";
+import * as React from 'react';
+import Link from 'next/link';
+import { signOut } from 'next-auth/react';
+import { Bell, Search, LogOut, Settings, User, HelpCircle, Moon, Sun, Monitor } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,9 +18,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Breadcrumb } from "@/components/layout/breadcrumb";
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Breadcrumb } from '@/components/layout/breadcrumb';
 
 interface HeaderProps {
   user: {
@@ -43,14 +32,13 @@ interface HeaderProps {
 }
 
 export function Header({ user }: HeaderProps) {
-  const pathname = usePathname();
-  const { setTheme, theme } = useTheme();
+  const { setTheme } = useTheme();
 
   const initials = user.name
     ? user.name
-        .split(" ")
+        .split(' ')
         .map((n) => n[0])
-        .join("")
+        .join('')
         .toUpperCase()
     : user.email[0].toUpperCase();
 
@@ -64,11 +52,7 @@ export function Header({ user }: HeaderProps) {
         {/* Search */}
         <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search traces..."
-            className="w-64 pl-9"
-          />
+          <Input type="search" placeholder="Search traces..." className="w-64 pl-9" />
         </div>
 
         {/* Notifications */}
@@ -78,9 +62,9 @@ export function Header({ user }: HeaderProps) {
 
         {/* Help */}
         <Button variant="ghost" size="icon" aria-label="Help" asChild>
-          <Link href="/docs">
+          <a href="https://docs.agenttrace.io" target="_blank" rel="noreferrer">
             <HelpCircle className="h-5 w-5" />
-          </Link>
+          </a>
         </Button>
 
         {/* User menu */}
@@ -97,9 +81,7 @@ export function Header({ user }: HeaderProps) {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{user.name}</p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user.email}
-                </p>
+                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -123,15 +105,15 @@ export function Header({ user }: HeaderProps) {
                 Theme
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuItem onClick={() => setTheme("light")}>
+                <DropdownMenuItem onClick={() => setTheme('light')}>
                   <Sun className="mr-2 h-4 w-4" />
                   Light
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark")}>
+                <DropdownMenuItem onClick={() => setTheme('dark')}>
                   <Moon className="mr-2 h-4 w-4" />
                   Dark
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("system")}>
+                <DropdownMenuItem onClick={() => setTheme('system')}>
                   <Monitor className="mr-2 h-4 w-4" />
                   System
                 </DropdownMenuItem>
@@ -140,7 +122,7 @@ export function Header({ user }: HeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => signOut({ callbackUrl: "/sign-in" })}
+              onClick={() => signOut({ callbackUrl: '/sign-in' })}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Sign out

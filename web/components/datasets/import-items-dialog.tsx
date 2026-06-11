@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { FileUp, Loader2, Upload } from "lucide-react";
+import * as React from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { FileUp, Loader2, Upload } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ImportItemsDialogProps {
   datasetId: string;
@@ -27,28 +27,39 @@ interface ImportItemsDialogProps {
 export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
-  const [jsonContent, setJsonContent] = React.useState("");
-  const [csvContent, setCsvContent] = React.useState("");
+  const [jsonContent, setJsonContent] = React.useState('');
+  const [csvContent, setCsvContent] = React.useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const importMutation = useMutation({
     mutationFn: async (items: Record<string, unknown>[]) => {
       // Import items one by one (could be optimized with batch API)
       for (const item of items) {
-        await api.datasets.addItem(datasetId, item);
+        const metadata =
+          typeof item.metadata === 'object' &&
+          item.metadata !== null &&
+          !Array.isArray(item.metadata)
+            ? (item.metadata as Record<string, unknown>)
+            : undefined;
+
+        await api.datasets.addItem(datasetId, {
+          input: 'input' in item ? item.input : item,
+          expectedOutput: item.expectedOutput,
+          metadata,
+        });
       }
       return items.length;
     },
     onSuccess: (count) => {
       toast.success(`${count} items imported successfully`);
-      queryClient.invalidateQueries({ queryKey: ["dataset-items", datasetId] });
-      queryClient.invalidateQueries({ queryKey: ["dataset", datasetId] });
+      queryClient.invalidateQueries({ queryKey: ['dataset-items', datasetId] });
+      queryClient.invalidateQueries({ queryKey: ['dataset', datasetId] });
       setOpen(false);
-      setJsonContent("");
-      setCsvContent("");
+      setJsonContent('');
+      setCsvContent('');
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to import items");
+      toast.error(error.message || 'Failed to import items');
     },
   });
 
@@ -56,27 +67,27 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
     try {
       const items = JSON.parse(jsonContent);
       if (!Array.isArray(items)) {
-        throw new Error("JSON must be an array of items");
+        throw new Error('JSON must be an array of items');
       }
       importMutation.mutate(items);
-    } catch (error) {
-      toast.error("Invalid JSON format");
+    } catch {
+      toast.error('Invalid JSON format');
     }
   };
 
   const handleCsvImport = () => {
     try {
-      const lines = csvContent.trim().split("\n");
+      const lines = csvContent.trim().split('\n');
       if (lines.length < 2) {
-        throw new Error("CSV must have a header row and at least one data row");
+        throw new Error('CSV must have a header row and at least one data row');
       }
 
-      const headers = lines[0].split(",").map((h) => h.trim());
+      const headers = lines[0].split(',').map((h) => h.trim());
       const items = lines.slice(1).map((line) => {
-        const values = line.split(",").map((v) => v.trim());
+        const values = line.split(',').map((v) => v.trim());
         const item: Record<string, string> = {};
         headers.forEach((header, index) => {
-          item[header] = values[index] || "";
+          item[header] = values[index] || '';
         });
         return {
           input: item.input || item,
@@ -85,8 +96,8 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
       });
 
       importMutation.mutate(items);
-    } catch (error) {
-      toast.error("Invalid CSV format");
+    } catch {
+      toast.error('Invalid CSV format');
     }
   };
 
@@ -97,9 +108,9 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      if (file.name.endsWith(".json")) {
+      if (file.name.endsWith('.json')) {
         setJsonContent(content);
-      } else if (file.name.endsWith(".csv")) {
+      } else if (file.name.endsWith('.csv')) {
         setCsvContent(content);
       }
     };
@@ -110,34 +121,32 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <FileUp className="h-4 w-4 mr-2" />
+          <FileUp className="mr-2 h-4 w-4" />
           Import
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Import Dataset Items</DialogTitle>
-          <DialogDescription>
-            Import multiple items from JSON or CSV.
-          </DialogDescription>
+          <DialogDescription>Import multiple items from JSON or CSV.</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="json">
           <TabsList className="w-full">
-            <TabsTrigger value="json" className="flex-1">JSON</TabsTrigger>
-            <TabsTrigger value="csv" className="flex-1">CSV</TabsTrigger>
+            <TabsTrigger value="json" className="flex-1">
+              JSON
+            </TabsTrigger>
+            <TabsTrigger value="csv" className="flex-1">
+              CSV
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="json" className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>JSON Array</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4 mr-1" />
+                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="mr-1 h-4 w-4" />
                   Upload File
                 </Button>
               </div>
@@ -153,20 +162,14 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
               />
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button
                 onClick={handleJsonImport}
                 disabled={importMutation.isPending || !jsonContent}
               >
-                {importMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
+                {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Import JSON
               </Button>
             </DialogFooter>
@@ -176,12 +179,8 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>CSV Content</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4 mr-1" />
+                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="mr-1 h-4 w-4" />
                   Upload File
                 </Button>
               </div>
@@ -196,20 +195,11 @@ export function ImportItemsDialog({ datasetId }: ImportItemsDialogProps) {
               />
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleCsvImport}
-                disabled={importMutation.isPending || !csvContent}
-              >
-                {importMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
+              <Button onClick={handleCsvImport} disabled={importMutation.isPending || !csvContent}>
+                {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Import CSV
               </Button>
             </DialogFooter>

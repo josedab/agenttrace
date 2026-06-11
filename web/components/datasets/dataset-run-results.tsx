@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { CheckCircle, XCircle, Clock, AlertCircle, BarChart3 } from "lucide-react";
 
 import { cn } from "@/lib/utils";

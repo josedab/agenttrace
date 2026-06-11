@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Play,
   Pause,
@@ -21,11 +21,10 @@ import {
   AlertCircle,
   Clock,
   DollarSign,
-} from "lucide-react";
+} from 'lucide-react';
 
 interface ReplayTimelineProps {
   traceId: string;
-  projectId: string;
 }
 
 interface ReplayEvent {
@@ -70,19 +69,24 @@ const eventIcons: Record<string, React.ElementType> = {
   error: AlertCircle,
 };
 
-export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
+export function ReplayTimeline({ traceId }: ReplayTimelineProps) {
   const [currentStep, setCurrentStep] = React.useState(0);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [playbackSpeed, setPlaybackSpeed] = React.useState(1);
 
-  const { data: timeline, isLoading } = useQuery<ReplayTimeline>({
-    queryKey: ["replay-timeline", traceId],
+  const {
+    data: timeline,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<ReplayTimeline>({
+    queryKey: ['replay-timeline', traceId],
     queryFn: () => api.traces.getReplay(traceId),
     enabled: !!traceId,
   });
 
   const { data: stepState } = useQuery({
-    queryKey: ["replay-step", traceId, currentStep],
+    queryKey: ['replay-step', traceId, currentStep],
     queryFn: () => api.traces.getReplayStep(traceId, currentStep),
     enabled: !!traceId && currentStep >= 0,
   });
@@ -104,43 +108,68 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
     return () => clearInterval(timer);
   }, [isPlaying, timeline, playbackSpeed]);
 
-  if (isLoading || !timeline) {
+  if (isLoading) {
     return <ReplayTimelineSkeleton />;
   }
 
+  if (isError || !timeline) {
+    return (
+      <Card className="border-destructive/30">
+        <CardContent className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+          <AlertCircle className="h-7 w-7 text-destructive" />
+          <p className="font-medium">The replay timeline could not be built.</p>
+          <Button variant="outline" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const events = timeline.events;
+  if (events.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex min-h-48 flex-col items-center justify-center text-center">
+          <Clock className="h-7 w-7 text-muted-foreground" />
+          <p className="mt-3 font-medium">No replay events were recorded</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The trace exists, but it has no observations, file operations, commands, or checkpoints.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const currentEvent = events[currentStep];
   const progress = events.length > 0 ? ((currentStep + 1) / events.length) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4">
       {/* Summary Bar */}
-      <div className="flex items-center gap-4 px-4 py-2 bg-muted/50 rounded-lg text-sm">
+      <div className="flex items-center gap-4 rounded-lg bg-muted/50 px-4 py-2 text-sm">
         <span className="font-medium">{timeline.traceName}</span>
         <Badge variant="outline">
-          <Clock className="h-3 w-3 mr-1" />
+          <Clock className="mr-1 h-3 w-3" />
           {formatDuration(timeline.durationMs)}
         </Badge>
         <Badge variant="outline">
-          <Brain className="h-3 w-3 mr-1" />
+          <Brain className="mr-1 h-3 w-3" />
           {timeline.summary.llmCalls} LLM calls
         </Badge>
         <Badge variant="outline">
-          <DollarSign className="h-3 w-3 mr-1" />
-          ${timeline.summary.totalCost.toFixed(4)}
+          <DollarSign className="mr-1 h-3 w-3" />${timeline.summary.totalCost.toFixed(4)}
         </Badge>
         {timeline.summary.errors > 0 && (
-          <Badge variant="destructive">
-            {timeline.summary.errors} errors
-          </Badge>
+          <Badge variant="destructive">{timeline.summary.errors} errors</Badge>
         )}
       </div>
 
       {/* Progress Bar */}
       <div className="px-4">
-        <div className="w-full bg-muted rounded-full h-1.5">
+        <div className="h-1.5 w-full rounded-full bg-muted">
           <div
-            className="bg-primary h-1.5 rounded-full transition-all duration-200"
+            className="h-1.5 rounded-full bg-primary transition-all duration-200"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -165,22 +194,16 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
           <ChevronRight className="h-4 w-4 rotate-180" />
         </Button>
         <Button
-          variant={isPlaying ? "secondary" : "default"}
+          variant={isPlaying ? 'secondary' : 'default'}
           size="sm"
           onClick={() => setIsPlaying(!isPlaying)}
         >
-          {isPlaying ? (
-            <Pause className="h-4 w-4" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() =>
-            setCurrentStep(Math.min(events.length - 1, currentStep + 1))
-          }
+          onClick={() => setCurrentStep(Math.min(events.length - 1, currentStep + 1))}
           disabled={currentStep >= events.length - 1}
         >
           <ChevronRight className="h-4 w-4" />
@@ -195,16 +218,14 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
         </Button>
 
         {/* Speed Control */}
-        <div className="flex items-center gap-1 ml-2 border rounded-md px-2 py-1">
+        <div className="ml-2 flex items-center gap-1 rounded-md border px-2 py-1">
           {[0.5, 1, 2, 4, 8].map((speed) => (
             <button
               key={speed}
               onClick={() => setPlaybackSpeed(speed)}
               className={cn(
-                "px-1.5 py-0.5 text-xs rounded",
-                playbackSpeed === speed
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
+                'rounded px-1.5 py-0.5 text-xs',
+                playbackSpeed === speed ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
               )}
             >
               {speed}x
@@ -212,14 +233,14 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
           ))}
         </div>
 
-        <span className="text-sm text-muted-foreground ml-2">
+        <span className="ml-2 text-sm text-muted-foreground">
           Step {currentStep + 1} / {events.length}
         </span>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         {/* Event List */}
-        <div className="col-span-1 border rounded-lg overflow-auto max-h-[600px]">
+        <div className="col-span-1 max-h-[600px] overflow-auto rounded-lg border">
           {events.map((event, idx) => {
             const Icon = eventIcons[event.type] || ChevronRight;
             return (
@@ -227,14 +248,14 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
                 key={event.id}
                 onClick={() => setCurrentStep(idx)}
                 className={cn(
-                  "w-full flex items-start gap-3 px-3 py-2 text-left text-sm border-b hover:bg-muted/50 transition-colors",
-                  idx === currentStep && "bg-primary/10 border-l-2 border-l-primary",
-                  event.status === "error" && "text-destructive"
+                  'flex w-full items-start gap-3 border-b px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50',
+                  idx === currentStep && 'border-l-2 border-l-primary bg-primary/10',
+                  event.status === 'error' && 'text-destructive'
                 )}
               >
-                <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="min-w-0">
-                  <div className="font-medium truncate">{event.title}</div>
+                  <div className="truncate font-medium">{event.title}</div>
                   {event.durationMs !== undefined && (
                     <div className="text-xs text-muted-foreground">
                       {formatDuration(event.durationMs)}
@@ -253,18 +274,12 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{currentEvent.title}</CardTitle>
-                  <Badge
-                    variant={
-                      currentEvent.status === "error" ? "destructive" : "outline"
-                    }
-                  >
+                  <Badge variant={currentEvent.status === 'error' ? 'destructive' : 'outline'}>
                     {currentEvent.status}
                   </Badge>
                 </div>
                 {currentEvent.description && (
-                  <p className="text-sm text-muted-foreground">
-                    {currentEvent.description}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{currentEvent.description}</p>
                 )}
               </CardHeader>
               <CardContent>
@@ -279,25 +294,19 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-xs text-muted-foreground">Cost so far</div>
-                  <div className="text-lg font-bold">
-                    ${(stepState as any).costSoFar?.toFixed(4) || "0.0000"}
-                  </div>
+                  <div className="text-lg font-bold">${stepState.costSoFar.toFixed(4)}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-xs text-muted-foreground">Tokens used</div>
-                  <div className="text-lg font-bold">
-                    {(stepState as any).tokensSoFar?.toLocaleString() || "0"}
-                  </div>
+                  <div className="text-lg font-bold">{stepState.tokensSoFar.toLocaleString()}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-xs text-muted-foreground">Elapsed</div>
-                  <div className="text-lg font-bold">
-                    {formatDuration((stepState as any).elapsedMs || 0)}
-                  </div>
+                  <div className="text-lg font-bold">{formatDuration(stepState.elapsedMs)}</div>
                 </CardContent>
               </Card>
             </div>
@@ -308,39 +317,29 @@ export function ReplayTimeline({ traceId, projectId }: ReplayTimelineProps) {
   );
 }
 
-function EventDataView({
-  data,
-  type,
-}: {
-  data: Record<string, unknown>;
-  type: string;
-}) {
-  if (type === "llm_call") {
+function EventDataView({ data, type }: { data: Record<string, unknown>; type: string }) {
+  if (type === 'llm_call') {
     return (
       <div className="space-y-2">
-        {data.model && (
+        {typeof data.model === 'string' && (
           <div className="text-sm">
             <span className="text-muted-foreground">Model: </span>
-            <span className="font-mono">{data.model as string}</span>
+            <span className="font-mono">{data.model}</span>
           </div>
         )}
-        {data.input && (
+        {data.input !== undefined && data.input !== null && (
           <div>
-            <div className="text-xs text-muted-foreground mb-1">Input</div>
-            <pre className="text-xs bg-muted p-2 rounded max-h-40 overflow-auto">
-              {typeof data.input === "string"
-                ? data.input
-                : JSON.stringify(data.input, null, 2)}
+            <div className="mb-1 text-xs text-muted-foreground">Input</div>
+            <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs">
+              {typeof data.input === 'string' ? data.input : JSON.stringify(data.input, null, 2)}
             </pre>
           </div>
         )}
-        {data.output && (
+        {data.output !== undefined && data.output !== null && (
           <div>
-            <div className="text-xs text-muted-foreground mb-1">Output</div>
-            <pre className="text-xs bg-muted p-2 rounded max-h-40 overflow-auto">
-              {typeof data.output === "string"
-                ? data.output
-                : JSON.stringify(data.output, null, 2)}
+            <div className="mb-1 text-xs text-muted-foreground">Output</div>
+            <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs">
+              {typeof data.output === 'string' ? data.output : JSON.stringify(data.output, null, 2)}
             </pre>
           </div>
         )}
@@ -348,33 +347,31 @@ function EventDataView({
     );
   }
 
-  if (type === "file_operation") {
+  if (type === 'file_operation') {
     return (
       <div className="space-y-2">
-        <div className="text-sm font-mono">{data.filePath as string}</div>
-        {data.diff && (
-          <pre className="text-xs bg-muted p-2 rounded max-h-60 overflow-auto font-mono">
-            {data.diff as string}
+        <div className="font-mono text-sm">{String(data.filePath ?? '')}</div>
+        {typeof data.diff === 'string' && (
+          <pre className="max-h-60 overflow-auto rounded bg-muted p-2 font-mono text-xs">
+            {data.diff}
           </pre>
         )}
       </div>
     );
   }
 
-  if (type === "terminal_command") {
+  if (type === 'terminal_command') {
     return (
       <div className="space-y-2">
-        <div className="font-mono text-sm bg-black text-green-400 p-2 rounded">
-          $ {data.command as string}
+        <div className="rounded bg-black p-2 font-mono text-sm text-green-400">
+          $ {String(data.command ?? '')}
         </div>
-        {data.stdout && (
-          <pre className="text-xs bg-muted p-2 rounded max-h-40 overflow-auto">
-            {data.stdout as string}
-          </pre>
+        {typeof data.stdout === 'string' && (
+          <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs">{data.stdout}</pre>
         )}
-        {data.stderr && (
-          <pre className="text-xs bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 p-2 rounded max-h-40 overflow-auto">
-            {data.stderr as string}
+        {typeof data.stderr === 'string' && (
+          <pre className="max-h-40 overflow-auto rounded bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+            {data.stderr}
           </pre>
         )}
       </div>
@@ -383,7 +380,7 @@ function EventDataView({
 
   // Generic JSON view for other types
   return (
-    <pre className="text-xs bg-muted p-2 rounded max-h-60 overflow-auto">
+    <pre className="max-h-60 overflow-auto rounded bg-muted p-2 text-xs">
       {JSON.stringify(data, null, 2)}
     </pre>
   );
@@ -392,11 +389,11 @@ function EventDataView({
 function ReplayTimelineSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="h-10 bg-muted animate-pulse rounded-lg" />
-      <div className="h-8 bg-muted animate-pulse rounded w-64" />
+      <div className="h-10 animate-pulse rounded-lg bg-muted" />
+      <div className="h-8 w-64 animate-pulse rounded bg-muted" />
       <div className="grid grid-cols-3 gap-4">
-        <div className="h-96 bg-muted animate-pulse rounded-lg" />
-        <div className="col-span-2 h-96 bg-muted animate-pulse rounded-lg" />
+        <div className="h-96 animate-pulse rounded-lg bg-muted" />
+        <div className="col-span-2 h-96 animate-pulse rounded-lg bg-muted" />
       </div>
     </div>
   );

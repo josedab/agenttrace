@@ -1,24 +1,14 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, ChevronDown, HelpCircle } from "lucide-react";
+import * as React from 'react';
+import { Sparkles, Send, Loader2, ChevronDown, HelpCircle } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface NLQueryResult {
   query: string;
@@ -48,20 +38,15 @@ interface NaturalQueryProps {
 }
 
 const EXAMPLE_QUERIES = [
-  "Show me traces with errors from the last 24 hours",
-  "Find expensive traces that cost more than $0.10",
-  "Show slow traces taking more than 5 seconds",
+  'Show me traces with errors from the last 24 hours',
+  'Find expensive traces that cost more than $0.10',
+  'Show slow traces taking more than 5 seconds',
   "Traces tagged with 'production' from this week",
-  "Failed agent runs from yesterday",
+  'Failed agent runs from yesterday',
 ];
 
-export function NaturalQuery({
-  apiKey,
-  baseUrl,
-  onResults,
-  className,
-}: NaturalQueryProps) {
-  const [query, setQuery] = React.useState("");
+export function NaturalQuery({ apiKey, baseUrl, onResults, className }: NaturalQueryProps) {
+  const [query, setQuery] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [result, setResult] = React.useState<NLQueryResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -75,24 +60,24 @@ export function NaturalQuery({
 
     try {
       const response = await fetch(`${baseUrl}/v1/traces/query/natural`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          Authorization: ['Bearer', apiKey].join(' '),
         },
         body: JSON.stringify({ query: queryText, limit: 50 }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "Query failed");
+        throw new Error(errorData.message || 'Query failed');
       }
 
       const data: NLQueryResult = await response.json();
       setResult(data);
       onResults?.(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +100,7 @@ export function NaturalQuery({
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Query Input */}
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="flex items-center gap-2">
@@ -160,9 +145,7 @@ export function NaturalQuery({
         <Collapsible open={isExamplesOpen} onOpenChange={setIsExamplesOpen}>
           <CollapsibleContent className="space-y-2">
             <div className="rounded-lg border bg-muted/50 p-3">
-              <p className="mb-2 text-sm font-medium text-muted-foreground">
-                Example queries:
-              </p>
+              <p className="mb-2 text-sm font-medium text-muted-foreground">Example queries:</p>
               <div className="flex flex-wrap gap-2">
                 {EXAMPLE_QUERIES.map((example, index) => (
                   <button
@@ -171,7 +154,7 @@ export function NaturalQuery({
                     onClick={() => handleExampleClick(example)}
                     className="text-sm text-primary hover:underline"
                   >
-                    "{example}"
+                    “{example}”
                   </button>
                 ))}
               </div>
@@ -196,9 +179,7 @@ export function NaturalQuery({
               <Sparkles className="h-4 w-4 text-purple-500" />
               <span className="text-sm font-medium">Interpreted as:</span>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {result.interpretedAs}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{result.interpretedAs}</p>
             <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="secondary">{result.traces.totalCount} traces</Badge>
               <span>•</span>
@@ -224,9 +205,7 @@ export function NaturalQuery({
           {/* Suggestions */}
           {result.suggestions && result.suggestions.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">
-                Related queries:
-              </p>
+              <p className="text-sm font-medium text-muted-foreground">Related queries:</p>
               <div className="flex flex-wrap gap-2">
                 {result.suggestions.map((suggestion, index) => (
                   <Button
@@ -250,11 +229,11 @@ export function NaturalQuery({
 
 // Separate component for inline natural query in trace list
 export function NaturalQueryInline({
-  onApplyFilter,
+  onApplyFilter: _onApplyFilter,
 }: {
   onApplyFilter: (filter: Record<string, unknown>) => void;
 }) {
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -279,17 +258,8 @@ export function NaturalQueryInline({
           disabled={isLoading}
         />
       </div>
-      <Button
-        type="submit"
-        size="sm"
-        disabled={isLoading || !query.trim()}
-        className="h-8"
-      >
-        {isLoading ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <Send className="h-3 w-3" />
-        )}
+      <Button type="submit" size="sm" disabled={isLoading || !query.trim()} className="h-8">
+        {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
       </Button>
     </form>
   );

@@ -1,19 +1,20 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { GitBranch } from "lucide-react";
+import * as React from 'react';
+import { GitBranch } from 'lucide-react';
 
-import { PageHeader } from "@/components/layout/page-header";
-import { CheckpointList } from "@/components/checkpoints/checkpoint-list";
-import { CheckpointFilters } from "@/components/checkpoints/checkpoint-filters";
+import { PageHeader } from '@/components/layout/page-header';
+import { CheckpointList } from '@/components/checkpoints/checkpoint-list';
+import { CheckpointFilters } from '@/components/checkpoints/checkpoint-filters';
+import type { CheckpointFilters as CheckpointFilterValues } from '@/hooks/use-checkpoints';
 
 export default function CheckpointsPage() {
   // In a real app, this would come from context
-  const projectId = "project-1";
+  const projectId = 'project-1';
 
-  const [filters, setFilters] = React.useState({
-    traceId: undefined as string | undefined,
-    type: undefined as "auto" | "manual" | undefined,
+  const [filters, setFilters] = React.useState<CheckpointFilterValues>({
+    traceId: undefined,
+    type: undefined,
   });
 
   return (

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, TrendingUp, TrendingDown, Calendar, Gauge } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";

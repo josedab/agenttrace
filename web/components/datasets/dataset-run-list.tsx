@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { Play, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

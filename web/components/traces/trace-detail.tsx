@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, format } from "date-fns";
-import { Clock, DollarSign, AlertCircle, Copy, ExternalLink, Tag } from "lucide-react";
+import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { Clock, DollarSign, AlertCircle, Copy, ExternalLink, Tag } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TraceTimeline } from "@/components/traces/trace-timeline";
-import { TraceTree } from "@/components/traces/trace-tree";
-import { ObservationPanel } from "@/components/traces/observation-panel";
-import { TraceDetailSkeleton } from "@/components/traces/trace-detail-skeleton";
-import { toast } from "sonner";
+import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TraceTimeline } from '@/components/traces/trace-timeline';
+import { TraceTree } from '@/components/traces/trace-tree';
+import { ObservationPanel } from '@/components/traces/observation-panel';
+import { TraceDetailSkeleton } from '@/components/traces/trace-detail-skeleton';
+import { toast } from 'sonner';
 
 interface TraceDetailProps {
   traceId: string;
@@ -24,13 +24,17 @@ interface TraceDetailProps {
 export function TraceDetail({ traceId }: TraceDetailProps) {
   const [selectedObservationId, setSelectedObservationId] = React.useState<string | null>(null);
 
-  const { data: trace, isLoading, error } = useQuery({
-    queryKey: ["trace", traceId],
+  const {
+    data: trace,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['trace', traceId],
     queryFn: () => api.traces.get(traceId),
   });
 
   const { data: observations } = useQuery({
-    queryKey: ["trace-observations", traceId],
+    queryKey: ['trace-observations', traceId],
     queryFn: () => api.observations.listByTrace(traceId),
     enabled: !!trace,
   });
@@ -47,7 +51,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
   if (error || !trace) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
         <p className="text-destructive">Failed to load trace</p>
       </div>
     );
@@ -55,7 +59,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
 
   const copyTraceId = () => {
     navigator.clipboard.writeText(traceId);
-    toast.success("Trace ID copied to clipboard");
+    toast.success('Trace ID copied to clipboard');
   };
 
   return (
@@ -64,10 +68,10 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{trace.name || "Unnamed Trace"}</h1>
+            <h1 className="text-2xl font-bold">{trace.name || 'Unnamed Trace'}</h1>
             <LevelBadge level={trace.level} />
           </div>
-          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
             <span className="font-mono">{traceId.slice(0, 16)}...</span>
             <Button variant="ghost" size="sm" onClick={copyTraceId}>
               <Copy className="h-3 w-3" />
@@ -78,7 +82,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
           {trace.sessionId && (
             <Button variant="outline" size="sm" asChild>
               <a href={`/sessions/${trace.sessionId}`}>
-                <ExternalLink className="h-4 w-4 mr-2" />
+                <ExternalLink className="mr-2 h-4 w-4" />
                 View Session
               </a>
             </Button>
@@ -87,7 +91,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Duration</CardDescription>
@@ -96,7 +100,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="text-xl font-semibold">
-                {trace.latency ? formatLatency(trace.latency) : "-"}
+                {trace.latency ? formatLatency(trace.latency) : '-'}
               </span>
             </div>
           </CardContent>
@@ -110,7 +114,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
             <div className="flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <span className="text-xl font-semibold">
-                {trace.totalCost !== null ? `$${trace.totalCost.toFixed(4)}` : "-"}
+                {trace.totalCost !== null ? `$${trace.totalCost.toFixed(4)}` : '-'}
               </span>
             </div>
           </CardContent>
@@ -121,9 +125,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
             <CardDescription>Start Time</CardDescription>
           </CardHeader>
           <CardContent>
-            <span className="text-sm font-medium">
-              {format(new Date(trace.startTime), "PPpp")}
-            </span>
+            <span className="text-sm font-medium">{format(new Date(trace.startTime), 'PPpp')}</span>
           </CardContent>
         </Card>
 
@@ -133,11 +135,12 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-semibold">
-              {trace.usage?.totalTokens?.toLocaleString() ?? "-"}
+              {trace.usage?.totalTokens?.toLocaleString() ?? '-'}
             </div>
             {trace.usage && (
               <div className="text-xs text-muted-foreground">
-                {trace.usage.promptTokens?.toLocaleString()} in / {trace.usage.completionTokens?.toLocaleString()} out
+                {trace.usage.promptTokens?.toLocaleString()} in /{' '}
+                {trace.usage.completionTokens?.toLocaleString()} out
               </div>
             )}
           </CardContent>
@@ -159,7 +162,7 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
       )}
 
       {/* Main content */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* Left panel - Tree/Timeline */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="timeline">
@@ -187,8 +190,8 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
             <TabsContent value="input" className="mt-4">
               <Card>
                 <CardContent className="pt-6">
-                  <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg overflow-auto max-h-[500px]">
-                    {trace.input ? formatJson(trace.input) : "No input"}
+                  <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 font-mono text-sm">
+                    {trace.input ? formatJson(trace.input) : 'No input'}
                   </pre>
                 </CardContent>
               </Card>
@@ -196,8 +199,8 @@ export function TraceDetail({ traceId }: TraceDetailProps) {
             <TabsContent value="output" className="mt-4">
               <Card>
                 <CardContent className="pt-6">
-                  <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg overflow-auto max-h-[500px]">
-                    {trace.output ? formatJson(trace.output) : "No output"}
+                  <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-4 font-mono text-sm">
+                    {trace.output ? formatJson(trace.output) : 'No output'}
                   </pre>
                 </CardContent>
               </Card>
@@ -219,9 +222,9 @@ function LevelBadge({ level }: { level: string }) {
     <Badge
       variant="outline"
       className={cn(
-        level === "ERROR" && "border-destructive text-destructive",
-        level === "WARNING" && "border-yellow-500 text-yellow-500",
-        level === "DEBUG" && "border-blue-500 text-blue-500"
+        level === 'ERROR' && 'border-destructive text-destructive',
+        level === 'WARNING' && 'border-yellow-500 text-yellow-500',
+        level === 'DEBUG' && 'border-blue-500 text-blue-500'
       )}
     >
       {level}
@@ -231,15 +234,19 @@ function LevelBadge({ level }: { level: string }) {
 
 function formatLatency(ms: number): string {
   if (ms >= 1000) {
-    return (ms / 1000).toFixed(2) + "s";
+    return (ms / 1000).toFixed(2) + 's';
   }
-  return ms.toFixed(0) + "ms";
+  return ms.toFixed(0) + 'ms';
 }
 
-function formatJson(value: string): string {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return value;
+function formatJson(value: unknown): string {
+  if (typeof value === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
   }
+
+  return JSON.stringify(value, null, 2) ?? String(value);
 }

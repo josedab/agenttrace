@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Play,
   Pause,
@@ -241,33 +241,6 @@ export function TraceReplayPlayer({ timeline, onExport, websocketUrl, enableLive
     };
   }, [isPlaying, playbackSpeed, totalDuration]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      switch (e.key) {
-        case " ":
-          e.preventDefault();
-          handlePlayPause();
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          handleSkipBack();
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          handleSkipForward();
-          break;
-        case "Home":
-          e.preventDefault();
-          handleReset();
-          break;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
   const handlePlayPause = useCallback(() => {
     if (elapsedTime >= totalDuration) {
       setElapsedTime(0);
@@ -298,6 +271,51 @@ export function TraceReplayPlayer({ timeline, onExport, websocketUrl, enableLive
       setElapsedTime(nextEventTime);
     }
   }, [eventTimes, elapsedTime]);
+
+  // Keep the latest playback control callbacks available to the keydown
+  // listener below without re-subscribing on every state change (these
+  // callbacks change identity frequently while playing back).
+  const playbackControlsRef = useRef({
+    handlePlayPause,
+    handleSkipBack,
+    handleSkipForward,
+    handleReset,
+  });
+  useEffect(() => {
+    playbackControlsRef.current = {
+      handlePlayPause,
+      handleSkipBack,
+      handleSkipForward,
+      handleReset,
+    };
+  }, [handlePlayPause, handleSkipBack, handleSkipForward, handleReset]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          playbackControlsRef.current.handlePlayPause();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          playbackControlsRef.current.handleSkipBack();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          playbackControlsRef.current.handleSkipForward();
+          break;
+        case "Home":
+          e.preventDefault();
+          playbackControlsRef.current.handleReset();
+          break;
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSeek = useCallback((value: number[]) => {
     setElapsedTime(value[0]);

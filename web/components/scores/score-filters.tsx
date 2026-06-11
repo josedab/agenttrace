@@ -1,29 +1,24 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { Search, Filter, X } from "lucide-react";
+import * as React from 'react';
+import { Search, Filter, X } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 
 interface ScoreFilters {
   scoreName: string;
-  source: string;
+  source: '' | 'API' | 'ANNOTATION' | 'EVAL';
   minScore?: number;
   maxScore?: number;
 }
@@ -43,8 +38,8 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
 
   const clearFilters = () => {
     onFiltersChange({
-      scoreName: "",
-      source: "",
+      scoreName: '',
+      source: '',
       minScore: undefined,
       maxScore: undefined,
     });
@@ -53,24 +48,23 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
   return (
     <div className="flex items-center gap-4">
       {/* Search by score name */}
-      <div className="relative flex-1 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="relative max-w-sm flex-1">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search by score name..."
           value={filters.scoreName}
-          onChange={(e) =>
-            onFiltersChange({ ...filters, scoreName: e.target.value })
-          }
+          onChange={(e) => onFiltersChange({ ...filters, scoreName: e.target.value })}
           className="pl-9"
         />
       </div>
 
       {/* Source filter */}
       <Select
-        value={filters.source || "all"}
-        onValueChange={(value) =>
-          onFiltersChange({ ...filters, source: value === "all" ? "" : value })
-        }
+        value={filters.source || 'all'}
+        onValueChange={(value) => {
+          const source = value === 'API' || value === 'ANNOTATION' || value === 'EVAL' ? value : '';
+          onFiltersChange({ ...filters, source });
+        }}
       >
         <SelectTrigger className="w-[150px]">
           <SelectValue placeholder="Source" />
@@ -107,13 +101,11 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
                   min={0}
                   max={1}
                   step={0.1}
-                  value={filters.minScore ?? ""}
+                  value={filters.minScore ?? ''}
                   onChange={(e) =>
                     onFiltersChange({
                       ...filters,
-                      minScore: e.target.value
-                        ? parseFloat(e.target.value)
-                        : undefined,
+                      minScore: e.target.value ? parseFloat(e.target.value) : undefined,
                     })
                   }
                   className="w-20"
@@ -125,13 +117,11 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
                   min={0}
                   max={1}
                   step={0.1}
-                  value={filters.maxScore ?? ""}
+                  value={filters.maxScore ?? ''}
                   onChange={(e) =>
                     onFiltersChange({
                       ...filters,
-                      maxScore: e.target.value
-                        ? parseFloat(e.target.value)
-                        : undefined,
+                      maxScore: e.target.value ? parseFloat(e.target.value) : undefined,
                     })
                   }
                   className="w-20"
@@ -140,13 +130,8 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
             </div>
 
             {activeFilterCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="w-full"
-              >
-                <X className="h-4 w-4 mr-2" />
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
+                <X className="mr-2 h-4 w-4" />
                 Clear all filters
               </Button>
             )}
@@ -162,7 +147,7 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
               Name: {filters.scoreName}
               <X
                 className="h-3 w-3 cursor-pointer"
-                onClick={() => onFiltersChange({ ...filters, scoreName: "" })}
+                onClick={() => onFiltersChange({ ...filters, scoreName: '' })}
               />
             </Badge>
           )}
@@ -171,7 +156,7 @@ export function ScoreFilters({ filters, onFiltersChange }: ScoreFiltersProps) {
               Source: {filters.source}
               <X
                 className="h-3 w-3 cursor-pointer"
-                onClick={() => onFiltersChange({ ...filters, source: "" })}
+                onClick={() => onFiltersChange({ ...filters, source: '' })}
               />
             </Badge>
           )}

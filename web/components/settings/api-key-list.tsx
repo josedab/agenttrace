@@ -1,27 +1,21 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow, format } from "date-fns";
-import { toast } from "sonner";
-import { Key, Copy, Check, Trash2, MoreHorizontal, Eye, EyeOff } from "lucide-react";
+import * as React from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatDistanceToNow, format } from 'date-fns';
+import { toast } from 'sonner';
+import { Key, Copy, Check, Trash2, MoreHorizontal } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { api } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -29,7 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 
 interface ApiKey {
   id: string;
@@ -63,12 +57,12 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
   const deleteMutation = useMutation({
     mutationFn: (keyId: string) => api.apiKeys.delete(keyId),
     onSuccess: () => {
-      toast.success("API key deleted");
-      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      toast.success('API key deleted');
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       setKeyToDelete(null);
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete API key");
+      toast.error(error.message || 'Failed to delete API key');
     },
   });
 
@@ -84,12 +78,11 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
         <CardHeader>
           <CardTitle>Your API Keys</CardTitle>
           <CardDescription>
-            Manage your API keys for SDK access. Keys are only shown once when
-            created.
+            Manage your API keys for SDK access. Keys are only shown once when created.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-lg">
+          <div className="rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -113,7 +106,7 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <code className="text-sm bg-muted px-2 py-1 rounded">
+                        <code className="rounded bg-muted px-2 py-1 text-sm">
                           {key.keyPrefix}...
                         </code>
                         <Button
@@ -153,13 +146,13 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
                           ? formatDistanceToNow(new Date(key.lastUsedAt), {
                               addSuffix: true,
                             })
-                          : "Never"}
+                          : 'Never'}
                       </span>
                     </TableCell>
                     <TableCell>
                       {key.expiresAt ? (
                         <span className="text-sm text-muted-foreground">
-                          {format(new Date(key.expiresAt), "MMM d, yyyy")}
+                          {format(new Date(key.expiresAt), 'MMM d, yyyy')}
                         </span>
                       ) : (
                         <Badge variant="secondary">Never</Badge>
@@ -177,7 +170,7 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
                             className="text-destructive"
                             onClick={() => setKeyToDelete(key)}
                           >
-                            <Trash2 className="h-4 w-4 mr-2" />
+                            <Trash2 className="mr-2 h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -197,9 +190,8 @@ export function ApiKeyList({ apiKeys }: ApiKeyListProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete API Key?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{keyToDelete?.name}"? This action
-              cannot be undone and any applications using this key will stop
-              working.
+              Are you sure you want to delete “{keyToDelete?.name}”? This action cannot be undone
+              and any applications using this key will stop working.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,13 +28,10 @@ import {
   Activity,
   RefreshCw,
   Zap,
-  AlertTriangle,
   CheckCircle,
   XCircle,
-  Clock,
   ArrowRight,
   Play,
-  Plus,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -86,20 +83,6 @@ interface SelfHealingPolicy {
   createdAt: string;
 }
 
-interface AuditEntry {
-  id: string;
-  policyId: string;
-  action: string;
-  traceId?: string;
-  spanId?: string;
-  details?: Record<string, any>;
-  originalInput?: string;
-  remediatedOutput?: string;
-  durationMs: number;
-  success: boolean;
-  timestamp: string;
-}
-
 interface PipelineResult {
   traceId: string;
   passed: boolean;
@@ -118,7 +101,14 @@ interface PipelineResult {
   blockedReason?: string;
 }
 
-const actionTypeColors: Record<string, string> = {
+interface EvaluatePipelineInput {
+  traceId: string;
+  output: string;
+  costUsd: number;
+  latencyMs: number;
+}
+
+const actionTypeColors: Record<string, NonNullable<BadgeProps["variant"]>> = {
   retry: "default",
   fallback: "secondary",
   circuit_break: "destructive",
@@ -134,7 +124,6 @@ const circuitStateColors: Record<string, string> = {
 };
 
 export function SelfHealingDashboard() {
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState("overview");
   const [evalInput, setEvalInput] = React.useState({
     traceId: "",
@@ -146,16 +135,17 @@ export function SelfHealingDashboard() {
 
   const { data: stats } = useQuery<DashboardStats>({
     queryKey: ["guardrails-dashboard-stats"],
-    queryFn: () => api.guardrails.getDashboardStats(),
+    queryFn: () => api.guardrails.getDashboardStats() as Promise<DashboardStats>,
   });
 
   const { data: policiesData } = useQuery<{ policies: SelfHealingPolicy[] }>({
     queryKey: ["self-healing-policies"],
-    queryFn: () => api.guardrails.listPolicies(),
+    queryFn: () => api.guardrails.listPolicies() as Promise<{ policies: SelfHealingPolicy[] }>,
   });
 
   const evaluateMutation = useMutation({
-    mutationFn: (data: any) => api.guardrails.evaluatePipeline(data),
+    mutationFn: (data: EvaluatePipelineInput) =>
+      api.guardrails.evaluatePipeline(data) as Promise<PipelineResult>,
     onSuccess: (result: PipelineResult) => {
       setEvalResult(result);
     },
@@ -290,7 +280,7 @@ export function SelfHealingDashboard() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={(actionTypeColors[policy.remediationAction.type] as any) || "outline"}>
+                          <Badge variant={actionTypeColors[policy.remediationAction.type] || "outline"}>
                             {policy.remediationAction.type}
                           </Badge>
                         </TableCell>

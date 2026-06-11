@@ -116,14 +116,16 @@ export function ReplayEngine({ sessionId }: ReplayEngineProps) {
   // Fetch unified timeline
   const { data: timelineData, isLoading } = useQuery({
     queryKey: ["unified-timeline", sessionId],
-    queryFn: () => api.replaySessions.getUnifiedTimeline(sessionId),
+    queryFn: () =>
+      api.replaySessions.getUnifiedTimeline(sessionId) as Promise<{ events: UnifiedTimelineEvent[] }>,
     enabled: !!sessionId,
   });
 
   // Fetch snapshot at current step
   const { data: snapshot } = useQuery<ReplaySnapshot>({
     queryKey: ["replay-snapshot", sessionId, currentStep],
-    queryFn: () => api.replaySessions.getSnapshot(sessionId, currentStep),
+    queryFn: () =>
+      api.replaySessions.getSnapshot(sessionId, currentStep) as Promise<ReplaySnapshot>,
     enabled: !!sessionId,
   });
 
@@ -137,7 +139,10 @@ export function ReplayEngine({ sessionId }: ReplayEngineProps) {
     },
   });
 
-  const events: UnifiedTimelineEvent[] = timelineData?.events ?? [];
+  const events: UnifiedTimelineEvent[] = React.useMemo(
+    () => timelineData?.events ?? [],
+    [timelineData]
+  );
 
   // Filter events
   const filteredEvents = React.useMemo(() => {
@@ -146,7 +151,6 @@ export function ReplayEngine({ sessionId }: ReplayEngineProps) {
   }, [events, activeFilters]);
 
   const currentEvent = filteredEvents[currentStep] ?? null;
-  const progress = filteredEvents.length > 0 ? ((currentStep + 1) / filteredEvents.length) * 100 : 0;
 
   // Playback timer
   React.useEffect(() => {

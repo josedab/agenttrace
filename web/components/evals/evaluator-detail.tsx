@@ -1,48 +1,40 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { toast } from "sonner";
-import { Save, Loader2, Play, Bot, Code, User, Trash2 } from "lucide-react";
+import * as React from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
+import { Save, Loader2, Play, Bot, Code, User } from 'lucide-react';
 
-import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScoreDistributionChart } from "./score-distribution-chart";
-import { EvaluatorRunHistory } from "./evaluator-run-history";
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScoreDistributionChart } from './score-distribution-chart';
+import { EvaluatorRunHistory } from './evaluator-run-history';
 
 interface Evaluator {
   id: string;
   name: string;
   description?: string;
-  type: "LLM_AS_JUDGE" | "CODE" | "HUMAN";
-  status: "ACTIVE" | "INACTIVE";
+  type: 'LLM_AS_JUDGE' | 'CODE' | 'HUMAN';
+  status: 'ACTIVE' | 'INACTIVE';
   scoreName: string;
-  scoreDataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  scoreDataType: 'NUMERIC' | 'BOOLEAN' | 'CATEGORICAL';
   config: {
     model?: string;
     prompt?: string;
@@ -60,11 +52,11 @@ interface EvaluatorDetailProps {
 }
 
 const evaluatorSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  scoreName: z.string().min(1, "Score name is required"),
-  scoreDataType: z.enum(["NUMERIC", "BOOLEAN", "CATEGORICAL"]),
-  status: z.enum(["ACTIVE", "INACTIVE"]),
+  scoreName: z.string().min(1, 'Score name is required'),
+  scoreDataType: z.enum(['NUMERIC', 'BOOLEAN', 'CATEGORICAL']),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
   model: z.string().optional(),
   prompt: z.string().optional(),
   code: z.string().optional(),
@@ -79,9 +71,9 @@ const evaluatorTypeIcons = {
 };
 
 const evaluatorTypeLabels = {
-  LLM_AS_JUDGE: "LLM-as-Judge",
-  CODE: "Code",
-  HUMAN: "Human",
+  LLM_AS_JUDGE: 'LLM-as-Judge',
+  CODE: 'Code',
+  HUMAN: 'Human',
 };
 
 export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
@@ -89,7 +81,7 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
   const TypeIcon = evaluatorTypeIcons[evaluator.type];
 
   const { data: stats } = useQuery({
-    queryKey: ["evaluator-stats", evaluator.id],
+    queryKey: ['evaluator-stats', evaluator.id],
     queryFn: () => api.evaluators.getStats(evaluator.id),
   });
 
@@ -103,13 +95,13 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
     resolver: zodResolver(evaluatorSchema),
     defaultValues: {
       name: evaluator.name,
-      description: evaluator.description || "",
+      description: evaluator.description || '',
       scoreName: evaluator.scoreName,
       scoreDataType: evaluator.scoreDataType,
       status: evaluator.status,
-      model: evaluator.config.model || "gpt-4",
-      prompt: evaluator.config.prompt || "",
-      code: evaluator.config.code || "",
+      model: evaluator.config.model || 'gpt-4',
+      prompt: evaluator.config.prompt || '',
+      code: evaluator.config.code || '',
     },
   });
 
@@ -118,8 +110,6 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
       api.evaluators.update(evaluator.id, {
         name: data.name,
         description: data.description,
-        scoreName: data.scoreName,
-        scoreDataType: data.scoreDataType,
         status: data.status,
         config: {
           model: data.model,
@@ -128,23 +118,23 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
         },
       }),
     onSuccess: () => {
-      toast.success("Evaluator updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["evaluator", evaluator.id] });
-      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+      toast.success('Evaluator updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['evaluator', evaluator.id] });
+      queryClient.invalidateQueries({ queryKey: ['evaluators'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update evaluator");
+      toast.error(error.message || 'Failed to update evaluator');
     },
   });
 
   const runMutation = useMutation({
     mutationFn: () => api.evaluators.run(evaluator.id),
     onSuccess: () => {
-      toast.success("Evaluation started");
-      queryClient.invalidateQueries({ queryKey: ["evaluator-stats", evaluator.id] });
+      toast.success('Evaluation started');
+      queryClient.invalidateQueries({ queryKey: ['evaluator-stats', evaluator.id] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to start evaluation");
+      toast.error(error.message || 'Failed to start evaluation');
     },
   });
 
@@ -152,8 +142,8 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
     updateMutation.mutate(data);
   };
 
-  const scoreDataType = watch("scoreDataType");
-  const status = watch("status");
+  const scoreDataType = watch('scoreDataType');
+  const status = watch('status');
 
   return (
     <div className="space-y-6">
@@ -164,7 +154,7 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
             <TypeIcon className="h-3 w-3" />
             {evaluatorTypeLabels[evaluator.type]}
           </Badge>
-          <Badge variant={evaluator.status === "ACTIVE" ? "default" : "secondary"}>
+          <Badge variant={evaluator.status === 'ACTIVE' ? 'default' : 'secondary'}>
             {evaluator.status}
           </Badge>
         </div>
@@ -172,12 +162,12 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
           <Button
             variant="outline"
             onClick={() => runMutation.mutate()}
-            disabled={runMutation.isPending || evaluator.status !== "ACTIVE"}
+            disabled={runMutation.isPending || evaluator.status !== 'ACTIVE'}
           >
             {runMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Play className="h-4 w-4 mr-2" />
+              <Play className="mr-2 h-4 w-4" />
             )}
             Run Now
           </Button>
@@ -196,48 +186,41 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
             <Card>
               <CardHeader>
                 <CardTitle>General Settings</CardTitle>
-                <CardDescription>
-                  Configure the basic settings for this evaluator.
-                </CardDescription>
+                <CardDescription>Configure the basic settings for this evaluator.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Name</Label>
-                    <Input id="name" {...register("name")} />
+                    <Input id="name" {...register('name')} />
                     {errors.name && (
-                      <p className="text-sm text-destructive">
-                        {errors.name.message}
-                      </p>
+                      <p className="text-sm text-destructive">{errors.name.message}</p>
                     )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="scoreName">Score Name</Label>
-                    <Input id="scoreName" {...register("scoreName")} />
+                    <Input id="scoreName" disabled {...register('scoreName')} />
                     {errors.scoreName && (
-                      <p className="text-sm text-destructive">
-                        {errors.scoreName.message}
-                      </p>
+                      <p className="text-sm text-destructive">{errors.scoreName.message}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    rows={2}
-                    {...register("description")}
-                  />
+                  <Textarea id="description" rows={2} {...register('description')} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Score Data Type</Label>
                     <Select
+                      disabled
                       value={scoreDataType}
                       onValueChange={(value) =>
-                        setValue("scoreDataType", value as EvaluatorFormData["scoreDataType"], { shouldDirty: true })
+                        setValue('scoreDataType', value as EvaluatorFormData['scoreDataType'], {
+                          shouldDirty: true,
+                        })
                       }
                     >
                       <SelectTrigger>
@@ -252,25 +235,23 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>Status</Label>
-                    <div className="flex items-center gap-3 h-10">
+                    <div className="flex h-10 items-center gap-3">
                       <Switch
-                        checked={status === "ACTIVE"}
+                        checked={status === 'ACTIVE'}
                         onCheckedChange={(checked) =>
-                          setValue("status", checked ? "ACTIVE" : "INACTIVE", {
+                          setValue('status', checked ? 'ACTIVE' : 'INACTIVE', {
                             shouldDirty: true,
                           })
                         }
                       />
-                      <span className="text-sm">
-                        {status === "ACTIVE" ? "Active" : "Inactive"}
-                      </span>
+                      <span className="text-sm">{status === 'ACTIVE' ? 'Active' : 'Inactive'}</span>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {evaluator.type === "LLM_AS_JUDGE" && (
+            {evaluator.type === 'LLM_AS_JUDGE' && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle>LLM Configuration</CardTitle>
@@ -282,10 +263,8 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
                   <div className="space-y-2">
                     <Label>Model</Label>
                     <Select
-                      value={watch("model")}
-                      onValueChange={(value) =>
-                        setValue("model", value, { shouldDirty: true })
-                      }
+                      value={watch('model')}
+                      onValueChange={(value) => setValue('model', value, { shouldDirty: true })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -307,24 +286,21 @@ export function EvaluatorDetail({ evaluator }: EvaluatorDetailProps) {
                       rows={10}
                       className="font-mono text-sm"
                       placeholder="You are an evaluator. Given the following input and output, evaluate..."
-                      {...register("prompt")}
+                      {...register('prompt')}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Use {`{{input}}`}, {`{{output}}`}, and {`{{expected}}`} as
-                      placeholders.
+                      Use {`{{input}}`}, {`{{output}}`}, and {`{{expected}}`} as placeholders.
                     </p>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {evaluator.type === "CODE" && (
+            {evaluator.type === 'CODE' && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle>Code Configuration</CardTitle>
-                  <CardDescription>
-                    Write custom JavaScript code for evaluation.
-                  </CardDescription>
+                  <CardDescription>Write custom JavaScript code for evaluation.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -338,26 +314,21 @@ function evaluate(input, output, expected) {
   // Your evaluation logic here
   return output === expected ? 1 : 0;
 }`}
-                      {...register("code")}
+                      {...register('code')}
                     />
                     <p className="text-xs text-muted-foreground">
-                      The function receives input, output, and expected values.
-                      Return a score between 0 and 1.
+                      The function receives input, output, and expected values. Return a score
+                      between 0 and 1.
                     </p>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            <div className="flex justify-end gap-2 mt-4">
-              <Button
-                type="submit"
-                disabled={!isDirty || updateMutation.isPending}
-              >
-                {updateMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                <Save className="h-4 w-4 mr-2" />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="submit" disabled={!isDirty || updateMutation.isPending}>
+                {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Save className="mr-2 h-4 w-4" />
                 Save Changes
               </Button>
             </div>
@@ -366,7 +337,7 @@ function evaluate(input, output, expected) {
 
         <TabsContent value="stats" className="space-y-4">
           {stats ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Total Evaluations</CardDescription>
@@ -380,9 +351,7 @@ function evaluate(input, output, expected) {
                   <CardDescription>Average Score</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <span className="text-2xl font-bold">
-                    {stats.avgScore?.toFixed(2) || "-"}
-                  </span>
+                  <span className="text-2xl font-bold">{stats.avgScore?.toFixed(2) || '-'}</span>
                 </CardContent>
               </Card>
               <Card>
@@ -399,9 +368,7 @@ function evaluate(input, output, expected) {
                 </CardHeader>
                 <CardContent>
                   <span className="text-2xl font-bold">
-                    {stats.passRate !== undefined
-                      ? `${(stats.passRate * 100).toFixed(0)}%`
-                      : "-"}
+                    {stats.passRate !== undefined ? `${(stats.passRate * 100).toFixed(0)}%` : '-'}
                   </span>
                 </CardContent>
               </Card>

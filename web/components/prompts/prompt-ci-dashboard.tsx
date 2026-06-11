@@ -82,7 +82,7 @@ export function PromptCIDashboard() {
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["prompt-ci-stats"],
-    queryFn: () => api.promptCI.getDashboardStats(),
+    queryFn: () => api.promptCI.getDashboardStats() as Promise<DashboardStats>,
     refetchInterval: 30000,
   });
 
@@ -90,14 +90,14 @@ export function PromptCIDashboard() {
     GateConfig[]
   >({
     queryKey: ["prompt-ci-gates"],
-    queryFn: () => api.promptCI.listGateConfigs(),
+    queryFn: () => api.promptCI.listGateConfigs() as Promise<GateConfig[]>,
   });
 
   const { data: history, isLoading: historyLoading } = useQuery<
     RegressionHistoryEntry[]
   >({
     queryKey: ["prompt-ci-history"],
-    queryFn: () => api.promptCI.getRegressionHistory(),
+    queryFn: () => api.promptCI.getRegressionHistory() as Promise<RegressionHistoryEntry[]>,
   });
 
   const toggleGateMutation = useMutation({

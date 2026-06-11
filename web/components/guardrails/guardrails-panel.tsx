@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -54,15 +54,13 @@ const ruleTypeIcons: Record<string, React.ElementType> = {
   pattern_block: Code,
 };
 
-const actionColors: Record<string, string> = {
+const actionColors: Record<string, NonNullable<BadgeProps["variant"]>> = {
   block: "destructive",
   alert: "default",
   log: "secondary",
 };
 
 export function GuardrailsPanel() {
-  const queryClient = useQueryClient();
-
   const { data: rules, isLoading: rulesLoading } = useQuery<GuardRule[]>({
     queryKey: ["guardrails"],
     queryFn: () => api.guardrails.list(),
@@ -158,9 +156,7 @@ export function GuardrailsPanel() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            (actionColors[rule.action] as any) || "outline"
-                          }
+                          variant={actionColors[rule.action] || "outline"}
                         >
                           {rule.action}
                         </Badge>

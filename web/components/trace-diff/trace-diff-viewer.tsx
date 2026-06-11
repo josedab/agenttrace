@@ -5,41 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useTraceDiff } from "@/hooks/use-trace-diff";
+import { useTraceDiff, type DiffNode } from "@/hooks/use-trace-diff";
 import { ArrowLeftRight, Plus, Minus, Pencil, Equal } from "lucide-react";
 
 interface TraceDiffViewerProps {
   leftTraceId?: string;
   rightTraceId?: string;
-}
-
-interface DiffNode {
-  diffType: "added" | "removed" | "modified" | "unchanged" | "reordered";
-  spanName: string;
-  leftSpanId?: string;
-  rightSpanId?: string;
-  leftValue?: SpanSnapshot;
-  rightValue?: SpanSnapshot;
-  propertyDiffs?: PropertyDiff[];
-  children?: DiffNode[];
-}
-
-interface SpanSnapshot {
-  id: string;
-  name: string;
-  type: string;
-  model?: string;
-  durationMs: number;
-  totalTokens: number;
-  totalCost: number;
-  level: string;
-}
-
-interface PropertyDiff {
-  property: string;
-  leftValue: any;
-  rightValue: any;
-  changeType: string;
 }
 
 const diffColors: Record<string, string> = {
@@ -129,8 +100,7 @@ export function TraceDiffViewer({ leftTraceId: initialLeft, rightTraceId: initia
     initialLeft && initialRight ? { leftTraceId: initialLeft, rightTraceId: initialRight } : null
   );
 
-  const { data: diffResult, isLoading, error } = useTraceDiff(diffInput);
-  const result = diffResult as any;
+  const { data: result, isLoading, error } = useTraceDiff(diffInput);
 
   const handleCompare = () => {
     if (leftId && rightId) {
