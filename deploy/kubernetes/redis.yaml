@@ -45,7 +45,7 @@ spec:
         fsGroup: 999
       containers:
       - name: redis
-        image: redis:7-alpine
+        image: cgr.dev/chainguard/redis@sha256:6ec869af943bab77848981ab9469f5b7eef97d166c7ee4ebb4f1b006622d54fa
         command:
         - redis-server
         - --appendonly

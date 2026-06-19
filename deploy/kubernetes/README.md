@@ -57,7 +57,8 @@ POSTGRES_PASSWORD=$(openssl rand -base64 32)
 CLICKHOUSE_PASSWORD=$(openssl rand -base64 32)
 REDIS_PASSWORD=$(openssl rand -base64 32)
 JWT_SECRET=$(openssl rand -base64 32)
-ENCRYPTION_KEY=$(openssl rand -hex 16)
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
+OAUTH_CALLBACK_SECRET=$(openssl rand -base64 32)
 
 # Create secret
 kubectl create secret generic agenttrace-secrets \
@@ -65,37 +66,25 @@ kubectl create secret generic agenttrace-secrets \
   --from-literal=clickhouse-password=$CLICKHOUSE_PASSWORD \
   --from-literal=redis-password=$REDIS_PASSWORD \
   --from-literal=jwt-secret=$JWT_SECRET \
-  --from-literal=encryption-key=$ENCRYPTION_KEY
+  --from-literal=nextauth-secret=$NEXTAUTH_SECRET \
+  --from-literal=oauth-callback-secret=$OAUTH_CALLBACK_SECRET
 ```
 
 ### 3. Apply Manifests
 
 ```bash
-# Apply in order (dependencies first)
-kubectl apply -f namespace.yaml
-kubectl apply -f configmap.yaml
-kubectl apply -f postgres.yaml
-kubectl apply -f clickhouse.yaml
-kubectl apply -f redis.yaml
+# Use Kustomize for both installation and every subsequent upgrade.
+kubectl apply -k .
 
 # Wait for databases to be ready
 kubectl wait --for=condition=ready pod -l app=postgres --timeout=120s
 kubectl wait --for=condition=ready pod -l app=clickhouse --timeout=120s
 kubectl wait --for=condition=ready pod -l app=redis --timeout=60s
-
-# Apply application
-kubectl apply -f api.yaml
-kubectl apply -f worker.yaml
-kubectl apply -f ingress.yaml
 ```
 
-### 4. Run Migrations
+API and worker init containers run migrations automatically before startup.
 
-```bash
-kubectl exec -it deployment/agenttrace-api -- /app/server migrate up
-```
-
-### 5. Verify Deployment
+### 4. Verify Deployment
 
 ```bash
 kubectl get pods
@@ -360,22 +349,36 @@ kubectl exec -it redis-0 -- redis-cli -a $REDIS_PASSWORD LLEN asynq:default:pend
 ### Rolling Update
 
 ```bash
-# Update image
-kubectl set image deployment/agenttrace-api api=agenttrace/api:v1.2.0
-kubectl set image deployment/agenttrace-worker worker=agenttrace/api:v1.2.0
+# One-time secret migration for installations created before web/OAuth secrets.
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
+OAUTH_CALLBACK_SECRET=$(openssl rand -base64 32)
+kubectl patch secret agenttrace-secrets --type merge \
+  -p "{\"stringData\":{\"nextauth-secret\":\"$NEXTAUTH_SECRET\",\"oauth-callback-secret\":\"$OAUTH_CALLBACK_SECRET\"}}"
 
-# Run migrations
-kubectl exec -it deployment/agenttrace-api -- /app/server migrate up
+# Update every API, worker, web, and migration container atomically.
+cd deploy/kubernetes
+kustomize edit set image \
+  agenttrace/api=agenttrace/api:1.2.0 \
+  agenttrace/web=agenttrace/web:1.2.0
+kubectl apply -k .
 
 # Verify
 kubectl rollout status deployment/agenttrace-api
+kubectl rollout status deployment/agenttrace-worker
+kubectl rollout status deployment/agenttrace-web
 ```
 
 ### Rollback
 
 ```bash
-kubectl rollout undo deployment/agenttrace-api
-kubectl rollout undo deployment/agenttrace-worker
+cd deploy/kubernetes
+kustomize edit set image \
+  agenttrace/api=agenttrace/api:1.1.0 \
+  agenttrace/web=agenttrace/web:1.1.0
+kubectl apply -k .
+kubectl rollout status deployment/agenttrace-api
+kubectl rollout status deployment/agenttrace-worker
+kubectl rollout status deployment/agenttrace-web
 ```
 
 ## Uninstall

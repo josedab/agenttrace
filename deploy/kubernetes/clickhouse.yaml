@@ -62,6 +62,17 @@ data:
         <parts_to_delay_insert>150</parts_to_delay_insert>
         <parts_to_throw_insert>300</parts_to_throw_insert>
       </merge_tree>
+      <storage_configuration>
+        <disks>
+          <backups>
+            <type>local</type>
+            <path>/var/lib/clickhouse/backups/</path>
+          </backups>
+        </disks>
+      </storage_configuration>
+      <backups>
+        <allowed_disk>backups</allowed_disk>
+      </backups>
     </clickhouse>
 ---
 apiVersion: apps/v1
@@ -129,7 +140,7 @@ spec:
           allowPrivilegeEscalation: false
       containers:
       - name: clickhouse
-        image: clickhouse/clickhouse-server:24.1-alpine
+        image: agenttrace/clickhouse:0.1.0
         ports:
         - containerPort: 9000
           name: native

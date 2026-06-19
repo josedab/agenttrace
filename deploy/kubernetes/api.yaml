@@ -27,7 +27,8 @@ metadata:
     app.kubernetes.io/name: agenttrace
     app.kubernetes.io/component: api
 spec:
-  replicas: 3
+  # Realtime hubs are process-local; keep one replica until shared pub/sub is configured.
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -52,10 +53,52 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       serviceAccountName: agenttrace
+      initContainers:
+      - name: migrate
+        image: agenttrace/api:0.1.0
+        imagePullPolicy: IfNotPresent
+        command: ["/app/migrate", "-path", "/app/migrations", "up"]
+        envFrom:
+        - configMapRef:
+            name: agenttrace-config
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: postgres-password
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: clickhouse-password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: redis-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: jwt-secret
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
       containers:
       - name: api
-        image: agenttrace/api:latest
-        imagePullPolicy: Always
+        image: agenttrace/api:0.1.0
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: http
@@ -83,17 +126,52 @@ spec:
             secretKeyRef:
               name: agenttrace-secrets
               key: jwt-secret
-        - name: ENCRYPTION_KEY
+        - name: OAUTH_CALLBACK_SECRET
           valueFrom:
             secretKeyRef:
               name: agenttrace-secrets
-              key: encryption-key
-              optional: true
+              key: oauth-callback-secret
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
               name: agenttrace-secrets
               key: openai-api-key
+              optional: true
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: google-client-id
+              optional: true
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: google-client-secret
+              optional: true
+        - name: GITHUB_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: github-client-id
+              optional: true
+        - name: GITHUB_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: github-client-secret
+              optional: true
+        - name: STRIPE_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: stripe-webhook-secret
+              optional: true
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: sentry-dsn
               optional: true
         resources:
           requests:
@@ -164,7 +242,7 @@ metadata:
   name: agenttrace-api-pdb
   namespace: agenttrace
 spec:
-  minAvailable: 2
+  maxUnavailable: 1
   selector:
     matchLabels:
       app: agenttrace-api

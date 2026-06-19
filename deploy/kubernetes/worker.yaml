@@ -30,11 +30,11 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       serviceAccountName: agenttrace
-      containers:
-      - name: worker
-        image: agenttrace/api:latest
-        command: ["/app/worker"]
-        imagePullPolicy: Always
+      initContainers:
+      - name: migrate
+        image: agenttrace/api:0.1.0
+        imagePullPolicy: IfNotPresent
+        command: ["/app/migrate", "-path", "/app/migrations", "up"]
         envFrom:
         - configMapRef:
             name: agenttrace-config
@@ -59,12 +59,48 @@ spec:
             secretKeyRef:
               name: agenttrace-secrets
               key: jwt-secret
-        - name: ENCRYPTION_KEY
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      containers:
+      - name: worker
+        image: agenttrace/api:0.1.0
+        command: ["/app/worker"]
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: agenttrace-config
+        env:
+        - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
               name: agenttrace-secrets
-              key: encryption-key
-              optional: true
+              key: postgres-password
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: clickhouse-password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: redis-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agenttrace-secrets
+              key: jwt-secret
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:

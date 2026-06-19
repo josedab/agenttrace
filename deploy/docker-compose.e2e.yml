@@ -1,50 +1,77 @@
-version: "3.9"
+name: agenttrace-e2e
 
-# E2E Testing Configuration
-# Uses local builds for API and runs against test infrastructure
+x-api-environment: &api-environment
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8080"
+  SERVER_ENV: "test"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "agenttrace"
+  POSTGRES_PASSWORD: "agenttrace_e2e"
+  POSTGRES_DB: "agenttrace_e2e"
+  POSTGRES_SSL_MODE: "disable"
+  CLICKHOUSE_HOST: "clickhouse"
+  CLICKHOUSE_PORT: "9000"
+  CLICKHOUSE_USER: "agenttrace"
+  CLICKHOUSE_PASSWORD: "agenttrace_e2e"
+  CLICKHOUSE_DB: "agenttrace"
+  REDIS_ENABLED: "true"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  MINIO_ENABLED: "false"
+  JWT_SECRET: "e2e-test-jwt-secret-key-at-least-32-chars"
+  LOG_LEVEL: "info"
 
 services:
-  # PostgreSQL - Metadata storage
   postgres:
-    image: postgres:16-alpine
+    image: agenttrace/postgres:e2e
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
     environment:
       POSTGRES_USER: agenttrace
       POSTGRES_PASSWORD: agenttrace_e2e
       POSTGRES_DB: agenttrace_e2e
-    ports:
-      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agenttrace"]
+      test: ["CMD-SHELL", "pg_isready -U agenttrace -d agenttrace_e2e"]
       interval: 5s
       timeout: 5s
       retries: 10
     networks:
       - e2e
 
-  # ClickHouse - Trace storage
   clickhouse:
-    image: clickhouse/clickhouse-server:24.2
+    image: agenttrace/clickhouse:e2e
+    build:
+      context: ./clickhouse
+      dockerfile: Dockerfile
     environment:
       CLICKHOUSE_USER: agenttrace
       CLICKHOUSE_PASSWORD: agenttrace_e2e
       CLICKHOUSE_DB: agenttrace
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-    ports:
-      - "8123:8123"
-      - "9000:9000"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test:
+        [
+          "CMD",
+          "clickhouse-client",
+          "--user",
+          "agenttrace",
+          "--password",
+          "agenttrace_e2e",
+          "--database",
+          "agenttrace",
+          "--query",
+          "SELECT 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
     networks:
       - e2e
 
-  # Redis - Queue and caching
   redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    image: cgr.dev/chainguard/redis@sha256:6ec869af943bab77848981ab9469f5b7eef97d166c7ee4ebb4f1b006622d54fa
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -53,72 +80,65 @@ services:
     networks:
       - e2e
 
-  # MinIO - Object storage
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: agenttrace
-      MINIO_ROOT_PASSWORD: agenttrace_e2e
-    ports:
-      - "9001:9001"
-      - "9002:9000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - e2e
-
-  # API Server - Built from local source
-  api:
+  migrate:
     build:
       context: ../api
       dockerfile: Dockerfile
+      args:
+        VERSION: e2e
+    command: ["/app/migrate", "-path", "/app/migrations", "up"]
+    environment:
+      <<: *api-environment
     depends_on:
       postgres:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+    networks:
+      - e2e
+
+  api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+      args:
+        VERSION: e2e
+    environment:
+      <<: *api-environment
+      E2E_TEST_MODE: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://agenttrace:agenttrace_e2e@postgres:5432/agenttrace_e2e?sslmode=disable
-      CLICKHOUSE_DSN: clickhouse://agenttrace:agenttrace_e2e@clickhouse:9000/agenttrace
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: e2e-test-jwt-secret-key-at-least-32-chars
-      ENCRYPTION_KEY: e2e-test-encryption-key-32-bytes!
-      API_HOST: 0.0.0.0
-      API_PORT: 8080
-      LOG_LEVEL: info
-      # Auto-migrate database on startup
-      AUTO_MIGRATE: "true"
-      # Create default test project and API key
-      E2E_TEST_MODE: "true"
     ports:
-      - "8080:8080"
+      - "${E2E_API_PORT:-8080}:8080"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/readyz"]
       interval: 5s
       timeout: 3s
       retries: 20
     networks:
       - e2e
 
-  # Background Worker
   worker:
     build:
       context: ../api
       dockerfile: Dockerfile
+      args:
+        VERSION: e2e
     command: ["/app/worker"]
+    environment:
+      <<: *api-environment
     depends_on:
       api:
         condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://agenttrace:agenttrace_e2e@postgres:5432/agenttrace_e2e?sslmode=disable
-      CLICKHOUSE_DSN: clickhouse://agenttrace:agenttrace_e2e@clickhouse:9000/agenttrace
-      REDIS_URL: redis://redis:6379
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
     networks:
       - e2e
 

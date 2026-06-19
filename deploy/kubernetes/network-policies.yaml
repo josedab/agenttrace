@@ -27,9 +27,33 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app: agenttrace-web
     ports:
     - protocol: TCP
       port: 8080
+---
+# Allow ingress to Web from ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-ingress
+  namespace: agenttrace
+spec:
+  podSelector:
+    matchLabels:
+      app: agenttrace-web
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
 ---
 # Allow API to access databases
 apiVersion: networking.k8s.io/v1
@@ -76,6 +100,16 @@ spec:
     ports:
     - protocol: UDP
       port: 53
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
 ---
 # Allow Worker to access databases
 apiVersion: networking.k8s.io/v1

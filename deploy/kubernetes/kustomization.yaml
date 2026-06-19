@@ -20,6 +20,7 @@ resources:
 - redis.yaml
 - api.yaml
 - worker.yaml
+- web.yaml
 - ingress.yaml
 
 # Optional: Enable for production hardening
@@ -34,7 +35,13 @@ commonLabels:
 # Image customization
 images:
 - name: agenttrace/api
-  newTag: latest
+  newTag: "0.1.0"
+- name: agenttrace/web
+  newTag: "0.1.0"
+- name: agenttrace/clickhouse
+  newTag: "0.1.0"
+- name: agenttrace/postgres
+  newTag: "0.1.0"
 
 # Configuration patches for different environments
 # Create overlays/production/kustomization.yaml to override these
