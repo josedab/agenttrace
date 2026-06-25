@@ -6,7 +6,7 @@ on:
       - "v*"
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25.12"
   NODE_VERSION: "20"
   PYTHON_VERSION: "3.11"
 
@@ -26,7 +26,7 @@ jobs:
 
       - name: Get version
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
         id: changelog
@@ -90,6 +90,8 @@ jobs:
           context: ./api
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
           cache-from: type=gha
@@ -113,8 +115,56 @@ jobs:
           context: ./web
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker meta for ClickHouse
+        id: meta-clickhouse
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            agenttrace/clickhouse
+            ghcr.io/${{ github.repository }}/clickhouse
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push ClickHouse
+        uses: docker/build-push-action@v5
+        with:
+          context: ./deploy/clickhouse
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-clickhouse.outputs.tags }}
+          labels: ${{ steps.meta-clickhouse.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker meta for PostgreSQL
+        id: meta-postgres
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            agenttrace/postgres
+            ghcr.io/${{ github.repository }}/postgres
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push PostgreSQL
+        uses: docker/build-push-action@v5
+        with:
+          context: ./deploy/postgres
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-postgres.outputs.tags }}
+          labels: ${{ steps.meta-postgres.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

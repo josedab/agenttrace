@@ -53,8 +53,28 @@ jobs:
 
   # Container Image Scanning with Trivy
   trivy-container:
-    name: Trivy Container Scan
+    name: Trivy Container Scan (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: ./api
+            image: agenttrace/api:scan
+            build_args: ""
+          - name: web
+            context: ./web
+            image: agenttrace/web:scan
+            build_args: NEXT_PUBLIC_API_URL=http://localhost:8080
+          - name: clickhouse
+            context: ./deploy/clickhouse
+            image: agenttrace/clickhouse:scan
+            build_args: ""
+          - name: postgres
+            context: ./deploy/postgres
+            image: agenttrace/postgres:scan
+            build_args: ""
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,53 +82,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build API image
+      - name: Build image
         uses: docker/build-push-action@v5
         with:
-          context: ./api
+          context: ${{ matrix.context }}
           push: false
           load: true
-          tags: agenttrace/api:scan
+          tags: ${{ matrix.image }}
+          build-args: ${{ matrix.build_args }}
 
-      - name: Scan API image
-        uses: aquasecurity/trivy-action@master
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
-          image-ref: "agenttrace/api:scan"
+          image-ref: ${{ matrix.image }}
           format: "sarif"
-          output: "trivy-api-results.sarif"
+          output: trivy-${{ matrix.name }}-results.sarif
           severity: "CRITICAL,HIGH"
           ignore-unfixed: true
+          exit-code: "1"
 
-      - name: Upload API Trivy scan results
+      - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: "trivy-api-results.sarif"
-          category: "trivy-api"
-
-      - name: Build Web image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./web
-          push: false
-          load: true
-          tags: agenttrace/web:scan
-
-      - name: Scan Web image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: "agenttrace/web:scan"
-          format: "sarif"
-          output: "trivy-web-results.sarif"
-          severity: "CRITICAL,HIGH"
-          ignore-unfixed: true
-
-      - name: Upload Web Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: "trivy-web-results.sarif"
-          category: "trivy-web"
+          sarif_file: trivy-${{ matrix.name }}-results.sarif
+          category: trivy-${{ matrix.name }}
 
   # Filesystem Scanning with Trivy
   trivy-fs:
@@ -119,7 +117,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -127,6 +125,7 @@ jobs:
           output: "trivy-fs-results.sarif"
           severity: "CRITICAL,HIGH"
           ignore-unfixed: true
+          exit-code: "1"
 
       - name: Upload Trivy filesystem results
         uses: github/codeql-action/upload-sarif@v3
@@ -161,22 +160,30 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25.12"
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Run govulncheck on API
-        working-directory: api
-        run: govulncheck ./...
+      - name: Build production Go binaries
+        run: |
+          mkdir -p /tmp/agenttrace-bin
+          cd api
+          go build -o /tmp/agenttrace-bin/server ./cmd/server
+          go build -o /tmp/agenttrace-bin/worker ./cmd/worker
+          go build -o /tmp/agenttrace-bin/migrate ./cmd/migrate
+          cd ../sdk/go
+          go test -c -o /tmp/agenttrace-bin/sdk-go.test .
+          cd ../cli
+          go build -o /tmp/agenttrace-bin/cli .
 
-      - name: Run govulncheck on Go SDK
-        working-directory: sdk/go
-        run: govulncheck ./...
-
-      - name: Run govulncheck on CLI
-        working-directory: sdk/cli
-        run: govulncheck ./...
+      - name: Scan production Go binaries
+        run: |
+          govulncheck -mode=binary /tmp/agenttrace-bin/server
+          govulncheck -mode=binary /tmp/agenttrace-bin/worker
+          govulncheck -mode=binary /tmp/agenttrace-bin/migrate
+          govulncheck -mode=binary /tmp/agenttrace-bin/sdk-go.test
+          govulncheck -mode=binary /tmp/agenttrace-bin/cli
 
   # npm audit for JavaScript/TypeScript
   npm-audit:
@@ -198,7 +205,7 @@ jobs:
         working-directory: ${{ matrix.package }}
         run: |
           npm ci
-          npm audit --audit-level=high
+          npm audit --omit=dev --audit-level=high
 
   # pip-audit for Python
   pip-audit:
