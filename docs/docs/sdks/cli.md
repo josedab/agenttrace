@@ -48,6 +48,23 @@ agenttrace --host "https://your-agenttrace-instance.com" wrap -- python agent.py
 
 ## Commands
 
+### `init` - One-command onboarding
+
+Run from an existing Python, Node.js, or Go project:
+
+```bash
+agenttrace init
+```
+
+The command detects supported frameworks, writes a secret-free `.agenttrace.yaml`, and prints the next instrumentation command. It never overwrites an existing config unless `--force` is supplied and refuses to replace symlinks.
+
+```bash
+agenttrace init --dir ./my-agent
+agenttrace init --force
+```
+
+API keys are referenced through `AGENTTRACE_API_KEY`; they are never written to the config.
+
 ### `wrap` - Trace Command Execution
 
 The `wrap` command wraps any command-line tool and automatically traces its execution.
@@ -122,13 +139,21 @@ agenttrace mcp [flags]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--port` | int | 8765 | Port to run the MCP server on |
+| `--port` | int | 8765 | Port to run the MCP server on (1-65535) |
+| `--host` | string | `127.0.0.1` | Loopback address to bind to |
+| `--project-id` | string | API-key project | Optional explicit project header |
 
 #### Usage
 
 ```bash
 agenttrace mcp --port 8080
 ```
+
+#### Binding and exposure
+
+The MCP server holds your API key and answers **unauthenticated** local requests, so it binds to the loopback interface only. `--host` accepts loopback IP addresses (for example `127.0.0.1` or `::1`) and `localhost`; any routable address, including `0.0.0.0`, is refused at startup with an explanatory error. The startup banner prints the address that was actually bound. For remote access, front the loopback listener with a tunnel or reverse proxy that performs its own authentication.
+
+Connections are bounded by read-header (5s), read (30s), write (60s), and idle (120s) timeouts, so a stalled client cannot hold a connection open indefinitely. Outbound API calls inherit the HTTP request context, so a cancelled tool call stops its upstream request.
 
 #### Available MCP Tools
 
@@ -141,6 +166,11 @@ The MCP server exposes the following tools for AI assistants:
 | `agenttrace_generation` | Log an LLM generation/completion |
 | `agenttrace_score` | Submit a score for the current trace |
 | `agenttrace_prompt_get` | Fetch a prompt by name |
+| `agenttrace_trace_search` | Search traces in the scoped project (read-only) |
+| `agenttrace_trace_get` | Get a source-free trace summary (read-only) |
+| `agenttrace_evaluation_summary` | Summarize evaluators and Eval Hub runs (read-only) |
+
+Read-only trace responses omit inputs, outputs, metadata, commands, file content, and diffs. Credentials remain in the local CLI process and are sent only to the configured AgentTrace host.
 
 #### MCP Tool Schemas
 
@@ -190,6 +220,23 @@ The MCP server exposes the following tools for AI assistants:
   "variables": "object (optional)"
 }
 ```
+
+### `migrate` - Langfuse JSON import
+
+Validate a local export without credentials leaving the machine:
+
+```bash
+agenttrace migrate validate --source langfuse --source-file ./langfuse-export.json
+```
+
+Dry-run and import:
+
+```bash
+agenttrace migrate --source langfuse --source-file ./langfuse-export.json --dry-run
+agenttrace migrate --source langfuse --source-file ./langfuse-export.json
+```
+
+The importer supports traces, observations, scores, and prompts. File fingerprints create stable resumable job IDs, and imported source IDs are idempotent. Use `--batch-size` from 1 to 500.
 
 ## Features
 
@@ -284,8 +331,10 @@ graph TB
     CLI[AgentTrace CLI]
 
     subgraph Commands
+        Init[init command]
         Wrap[wrap command]
         MCP[mcp command]
+        Migrate[migrate command]
     end
 
     subgraph Wrapper Package
@@ -304,6 +353,8 @@ graph TB
 
     CLI --> Wrap
     CLI --> MCP
+    CLI --> Init
+    CLI --> Migrate
 
     Wrap --> W
     W --> CM
@@ -356,10 +407,10 @@ Add to your Cursor configuration:
 Connect to the MCP server endpoints:
 
 ```bash
-# Start the server
+# Start the server (loopback only)
 agenttrace mcp --port 8765
 
-# Endpoints available:
+# Endpoints available on http://127.0.0.1:8765:
 # GET  /mcp/capabilities - Server capabilities
 # GET  /mcp/tools/list   - List available tools
 # POST /mcp/tools/call   - Call a tool

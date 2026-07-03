@@ -14,6 +14,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'getting-started/quickstart',
         'getting-started/installation',
+        'getting-started/development',
         'getting-started/first-trace',
         'getting-started/concepts',
         'getting-started/comparison',
@@ -29,6 +30,7 @@ const sidebars: SidebarsConfig = {
         'features/sessions',
         'features/scores',
         'features/cost-tracking',
+        'features/outcome-analytics',
         'features/latency-analysis',
         'features/anomaly-detection',
         'features/prompt-library',
@@ -59,6 +61,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Evaluation',
       items: [
+        'evaluation/eval-hub',
         'evaluation/overview',
         'evaluation/llm-as-judge',
         'evaluation/human-annotation',
@@ -73,6 +76,7 @@ const sidebars: SidebarsConfig = {
         'agent-features/git-linking',
         'agent-features/file-operations',
         'agent-features/terminal-commands',
+        'agent-features/replay-debugger',
       ],
     },
     {
@@ -124,6 +128,7 @@ const sidebars: SidebarsConfig = {
         'api-reference/git-links',
         'api-reference/ci-runs',
         'api-reference/webhooks',
+        'api-reference/next-generation',
         'api-reference/graphql',
       ],
     },
@@ -135,6 +140,7 @@ const sidebars: SidebarsConfig = {
         'self-hosting/docker-compose',
         'self-hosting/kubernetes',
         'self-hosting/configuration',
+        'self-hosting/privacy-mode',
         'self-hosting/scaling',
         'self-hosting/backup',
       ],

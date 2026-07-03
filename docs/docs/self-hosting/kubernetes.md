@@ -1,223 +1,118 @@
 ---
 sidebar_position: 3
 title: "Kubernetes Deployment"
-description: "Deploy AgentTrace on Kubernetes using kustomize with the manifests in deploy/kubernetes/."
+description: "Deploy AgentTrace with the bundled Kustomize resources."
 ---
 
 # Kubernetes Deployment
 
-This guide covers deploying AgentTrace on Kubernetes using the kustomize manifests provided in `deploy/kubernetes/`. This is the recommended approach for production environments requiring high availability and scalability.
+The Kustomize base deploys the API, worker, web dashboard, PostgreSQL, ClickHouse, Redis, ingress, services, and persistent volumes.
 
 ## Prerequisites
 
-- Kubernetes cluster 1.26+
-- `kubectl` configured with cluster access
-- `kustomize` v5+ (or `kubectl` with built-in kustomize)
-- Persistent volume provisioner (for database storage)
-- Ingress controller (nginx-ingress or traefik recommended)
+- Kubernetes 1.27+
+- `kubectl` with Kustomize support
+- A default or explicitly configured storage class
+- An ingress controller
+- API and web images published with the same immutable release tag
 
-## Repository Structure
+The published web image uses same-origin API requests by default, which matches the combined ingress manifest. Only provide a build-time URL when the browser must reach the API on a different origin:
 
-The Kubernetes manifests are located at `deploy/kubernetes/`:
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_API_URL=https://agenttrace.example.com \
+  -t agenttrace/web:0.1.0 \
+  web
 
-```
-deploy/kubernetes/
-├── kustomization.yaml       # Kustomize configuration
-├── namespace.yaml           # agenttrace namespace
-├── configmap.yaml           # Application configuration
-├── secrets.yaml.example     # Secret template (copy and fill in)
-├── api.yaml                 # API server deployment + service
-├── worker.yaml              # Background worker deployment
-├── postgres.yaml            # PostgreSQL StatefulSet
-├── clickhouse.yaml          # ClickHouse StatefulSet
-├── redis.yaml               # Redis deployment
-├── ingress.yaml             # Ingress resource
-├── network-policies.yaml    # Network segmentation
-└── hpa.yaml                 # Horizontal Pod Autoscaler
+docker build \
+  --build-arg VERSION=0.1.0 \
+  -t agenttrace/api:0.1.0 \
+  api
 ```
 
-## Deployment Steps
-
-### 1. Create Secrets
-
-Copy the secrets template and fill in your values:
+## Configure
 
 ```bash
 cd deploy/kubernetes
 cp secrets.yaml.example secrets.yaml
 ```
 
-Edit `secrets.yaml` with base64-encoded values:
+Replace every secret placeholder, including:
+
+- PostgreSQL, ClickHouse, and Redis passwords
+- JWT and NextAuth secrets
+
+Update these placeholders in the manifests:
+
+- `agenttrace.example.com` in `configmap.yaml`, `web.yaml`, and `ingress.yaml`
+- image tags in `kustomization.yaml`
+- storage sizes/classes in StatefulSets
+
+Preview the rendered resources:
 
 ```bash
-# Generate base64 values
-echo -n 'your-secure-password' | base64
-
-# Generate a random secret
-openssl rand -base64 32 | tr -d '\n' | base64
-```
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: agenttrace-secrets
-  namespace: agenttrace
-type: Opaque
-data:
-  postgres-password: <base64-encoded>
-  clickhouse-password: <base64-encoded>
-  redis-password: <base64-encoded>
-  jwt-secret: <base64-encoded>
-  encryption-key: <base64-encoded>
-  nextauth-secret: <base64-encoded>
-```
-
-### 2. Configure the Application
-
-Edit `configmap.yaml` with your domain and settings:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: agenttrace-config
-  namespace: agenttrace
-data:
-  NEXTAUTH_URL: "https://agenttrace.your-company.com"
-  API_HOST: "0.0.0.0"
-  API_PORT: "8080"
-  LOG_LEVEL: "info"
-```
-
-### 3. Configure Ingress
-
-Edit `ingress.yaml` with your domain and TLS settings:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: agenttrace-ingress
-  namespace: agenttrace
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  tls:
-    - hosts:
-        - agenttrace.your-company.com
-      secretName: agenttrace-tls
-  rules:
-    - host: agenttrace.your-company.com
-      http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: agenttrace-api
-                port:
-                  number: 8080
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: agenttrace-web
-                port:
-                  number: 3000
-```
-
-### 4. Apply Manifests
-
-```bash
-# Preview what will be applied
 kubectl kustomize deploy/kubernetes/
+```
 
-# Apply all resources
+## Deploy
+
+```bash
+kubectl apply -f deploy/kubernetes/namespace.yaml
+kubectl apply -f deploy/kubernetes/secrets.yaml
 kubectl apply -k deploy/kubernetes/
-
-# Verify pods are running
-kubectl -n agenttrace get pods
 ```
 
-### 5. Run Migrations
+API and worker pods run `/app/migrate -path /app/migrations up` in init containers. Migrations are idempotent and serialized with a PostgreSQL advisory lock, so concurrent pod starts are safe.
+
+## Verify
 
 ```bash
-kubectl -n agenttrace exec deploy/agenttrace-api -- /app/server migrate up
-```
-
-### 6. Verify Deployment
-
-```bash
-# Check pod status
 kubectl -n agenttrace get pods
-
-# Check service endpoints
 kubectl -n agenttrace get svc
+kubectl -n agenttrace rollout status deploy/agenttrace-api
+kubectl -n agenttrace rollout status deploy/agenttrace-worker
+kubectl -n agenttrace rollout status deploy/agenttrace-web
+```
 
-# Test API health
+Check migration init-container logs:
+
+```bash
+kubectl -n agenttrace logs deploy/agenttrace-api -c migrate
+```
+
+Port-forward for a direct smoke test:
+
+```bash
 kubectl -n agenttrace port-forward svc/agenttrace-api 8080:8080
 curl http://localhost:8080/health
-```
-
-## Storage Configuration
-
-### Persistent Volumes
-
-The StatefulSets for PostgreSQL and ClickHouse require persistent volumes. Adjust storage class and size in the manifests:
-
-```yaml
-volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      storageClassName: gp3    # Adjust for your cloud provider
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 100Gi       # Adjust based on expected volume
-```
-
-## Autoscaling
-
-The `hpa.yaml` manifest configures horizontal pod autoscaling for the API server:
-
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: agenttrace-api-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: agenttrace-api
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
+curl http://localhost:8080/readyz
+curl http://localhost:8080/metrics
 ```
 
 ## Upgrading
 
+1. Back up PostgreSQL, ClickHouse, and any external object storage.
+2. Publish API and web images with a new immutable tag.
+3. Update `kustomization.yaml`.
+4. Review `kubectl diff -k deploy/kubernetes/`.
+5. Apply and monitor rollouts.
+
 ```bash
-# Update image tags in kustomization.yaml, then:
+kubectl diff -k deploy/kubernetes/
 kubectl apply -k deploy/kubernetes/
-
-# Run any new migrations
-kubectl -n agenttrace exec deploy/agenttrace-api -- /app/server migrate up
-
-# Monitor rollout
 kubectl -n agenttrace rollout status deploy/agenttrace-api
+kubectl -n agenttrace rollout status deploy/agenttrace-worker
+kubectl -n agenttrace rollout status deploy/agenttrace-web
 ```
+
+The init migration gate runs before each new API and worker pod becomes ready.
+
+## Network Policies and Autoscaling
+
+`network-policies.yaml` and `hpa.yaml` are provided as opt-in production overlays. Review namespace labels, allowed outbound destinations, and metrics-server availability before enabling them.
 
 ## Related
 
-- [Configuration Reference](./configuration.md) — all environment variables
-- [Scaling Guide](./scaling.md) — scaling strategies for each component
-- [Backup & Restore](./backup.md) — backup procedures for Kubernetes
+- [Configuration Reference](./configuration.md)
+- [Docker Compose Deployment](./docker-compose.md)
+- [Backup & Restore](./backup.md)

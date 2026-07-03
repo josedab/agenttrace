@@ -5,16 +5,21 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'AgentTrace',
   tagline: 'Observability Platform for AI Coding Agents',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/logo.svg',
 
   url: 'https://docs.agenttrace.io',
   baseUrl: '/',
 
-  organizationName: 'agenttrace',
+  organizationName: 'josedab',
   projectName: 'agenttrace',
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   i18n: {
     defaultLocale: 'en',
@@ -27,7 +32,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/agenttrace/agenttrace/tree/main/docs/',
+          editUrl: 'https://github.com/josedab/agenttrace/tree/main/docs/',
           routeBasePath: '/',
         },
         blog: false,
@@ -39,7 +44,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/social-card.png',
+    image: 'img/social-card.svg',
     navbar: {
       title: 'AgentTrace',
       logo: {
@@ -64,7 +69,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/agenttrace/agenttrace',
+          href: 'https://github.com/josedab/agenttrace',
           label: 'GitHub',
           position: 'right',
         },
@@ -78,7 +83,7 @@ const config: Config = {
           items: [
             {
               label: 'Getting Started',
-              to: '/getting-started',
+              to: '/getting-started/quickstart',
             },
             {
               label: 'API Reference',
@@ -108,11 +113,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/agenttrace/agenttrace',
-            },
-            {
-              label: 'Status',
-              href: 'https://status.agenttrace.io',
+              href: 'https://github.com/josedab/agenttrace',
             },
           ],
         },

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Project-scoped agent outcome analytics across traces, git links, CI runs, pull requests, costs, models, and agents
+- Safe checkpoint-aware replay plans with deterministic recorded-generation comparison
+- Versioned Eval Hub packages with private, organization, and public visibility, provenance, forks, and idempotent runs
+- `agenttrace init`, project-aware read-only MCP tools, and resumable Langfuse JSON export import
+- Expiring, revocable, server-redacted trace and replay share links
+- Optional GitHub outcome reports and SSRF-safe Slack, Discord, and generic webhook team digests
+- Enforceable local/private no-egress mode with effective capability reporting
 - OpenTelemetry Collector support for exporting traces to external backends (Jaeger, Grafana Tempo, Datadog, Honeycomb, New Relic) (#87)
 - OTLP receiver for ingesting traces from OpenTelemetry-instrumented applications (#87)
 - Architecture Decision Records (ADRs) documenting major architectural choices (#92)
@@ -25,9 +32,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hello world examples for Python, TypeScript, and Go (#69)
 
 ### Changed
+- No-egress mode now refuses every runtime-created outbound surface, including OpenTelemetry destinations and exports, federation peers and queries, warehouse connections/tests/syncs, remote export destinations, and remote-source migrations
+- Replay plan execution claims a plan with an atomic conditional transition, refuses concurrent execution with a conflict, and recovers executions abandoned for more than 15 minutes
+- Eval Hub persists a durable run before external execution, resolves idempotency-key races by returning the first run, and rolls back partially materialized dataset forks
+- Team digest delivery validates every webhook before the first send, reports honest per-webhook partial results, and suppresses immediate duplicate sends with a delivery key
+- Langfuse imports derive deterministic identifiers, so a retry after a failed ledger write rewrites the same records instead of duplicating them
+- The CLI MCP server binds to loopback only, prints the bound address, applies read/write/idle timeouts, and serializes shared trace state
+- Consolidated production navigation around Trace & Replay, Eval Hub, Prompts, Cost Center, and Collaboration
+- Replaced hardcoded replay and marketplace paths with repository-backed project data
 - Improved documentation structure with better navigation (#90)
 
 ### Fixed
+- Sensitive-data redaction no longer collapses whitespace and newlines and replaces only credential-bearing URL substrings
+- Handlers no longer continue with an empty project or user identity when the request context is missing one
+- Benchmarks can no longer be published or forked as Eval Hub packages, which previously crossed project ownership
+- Eval Hub and outcome digest interfaces expose labelled controls, accessible clipboard failures, and stable run idempotency across retries and double-clicks
 - Various documentation typos and broken links (#93)
 
 ## [0.1.0] - 2024-01-15

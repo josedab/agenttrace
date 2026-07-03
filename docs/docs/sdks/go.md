@@ -12,7 +12,7 @@ The AgentTrace Go SDK provides observability for Go-based AI agents with idiomat
 go get github.com/agenttrace/agenttrace-go
 ```
 
-**Requirements**: Go 1.21+
+**Requirements**: Go 1.25+
 
 ## Quick Start
 

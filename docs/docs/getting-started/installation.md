@@ -26,7 +26,7 @@ For production sizing, see the [Self-Hosting Overview](/self-hosting/overview).
 
 ## Docker Compose (Recommended)
 
-Docker Compose deploys all components — API server, web dashboard, PostgreSQL, ClickHouse, Redis, and MinIO — in a single command.
+Docker Compose deploys the API server, web dashboard, worker, PostgreSQL, ClickHouse, and Redis in a single command. Configure external S3-compatible storage if you need exports.
 
 ### 1. Clone the Repository
 
@@ -48,15 +48,15 @@ Open `.env` and set the **required** values:
 POSTGRES_PASSWORD=change-me-to-a-secure-password
 CLICKHOUSE_PASSWORD=change-me-to-a-secure-password
 REDIS_PASSWORD=change-me-to-a-secure-password
-MINIO_ROOT_PASSWORD=change-me-to-a-secure-password
 
 # Security keys — generate with: openssl rand -base64 32
 JWT_SECRET=<generated-secret>
-ENCRYPTION_KEY=<generated-secret>
 
-# NextAuth
-NEXTAUTH_URL=http://localhost:3000
+# Public URLs and browser security
+NEXTAUTH_URL=https://agenttrace.example.com
 NEXTAUTH_SECRET=<generated-secret>
+NEXT_PUBLIC_API_URL=https://agenttrace.example.com
+CORS_ALLOWED_ORIGINS=https://agenttrace.example.com
 ```
 
 See [`deploy/.env.example`](https://github.com/agenttrace/agenttrace/blob/main/deploy/.env.example) for the full list of available variables, including optional OAuth and SMTP settings.
@@ -64,16 +64,20 @@ See [`deploy/.env.example`](https://github.com/agenttrace/agenttrace/blob/main/d
 ### 3. Start AgentTrace
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-This pulls the images and starts all services. On first run it may take a few minutes.
+This builds the application images and starts all services. Database migrations run automatically before the API and worker start.
 
-### 4. Run Database Migrations
+### 4. Verify Startup Gates
 
 ```bash
-docker compose exec api /app/server migrate up
+docker compose ps
+docker compose logs migrate
+docker compose run --rm migrate
 ```
+
+The one-shot services must exit with code `0`. Re-running `migrate` is safe and should report no changes.
 
 ### 5. Verify the Deployment
 
@@ -90,10 +94,12 @@ You should see a response like:
 ```json
 {
   "status": "healthy",
-  "version": "1.0.0",
-  "postgres": "connected",
-  "clickhouse": "connected",
-  "redis": "connected"
+  "version": "0.1.0",
+  "checks": {
+    "postgres": "healthy",
+    "clickhouse": "healthy",
+    "redis": "healthy"
+  }
 }
 ```
 
@@ -108,20 +114,17 @@ Navigate to [http://localhost:3000](http://localhost:3000) in your browser to ac
 docker compose down
 
 # Restart
-docker compose up -d
+docker compose up -d --build
 ```
 
 ### Upgrading
 
 ```bash
-# Pull the latest images
+# Update VERSION in .env, then pull or rebuild
 docker compose pull
 
-# Restart with the new version
-docker compose down && docker compose up -d
-
-# Run any new migrations
-docker compose exec api /app/server migrate up
+# Migrations run before API and worker startup
+docker compose up -d --build
 ```
 
 ## Kubernetes
@@ -144,27 +147,19 @@ cd deploy/kubernetes
 cp secrets.yaml.example secrets.yaml
 # Edit secrets.yaml with your base64-encoded credentials
 
-# Apply all resources
+# Apply secrets, then the Kustomize base
+kubectl apply -f namespace.yaml
+kubectl apply -f secrets.yaml
 kubectl apply -k .
 ```
 
-This creates a dedicated `agenttrace` namespace and deploys all components including the API server, workers, PostgreSQL, ClickHouse, Redis, ingress, network policies, and horizontal pod autoscalers.
-
-### Using Helm
-
-```bash
-helm repo add agenttrace https://charts.agenttrace.io
-helm install agenttrace agenttrace/agenttrace \
-  --namespace agenttrace \
-  --create-namespace \
-  -f values.yaml
-```
+This deploys the API, worker, web dashboard, PostgreSQL, ClickHouse, Redis, and ingress. Migration init containers gate API and worker startup.
 
 ### Verify the Cluster
 
 ```bash
 kubectl get pods -n agenttrace
-kubectl logs -n agenttrace deployment/api --tail=50
+kubectl logs -n agenttrace deployment/agenttrace-api --tail=50
 ```
 
 ## What's Next?

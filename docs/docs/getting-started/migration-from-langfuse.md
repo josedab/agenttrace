@@ -6,7 +6,59 @@ description: Guide for migrating from Langfuse to AgentTrace — SDK mapping, AP
 
 # Migration from Langfuse
 
-This guide helps you migrate from Langfuse to AgentTrace. The APIs are intentionally similar, so migration is straightforward.
+This guide covers the documented compatibility subset. AgentTrace does not claim complete Langfuse API parity.
+
+## Import Existing Data
+
+Export JSON from Langfuse, then validate locally:
+
+```bash
+agenttrace migrate validate \
+  --source langfuse \
+  --source-file ./langfuse-export.json
+```
+
+Preview without writing:
+
+```bash
+agenttrace migrate \
+  --source langfuse \
+  --source-file ./langfuse-export.json \
+  --dry-run
+```
+
+Run the import:
+
+```bash
+agenttrace migrate \
+  --source langfuse \
+  --source-file ./langfuse-export.json
+```
+
+The supported export arrays are:
+
+- `traces`
+- `observations` (`SPAN`, `GENERATION`, and `EVENT`)
+- `scores`
+- `prompts`
+
+Datasets, media, annotation queues, and Langfuse-specific organization settings are not imported.
+
+The CLI fingerprints the file and derives a stable job ID. Batches are capped at 500 records, and each source type/ID is recorded in an idempotency ledger. Rerunning the same command resumes safely and skips records that the ledger already reports as imported. Errors are redacted before persistence or display.
+
+### Duplicate safety
+
+Trace, observation, and score imports derive deterministic identifiers from their source IDs; scores previously received random identifiers. Prompt imports instead reuse an existing project prompt version when its name and content match. Together these rules close the window between writing a record and writing its ledger entry:
+
+- if the ledger write fails, the retry rewrites the **same** row instead of creating a duplicate
+- a ledger entry that records an import without an identifier is treated as incomplete and imported again
+- an identical prompt version is reused instead of appending a second version
+- concurrent duplicate batches for deterministic record types converge on the same rows, and the ledger upsert keeps one monotonic entry per source item
+- a successful retry clears the earlier error, including a ledger error, so a resumed job is not reported as failed
+
+Repeating a batch that is already recorded performs no writes and counts the records as skipped.
+
+Server-side database DSNs are intentionally unsupported. This avoids sending source credentials to the AgentTrace API and works with no-egress deployments because the CLI reads the export locally. In no-egress mode the API refuses migrations whose source DSN is anything other than the local `json-export` mode with `422 Unprocessable Entity`.
 
 ## SDK Mapping
 
@@ -105,7 +157,7 @@ Most endpoints are compatible. Key differences:
 | `LANGFUSE_SECRET_KEY` | *(not needed)* | Simplified auth |
 | `LANGFUSE_HOST` | `AGENTTRACE_HOST` | Same purpose |
 
-## Step-by-Step Migration
+## Switch Ongoing Instrumentation
 
 ### 1. Deploy AgentTrace
 

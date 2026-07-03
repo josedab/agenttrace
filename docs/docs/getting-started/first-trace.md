@@ -44,7 +44,7 @@ Requires Node.js 18+.
 go get github.com/agenttrace/agenttrace-go
 ```
 
-Requires Go 1.21+.
+Requires Go 1.25+.
 
 </TabItem>
 </Tabs>
@@ -362,4 +362,4 @@ trace.End(agenttrace.TraceEndOptions{
 - [Python SDK Reference](/sdks/python) — Full API details for the Python SDK
 - [TypeScript SDK Reference](/sdks/typescript) — Full API details for the TypeScript SDK
 - [Go SDK Reference](/sdks/go) — Full API details for the Go SDK
-- [Prompt Management](/prompts) — Version and deploy prompts from the dashboard
+- [Prompt Management](/prompts/overview) — Version and deploy prompts from the dashboard

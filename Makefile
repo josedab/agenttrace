@@ -1,4 +1,4 @@
-.PHONY: all build test lint dev dev-hot dev-api dev-web clean help format format-check docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup health-check doctor test-e2e-api test-e2e-web generate test-coverage test-coverage-api test-coverage-web
+.PHONY: all build test lint dev dev-full dev-hot dev-hot-full dev-api dev-api-full dev-worker dev-web clean help format format-check docs-build docs-serve migrate-pg-up migrate-pg-down migrate-ch-up migrate-ch-down setup setup-full _setup health-check doctor test-e2e-api test-e2e-web generate test-coverage test-coverage-api test-coverage-web docker-up docker-up-full docker-down
 
 # Default target
 all: lint test build
@@ -7,10 +7,15 @@ all: lint test build
 help:
 	@echo "AgentTrace Monorepo Commands:"
 	@echo ""
-	@echo "  make setup        - One-command dev environment setup"
-	@echo "  make dev          - Start dev environment (API + web, Ctrl+C stops both)"
-	@echo "  make dev-hot      - Start dev with Go hot-reload (requires air)"
-	@echo "  make dev-api      - Start only the API server (with databases)"
+	@echo "  make setup        - Set up minimal development (PostgreSQL + ClickHouse)"
+	@echo "  make setup-full   - Set up all services, including Redis and MinIO"
+	@echo "  make dev          - Start minimal API + web development"
+	@echo "  make dev-full     - Start API + web with Redis and MinIO"
+	@echo "  make dev-hot      - Start minimal development with Go hot-reload"
+	@echo "  make dev-hot-full - Start full development with Go hot-reload"
+	@echo "  make dev-api      - Start only the minimal API stack"
+	@echo "  make dev-api-full - Start the API with all services"
+	@echo "  make dev-worker   - Start the background worker and all services"
 	@echo "  make dev-web      - Start only the web frontend"
 	@echo "  make build        - Build all components"
 	@echo "  make test         - Run all tests"
@@ -19,8 +24,9 @@ help:
 	@echo "  make format-check - Check formatting without modifying files"
 	@echo "  make generate     - Run GraphQL code generation"
 	@echo "  make clean        - Clean build artifacts"
-	@echo "  make docker-up    - Start databases via Docker Compose"
-	@echo "  make docker-down  - Stop databases"
+	@echo "  make docker-up    - Start PostgreSQL and ClickHouse"
+	@echo "  make docker-up-full - Start PostgreSQL, ClickHouse, Redis, and MinIO"
+	@echo "  make docker-down  - Stop local services"
 	@echo "  make health-check - Verify API and web are running"
 	@echo "  make doctor       - Check all prerequisites are installed"
 	@echo "  make docs-build   - Build documentation site"
@@ -47,60 +53,121 @@ help:
 # Development
 # ============================================
 
-## dev: Start development environment
+dev: DEV_REDIS=false
+dev: DEV_MINIO=false
+dev: DEV_RATE_LIMIT=false
 dev: docker-up
-	@echo "Starting API server..."
-	@cd api && go run cmd/server/main.go &
-	@API_PID=$$!; \
+
+dev-full: DEV_REDIS=true
+dev-full: DEV_MINIO=true
+dev-full: DEV_RATE_LIMIT=true
+dev-full: docker-up-full
+
+## dev: Start API and web in minimal or full mode
+dev dev-full:
+	@set -e; \
+	echo "Starting API server..."; \
+	cd api; \
+	set -a; if [ -f .env ] && [ "$${AGENTTRACE_DEVCONTAINER:-false}" != "true" ]; then . ./.env; fi; set +a; \
+	export REDIS_ENABLED=$(DEV_REDIS) MINIO_ENABLED=$(DEV_MINIO) RATE_LIMIT_ENABLED=$(DEV_RATE_LIMIT); \
+	go run ./cmd/server & \
+	API_PID=$$!; \
+	WORKER_PID=""; \
+	if [ "$(DEV_REDIS)" = "true" ]; then \
+		echo "Starting background worker..."; \
+		go run ./cmd/worker & \
+		WORKER_PID=$$!; \
+	fi; \
+	cd ../web; \
+	cleanup() { \
+		kill $$API_PID 2>/dev/null || true; \
+		if [ -n "$$WORKER_PID" ]; then kill $$WORKER_PID 2>/dev/null || true; fi; \
+	}; \
+	trap cleanup EXIT INT TERM; \
 	sleep 1; \
 	if ! kill -0 $$API_PID 2>/dev/null; then \
 		echo "ERROR: API server failed to start. Check the output above."; \
+		wait $$API_PID; \
 		exit 1; \
 	fi; \
-	echo "API server PID: $$API_PID"; \
-	trap "kill $$API_PID 2>/dev/null; exit" INT TERM; \
-	echo "Starting web dev server..."; \
-	cd web && npm run dev; \
-	EXIT_CODE=$$?; \
-	kill $$API_PID 2>/dev/null; \
-	if ! kill -0 $$API_PID 2>/dev/null; then \
-		echo ""; \
-		echo "WARNING: API server has stopped. It may have crashed."; \
+	if [ -n "$$WORKER_PID" ] && ! kill -0 $$WORKER_PID 2>/dev/null; then \
+		echo "ERROR: Background worker failed to start. Check the output above."; \
+		wait $$WORKER_PID; \
+		exit 1; \
 	fi; \
-	exit $$EXIT_CODE
+	echo "Starting web dev server..."; \
+	npm run dev
 
-## dev-hot: Start dev environment with Go hot-reload (requires air)
+dev-hot: DEV_REDIS=false
+dev-hot: DEV_MINIO=false
+dev-hot: DEV_RATE_LIMIT=false
 dev-hot: docker-up
+
+dev-hot-full: DEV_REDIS=true
+dev-hot-full: DEV_MINIO=true
+dev-hot-full: DEV_RATE_LIMIT=true
+dev-hot-full: docker-up-full
+
+## dev-hot: Start development with Go hot-reload
+dev-hot dev-hot-full:
 	@if ! command -v air > /dev/null 2>&1; then \
 		echo "Error: 'air' is not installed. Install with: go install github.com/air-verse/air@latest"; \
 		exit 1; \
 	fi
-	@echo "Starting API server with hot-reload..."
-	@cd api && air &
-	@AIR_PID=$$!; \
-	trap "kill $$AIR_PID 2>/dev/null; exit" INT TERM; \
-	echo "Air PID: $$AIR_PID"; \
+	@set -e; \
+	echo "Starting API server with hot-reload..."; \
+	cd api; \
+	set -a; if [ -f .env ] && [ "$${AGENTTRACE_DEVCONTAINER:-false}" != "true" ]; then . ./.env; fi; set +a; \
+	export REDIS_ENABLED=$(DEV_REDIS) MINIO_ENABLED=$(DEV_MINIO) RATE_LIMIT_ENABLED=$(DEV_RATE_LIMIT); \
+	air & \
+	AIR_PID=$$!; \
+	WORKER_PID=""; \
+	if [ "$(DEV_REDIS)" = "true" ]; then \
+		echo "Starting background worker..."; \
+		go run ./cmd/worker & \
+		WORKER_PID=$$!; \
+	fi; \
+	cd ../web; \
+	cleanup() { \
+		kill $$AIR_PID 2>/dev/null || true; \
+		if [ -n "$$WORKER_PID" ]; then kill $$WORKER_PID 2>/dev/null || true; fi; \
+	}; \
+	trap cleanup EXIT INT TERM; \
 	echo "Starting web dev server..."; \
-	cd web && npm run dev; \
-	kill $$AIR_PID 2>/dev/null
+	npm run dev
 
-## dev-api: Start only the API server
+## dev-api: Start only the API server with core services
 dev-api: docker-up
 	@echo "Starting API server..."
-	cd api && go run cmd/server/main.go
+	cd api && $(MAKE) run-core
+
+## dev-api-full: Start only the API server with all services
+dev-api-full: docker-up-full
+	@echo "Starting API server with all services..."
+	cd api && $(MAKE) run-full
+
+## dev-worker: Start the background worker with all services
+dev-worker: docker-up-full
+	@echo "Starting background worker..."
+	cd api && $(MAKE) run-worker
 
 ## dev-web: Start only the web frontend
 dev-web:
 	@echo "Starting web dev server..."
 	cd web && npm run dev
 
-## docker-up: Start development databases
+## docker-up: Start core development databases
 docker-up:
-	docker compose -f deploy/docker-compose.dev.yml up -d
+	docker compose -f deploy/docker-compose.dev.yml up -d --wait postgres clickhouse
+
+## docker-up-full: Start all development services
+docker-up-full:
+	docker compose -f deploy/docker-compose.dev.yml --profile full up -d --wait postgres clickhouse redis minio
+	docker compose -f deploy/docker-compose.dev.yml --profile full run --rm createbuckets
 
 ## docker-down: Stop development databases
 docker-down:
-	docker compose -f deploy/docker-compose.dev.yml down
+	docker compose -f deploy/docker-compose.dev.yml --profile full down
 
 # Prerequisite check (used by setup)
 _check-prerequisites:
@@ -115,8 +182,8 @@ _check-prerequisites:
 	if ! command -v docker > /dev/null 2>&1; then \
 		MISSING="$$MISSING\n  ✗ Docker not found (install from https://docs.docker.com/get-docker/)"; \
 	fi; \
-	if ! command -v migrate > /dev/null 2>&1; then \
-		MISSING="$$MISSING\n  ✗ migrate CLI not found (brew install golang-migrate or go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest)"; \
+	if ! docker compose version > /dev/null 2>&1; then \
+		MISSING="$$MISSING\n  ✗ Docker Compose v2 not found (install the Docker Compose plugin)"; \
 	fi; \
 	if [ -n "$$MISSING" ]; then \
 		echo "Missing required tools:"; \
@@ -128,26 +195,19 @@ _check-prerequisites:
 	fi; \
 	echo "  ✓ All prerequisites found"
 
-## setup: One-command development environment setup
-setup: _check-prerequisites docker-up
+setup: _check-prerequisites
+	$(MAKE) docker-up
+	$(MAKE) _setup
+
+setup-full: _check-prerequisites
+	$(MAKE) docker-up-full
+	$(MAKE) _setup
+
+## _setup: Install dependencies and migrate core databases
+_setup:
 	@echo "Copying environment files (if missing)..."
 	@if [ ! -f api/.env ]; then cp api/.env.example api/.env && echo "  Created api/.env"; else echo "  api/.env already exists, skipping"; fi
 	@if [ ! -f web/.env.local ]; then cp web/.env.example web/.env.local && echo "  Created web/.env.local"; else echo "  web/.env.local already exists, skipping"; fi
-	@if [ ! -f deploy/.env ]; then cp deploy/.env.example deploy/.env && echo "  Created deploy/.env"; else echo "  deploy/.env already exists, skipping"; fi
-	@echo "Waiting for services to be healthy..."
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
-		if docker compose -f deploy/docker-compose.dev.yml ps --format json 2>/dev/null | grep -q '"Health":"healthy"' || \
-		   docker compose -f deploy/docker-compose.dev.yml ps 2>/dev/null | grep -q "(healthy)"; then \
-			echo "  ✓ All services healthy"; \
-			break; \
-		fi; \
-		if [ $$i -eq 12 ]; then \
-			echo "  ⚠ Timeout waiting for services (continuing anyway)"; \
-		else \
-			echo "  Waiting for services... ($$i/12)"; \
-			sleep 5; \
-		fi; \
-	done
 	@echo "Installing web dependencies..."
 	cd web && npm install
 	@echo "Downloading Go modules..."
@@ -157,7 +217,7 @@ setup: _check-prerequisites docker-up
 	@echo "Running ClickHouse migrations..."
 	$(MAKE) migrate-ch-up
 	@echo ""
-	@echo "Setup complete! Run 'make dev' to start the development environment."
+	@echo "Setup complete. Run 'make dev' for the minimal stack or 'make dev-full' for all services."
 
 # ============================================
 # Database Migrations
@@ -221,6 +281,7 @@ build-api:
 	@echo "Building API..."
 	cd api && go build -o bin/server ./cmd/server
 	cd api && go build -o bin/worker ./cmd/worker
+	cd api && go build -o bin/migrate ./cmd/migrate
 
 build-web:
 	@echo "Building web..."
@@ -432,15 +493,15 @@ doctor:
 	else \
 		echo "  ✗ Docker: not found (install from https://docs.docker.com/get-docker/)"; \
 	fi
+	@if docker compose version > /dev/null 2>&1; then \
+		echo "  ✓ Docker Compose: $$(docker compose version --short)"; \
+	else \
+		echo "  ✗ Docker Compose: not found (install the Docker Compose v2 plugin)"; \
+	fi
 	@if command -v golangci-lint > /dev/null 2>&1; then \
 		echo "  ✓ golangci-lint: $$(golangci-lint --version 2>&1 | awk '{print $$4}')"; \
 	else \
 		echo "  ✗ golangci-lint: not found (install from https://golangci-lint.run/welcome/install/)"; \
-	fi
-	@if command -v migrate > /dev/null 2>&1; then \
-		echo "  ✓ migrate: installed"; \
-	else \
-		echo "  ✗ migrate: not found (brew install golang-migrate or go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest)"; \
 	fi
 	@if command -v pre-commit > /dev/null 2>&1; then \
 		echo "  ✓ pre-commit: $$(pre-commit --version)"; \

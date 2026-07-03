@@ -78,9 +78,9 @@ AgentTrace's Go + ClickHouse architecture provides significant performance advan
 | Metric | AgentTrace | Typical TS-based Platform |
 |--------|:----------:|:-------------------------:|
 | Ingestion throughput | ~50K events/sec | ~5K events/sec |
-| Query latency (1B traces) | <100ms (ClickHouse) | >1s (PostgreSQL) |
+| Query latency (1B traces) | `<100ms` (ClickHouse) | `>1s` (PostgreSQL) |
 | Memory footprint (API) | ~50MB | ~200MB |
-| Cold start time | <1s | ~5s |
+| Cold start time | `<1s` | ~5s |
 
 *Benchmarks based on internal testing. Your results may vary based on hardware and configuration.*
 

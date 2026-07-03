@@ -9,7 +9,7 @@ Get AgentTrace up and running in under 5 minutes.
 ## Prerequisites
 
 - An AgentTrace account (or self-hosted instance)
-- Python 3.9+, Node.js 18+, or Go 1.21+
+- Python 3.9+, Node.js 18+, or Go 1.25+
 
 ## Step 1: Get Your API Key
 
@@ -61,6 +61,16 @@ curl -sSL https://get.agenttrace.io/cli | sh
 </Tabs>
 
 ## Step 3: Initialize AgentTrace
+
+For an existing project, the CLI provides the shortest path:
+
+```bash
+cd your-agent-project
+agenttrace init
+export AGENTTRACE_API_KEY="sk-at-..."
+```
+
+`agenttrace init` detects supported Python, Node.js, and Go frameworks, creates `.agenttrace.yaml` without secrets, and prints the exact next command. It never overwrites without `--force`.
 
 <Tabs>
 <TabItem value="python" label="Python" default>
@@ -186,8 +196,6 @@ agenttrace wrap --name "code-review" -- ./review-pr.sh
 1. Go to your [AgentTrace dashboard](https://app.agenttrace.io)
 2. Navigate to **Traces**
 3. You'll see your trace with timing, inputs, and outputs
-
-![Trace View](./img/trace-view.png)
 
 ## What's Next?
 

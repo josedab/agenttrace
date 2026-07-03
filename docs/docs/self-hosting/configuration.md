@@ -1,130 +1,117 @@
 ---
 sidebar_position: 4
 title: "Configuration Reference"
-description: "All AgentTrace environment variables with descriptions and default values."
+description: "Production environment variables for AgentTrace."
 ---
 
 # Configuration Reference
 
-This page documents all environment variables used to configure AgentTrace. These are defined in `deploy/.env.example` and can be set in your `.env` file (Docker Compose) or ConfigMap/Secrets (Kubernetes).
+The canonical copy-ready configuration is [`deploy/.env.example`](https://github.com/agenttrace/agenttrace/blob/main/deploy/.env.example).
 
-## Database Credentials (Required)
+## Required Deployment Values
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRES_USER` | PostgreSQL username | `agenttrace` |
-| `POSTGRES_PASSWORD` | PostgreSQL password | — (required) |
-| `POSTGRES_DB` | PostgreSQL database name | `agenttrace` |
-| `CLICKHOUSE_USER` | ClickHouse username | `default` |
-| `CLICKHOUSE_PASSWORD` | ClickHouse password | — (required) |
-| `CLICKHOUSE_DB` | ClickHouse database name | `agenttrace` |
-| `REDIS_PASSWORD` | Redis password | — (required) |
-| `MINIO_ROOT_USER` | MinIO root username | `agenttrace` |
-| `MINIO_ROOT_PASSWORD` | MinIO root password | — (required) |
+| Variable | Purpose |
+|----------|---------|
+| `VERSION` | Immutable AgentTrace API and web image tag |
+| `POSTGRES_PASSWORD` | PostgreSQL password |
+| `CLICKHOUSE_PASSWORD` | ClickHouse password |
+| `REDIS_PASSWORD` | Redis password |
+| `JWT_SECRET` | API JWT signing secret |
+| `NEXTAUTH_SECRET` | Web session secret |
+| `NEXTAUTH_URL` | Public web URL |
+| `NEXT_PUBLIC_API_URL` | Public API URL embedded into the web image |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated browser origins allowed by the API |
 
-## Security Keys (Required)
+Placeholder values beginning with `change-me` are rejected in production.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `JWT_SECRET` | Secret key for signing JWT tokens. Generate with `openssl rand -base64 32`. | — (required) |
-| `ENCRYPTION_KEY` | Key for encrypting sensitive data at rest (API keys, credentials). Generate with `openssl rand -base64 32`. | — (required) |
+The web container also uses `API_INTERNAL_URL` for server-side authentication calls and `AUTH_TRUST_HOST=true` when it runs behind the configured proxy/ingress.
 
-## NextAuth Configuration (Required)
+## Server and Browser Security
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NEXTAUTH_URL` | Public-facing URL of your AgentTrace instance (e.g., `https://agenttrace.your-company.com`). | — (required) |
-| `NEXTAUTH_SECRET` | Secret for NextAuth session encryption. Generate with `openssl rand -base64 32`. | — (required) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SERVER_HOST` / `API_HOST` | `0.0.0.0` | API bind address |
+| `SERVER_PORT` / `API_PORT` | `8080` | API port |
+| `SERVER_ENV` / `ENVIRONMENT` | `development` | Set to `production` in deployments |
+| `SERVER_CSRF_ENABLED` | `true` | Enable CSRF middleware |
+| `SERVER_SECURE_COOKIES` | `false` | Require secure cookies; production Compose sets `true` |
+| `CORS_ALLOWED_ORIGINS` | `*` | Explicit origins are required in production |
+| `CORS_ALLOW_CREDENTIALS` | `false` | Allow browser credentials for approved origins |
+| `PUBLIC_URL` | — | Public web origin used when returning share links and dashboard links |
 
-## OAuth Providers (Optional)
+## Privacy and No-Egress
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID for Google Sign-In. | — |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret. | — |
-| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID for GitHub Sign-In. | — |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret. | — |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PRIVACY_NO_EGRESS` | `false` | Block outbound integrations at runtime |
+| `PRIVACY_REDACTION_ENABLED` | `true` | Enable deterministic redaction for public/shareable data |
 
-## API Configuration (Optional)
+See [Local and Private Mode](/self-hosting/privacy-mode) for conflict validation and effective capabilities.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `API_HOST` | Host address the API server binds to. | `0.0.0.0` |
-| `API_PORT` | Port the API server listens on. | `8080` |
-| `NEXT_PUBLIC_API_URL` | Internal URL for the web frontend to reach the API. In Docker Compose, use the service name (e.g., `http://api:8080`). | `http://api:8080` |
-| `LOG_LEVEL` | Log verbosity. Options: `debug`, `info`, `warn`, `error`. | `info` |
+## Authentication
 
-## External Services (Optional)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | — | JWT signing key |
+| `JWT_ACCESS_EXPIRY_MINUTES` | `1440` | Access-token lifetime |
+| `JWT_REFRESH_EXPIRY_DAYS` | `7` | Refresh-token lifetime |
+| `JWT_ISSUER` | `agenttrace` | Expected token issuer |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key. Required for LLM-as-Judge evaluators and the prompt playground. | — |
+## Database Configuration
 
-## Deployment (Optional)
+Component variables and full connection URLs are both supported. Full URLs override component values.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VERSION` | Docker image tag to use. | `latest` |
-| `WEB_PORT` | Port to expose the web dashboard on the host. | `3000` |
+| Service | Component variables | Full URL |
+|---------|---------------------|----------|
+| PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_SSL_MODE` | `DATABASE_URL` |
+| ClickHouse | `CLICKHOUSE_HOST`, `CLICKHOUSE_PORT`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, `CLICKHOUSE_DB` | `CLICKHOUSE_DSN` |
+| Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB` | `REDIS_URL` |
 
-## Connection URLs
+`CLICKHOUSE_DB` must remain `agenttrace`; the packaged ClickHouse migrations target that canonical database.
 
-These are typically constructed from the individual credential variables above and configured in the Docker Compose file. Override them if using external managed services.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Full PostgreSQL connection string. | `postgres://agenttrace:<password>@postgres:5432/agenttrace` |
-| `CLICKHOUSE_URL` | Full ClickHouse connection string. | `clickhouse://default:<password>@clickhouse:9000/agenttrace` |
-| `REDIS_URL` | Full Redis connection string. | `redis://:<password>@redis:6379` |
-| `MINIO_ENDPOINT` | MinIO or S3-compatible endpoint. | `minio:9000` |
-
-## Using Managed Services
-
-You can replace any infrastructure component with a managed service by overriding the connection URL:
+For an internal database without TLS, set both:
 
 ```bash
-# Use AWS RDS for PostgreSQL
-DATABASE_URL=postgres://user:pass@your-rds-instance.amazonaws.com:5432/agenttrace
-
-# Use ClickHouse Cloud
-CLICKHOUSE_URL=clickhouse://default:pass@your-instance.clickhouse.cloud:9440/agenttrace?secure=true
-
-# Use AWS ElastiCache for Redis
-REDIS_URL=redis://your-elasticache.amazonaws.com:6379
-
-# Use AWS S3 instead of MinIO
-MINIO_ENDPOINT=s3.amazonaws.com
-AWS_ACCESS_KEY_ID=your-key
-AWS_SECRET_ACCESS_KEY=your-secret
-S3_BUCKET=your-agenttrace-bucket
-S3_REGION=us-east-1
+POSTGRES_SSL_MODE=disable
+POSTGRES_ALLOW_INSECURE=true
 ```
 
-## SSO Configuration (Enterprise)
+Managed production databases should use `require`, `verify-ca`, or `verify-full`.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SSO_ENABLED` | Enable SSO authentication. | `false` |
-| `AGENTTRACE_SSO_DEBUG` | Enable debug logging for SSO. | `false` |
+## Object Storage
 
-See [Single Sign-On](../enterprise/sso.md) for provider-specific configuration.
+| Variable | Default |
+|----------|---------|
+| `MINIO_ENABLED` | `true` |
+| `MINIO_ENDPOINT` | `localhost:9002` |
+| `MINIO_ACCESS_KEY` | `agenttrace` |
+| `MINIO_SECRET_KEY` | — |
+| `MINIO_USE_SSL` | `false` |
+| `MINIO_BUCKET` | `agenttrace-exports` |
 
-## Generating Secrets
+## Optional Integrations
 
-Generate all required secrets at once:
+| Variable | Description |
+|----------|-------------|
+| `OPENAI_API_KEY` / `EVAL_API_KEY` | LLM evaluations |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth |
+| `GITHUB_REPORTING_ENABLED` | Enable optional outcome report delivery |
+| `GITHUB_API_URL` | GitHub REST API base URL |
+| `GITHUB_REPORT_TOKEN` | Token used only for optional report delivery |
+| `OAUTH_CALLBACK_SECRET` | Shared secret authenticating Auth.js callbacks to the API; required with OAuth |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook verification |
+| `SENTRY_ENABLED`, `SENTRY_DSN` | Error reporting |
+| `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` | Sentry release context |
+| `SENTRY_SAMPLE_RATE`, `SENTRY_TRACES_SAMPLE_RATE` | Sentry sampling |
 
-```bash
-echo "JWT_SECRET=$(openssl rand -base64 32)"
-echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
-echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)"
-echo "POSTGRES_PASSWORD=$(openssl rand -base64 24)"
-echo "CLICKHOUSE_PASSWORD=$(openssl rand -base64 24)"
-echo "REDIS_PASSWORD=$(openssl rand -base64 24)"
-echo "MINIO_ROOT_PASSWORD=$(openssl rand -base64 24)"
-```
+## Observability
 
-## Related
+| Variable | Default |
+|----------|---------|
+| `LOG_LEVEL` | `info` |
+| `LOG_FORMAT` | `json` |
+| `OTEL_RECEIVER_ENABLED` | `false` |
+| `OTEL_RECEIVER_GRPC_PORT` | `4317` |
 
-- [Docker Compose Deployment](./docker-compose.md) — using these variables with Docker Compose
-- [Kubernetes Deployment](./kubernetes.md) — using these variables in Kubernetes
-- [Self-Hosting Overview](./overview.md) — architecture and requirements
+Prometheus metrics are available from the API at `/metrics`.

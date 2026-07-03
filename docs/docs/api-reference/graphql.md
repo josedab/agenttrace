@@ -4,6 +4,10 @@ sidebar_position: 10
 
 # GraphQL API
 
+:::warning
+The GraphQL endpoint is development-only. Production deployments should use the authenticated REST API until resolver-level authorization is complete.
+:::
+
 AgentTrace provides a GraphQL API alongside the REST API, offering flexible querying capabilities with type safety and efficient data fetching.
 
 ## Endpoint

@@ -6,7 +6,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/agenttrace/agenttrace?filename=api%2Fgo.mod)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Open-source observability platform for AI coding agents. LLM traces, evaluations, prompt management, and dataset experiments with Langfuse feature parity.
+Open-source outcome observability for AI coding agents. AgentTrace connects recorded runs to replay, evaluations, prompts, costs, git, and CI without inventing missing metrics.
 
 <p align="center">
   <img src="docs/static/img/dashboard-screenshot.png" alt="AgentTrace Dashboard" width="800" />
@@ -23,6 +23,10 @@ Open-source observability platform for AI coding agents. LLM traces, evaluations
 - **Multi-language SDKs**: Python, TypeScript, Go SDKs with auto-instrumentation
 - **CLI Wrapper**: Wrap any CLI tool for automatic tracing
 - **Cost Tracking**: Automatic cost calculation for 400+ LLM models
+- **Outcome Analytics**: Trace-to-commit-to-CI success, regression signals, and cost per successful outcome
+- **Safe Replay Debugger**: Checkpoint-aware timeline inspection and deterministic generation replay without host code execution
+- **Eval Hub**: Versioned private, organization, and public evaluation packages with provenance
+- **Privacy Controls**: Redacted revocable links and enforceable no-egress mode
 
 ## Quick Start
 
@@ -44,7 +48,7 @@ cd agenttrace
 cd deploy
 cp .env.example .env
 # Edit .env with your credentials
-docker compose up -d
+docker compose up -d --build
 ```
 
 ### 2. Access the Dashboard
@@ -73,6 +77,13 @@ go get github.com/agenttrace/agenttrace/sdk/go
 ```
 
 ### 5. Start Tracing
+
+For an existing project, the CLI can detect the runtime and create a secret-free config:
+
+```bash
+agenttrace init
+export AGENTTRACE_API_KEY="sk-at-..."
+```
 
 **Python:**
 ```python
@@ -287,6 +298,9 @@ compiled := prompt.Compile(map[string]any{"name": "Alice"})
 # Install
 go install github.com/agenttrace/agenttrace/sdk/cli@latest
 
+# Detect the project and create .agenttrace.yaml without secrets
+agenttrace init
+
 # Wrap any command
 agenttrace wrap --name "my-agent" -- python my_agent.py
 
@@ -317,6 +331,10 @@ The full API covers 64 endpoints across these categories:
 | CI Runs | `GET/POST /v1/ci-runs`, `…/:ciRunId` | CI pipeline tracking |
 | File Ops | `GET/POST /v1/file-operations` | File operation tracking |
 | Terminal | `GET/POST /v1/terminal-commands` | Terminal command tracking |
+| Outcomes | `GET /api/public/outcomes`, digest and delivery routes | Trace-to-git-to-CI analytics |
+| Replay | replay capabilities, plans, execution, comparison | Safe time-travel debugging |
+| Eval Hub | package publish, fork, and run routes | Versioned evaluation assets |
+| Sharing | expiring trace/replay share links | Server-redacted read-only views |
 | Orgs/Projects | `GET /api/v1/me`, organizations, projects, API keys | Account management |
 | SSO | `/auth/sso/login`, callback, SAML, config | Enterprise SSO |
 | Audit Logs | `GET /v1/organizations/:orgId/audit-logs`, export | Audit trail |
@@ -356,13 +374,14 @@ query GetTrace($id: ID!) {
 | `CLICKHOUSE_PASSWORD` | ClickHouse password | - |
 | `CLICKHOUSE_DB` | ClickHouse database | `agenttrace` |
 | `REDIS_PASSWORD` | Redis password | - |
-| `MINIO_ROOT_USER` | MinIO root username | `agenttrace` |
-| `MINIO_ROOT_PASSWORD` | MinIO root password | - |
+| `MINIO_ENDPOINT` | Optional external S3-compatible endpoint | - |
+| `MINIO_ACCESS_KEY` | Optional object-storage access key | - |
+| `MINIO_SECRET_KEY` | Optional object-storage secret key | - |
 | **Security** | | |
 | `JWT_SECRET` | JWT signing secret (generate with `openssl rand -base64 32`) | - |
-| `ENCRYPTION_KEY` | Encryption key for sensitive data at rest | - |
 | `NEXTAUTH_URL` | Public URL for NextAuth (e.g., `https://your-domain.com`) | - |
 | `NEXTAUTH_SECRET` | NextAuth session secret | - |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated browser origins allowed by the API | - |
 | **OAuth Providers** | | |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | - |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | - |
@@ -371,11 +390,11 @@ query GetTrace($id: ID!) {
 | **API** | | |
 | `API_HOST` | API server bind address | `0.0.0.0` |
 | `API_PORT` | API server port | `8080` |
-| `NEXT_PUBLIC_API_URL` | Public API URL used by the web frontend | `http://api:8080` |
+| `NEXT_PUBLIC_API_URL` | Public API URL embedded into the web image at build time | - |
 | **External Services** | | |
 | `OPENAI_API_KEY` | OpenAI API key (required for LLM-as-Judge evaluators) | - |
 | **Deployment** | | |
-| `VERSION` | Docker image version tag | `latest` |
+| `VERSION` | Immutable API and web image version tag | - |
 | `WEB_PORT` | Web frontend port | `3000` |
 | `LOG_LEVEL` | API server log level (`debug`, `info`, `warn`, `error`) | `debug` |
 
@@ -385,43 +404,53 @@ See [`deploy/.env.example`](deploy/.env.example) for a copy-ready template.
 
 ### Prerequisites
 
-- Go 1.24+
-- Node.js 18+
-- Docker & Docker Compose
+- Go 1.25.12+
+- Node.js 20+
+- Docker with Docker Compose v2
+- Make
 
-> **Tip**: Run `make doctor` to verify all prerequisites are installed, then `make setup` for automated environment setup including database migrations and dependency installation.
+Python is only required when working on the Python SDK.
+
+### Choose the Smallest Workflow
+
+| Workflow | Deployed services | Commands |
+|----------|-------------------|----------|
+| Unit and component tests | None | `make test` |
+| Core application development | PostgreSQL, ClickHouse | `make setup && make dev` |
+| Workers, async exports, distributed rate limiting | PostgreSQL, ClickHouse, Redis, MinIO | `make setup-full && make dev-full` |
 
 ### Local Development
 
 ```bash
-# Start databases
-docker compose -f deploy/docker-compose.dev.yml up -d
+# Verify local tools
+make doctor
 
-# Start API
-cd api
-go run cmd/server/main.go
+# First-time minimal setup
+make setup
 
-# Start web (in another terminal)
-cd web
-npm install
-npm run dev
+# Start API and web
+make dev
 ```
+
+The minimal workflow intentionally disables Redis-backed job queues, distributed rate limiting, and MinIO-backed exports. PostgreSQL and ClickHouse remain required because they are the application's primary metadata and trace stores.
+
+Use `make dev-api` or `make dev-web` to run one application component. See the [local development guide](docs/docs/getting-started/development.md) for full-stack and devcontainer workflows.
 
 ### Running Tests
 
 ```bash
-# Go backend
-cd api && go test ./...
+# All default test suites; no database or cache services required
+make test
 
-# TypeScript SDK
-cd sdk/typescript && npm test
-
-# Python SDK
-cd sdk/python && pytest
-
-# Go SDK
-cd sdk/go && go test ./...
+# Individual components
+make test-api
+make test-web
+make test-sdk-ts
+make test-sdk-py
+make test-sdk-go
 ```
+
+Database integration and end-to-end tests are opt-in and may start or require their documented services.
 
 ## Contributing
 

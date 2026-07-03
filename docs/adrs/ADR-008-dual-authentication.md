@@ -50,13 +50,13 @@ We implement **dual authentication** with:
 ### API Key Design
 
 ```
-Format: at_<environment>_<random>
-Example: at_prod_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+Public identifier: pk-at-<key-id>
+Secret credential: sk-at-<key-id>.<random-secret>
 
 Components:
-- Prefix: "at_" (AgentTrace)
-- Environment: "prod", "dev", "test" (optional)
-- Random: 32 character base62 string
+- The public identifier is safe to display and is used for database lookup.
+- The secret embeds the same key ID and is the credential sent by SDKs.
+- The random secret is verified against a bcrypt hash.
 ```
 
 **API Key Properties:**
@@ -72,21 +72,22 @@ Components:
 ```json
 {
   "sub": "user_uuid",
-  "org": "org_uuid",
+  "userId": "user_uuid",
   "email": "user@example.com",
-  "role": "admin",
   "iat": 1699999999,
   "exp": 1700003599,
-  "iss": "agenttrace"
+  "iss": "agenttrace",
+  "aud": ["agenttrace-api"]
 }
 ```
 
 **JWT Properties:**
-- Short-lived access tokens (15 minutes)
-- Long-lived refresh tokens (7 days)
+- Configurable access tokens (24 hours by default)
+- Refresh tokens stored as database sessions (7 days by default)
+- Refresh-token rotation on refresh
 - Issued after OAuth2/SSO login
-- Contains user and organization context
-- Signed with RS256 (asymmetric)
+- Contains user identity; project access is checked separately
+- Signed with HS256 using the deployment JWT secret
 
 ### Authentication Flow
 
@@ -102,7 +103,7 @@ Components:
 │  Bearer at_*     → API Key Authentication                      │
 │  Bearer eyJ*     → JWT Authentication                          │
 │  X-API-Key: *    → API Key Authentication (header)             │
-│  ?api_key=*      → API Key Authentication (query, deprecated)  │
+│  Basic auth      → Public identifier + secret credential       │
 └────────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┴───────────────┐
@@ -184,18 +185,19 @@ func AuthMiddleware(keyRepo repository.APIKeyRepository, jwtService *JWTService)
 ## Security Considerations
 
 ### API Key Security
-- Keys hashed with bcrypt (cost 12)
+- Secret credentials are hashed with bcrypt
 - Original key shown only once at creation
-- Automatic key rotation reminders (90 days)
+- New keys expire after one year unless an earlier date is selected
 - Revocation takes effect immediately
-- Keys logged as `at_****last4` for debugging
+- Public identifiers alone cannot authenticate
+- Query-string credentials are not accepted
 
 ### JWT Security
-- RS256 signing (asymmetric keys)
-- Short access token lifetime (15 min)
-- Refresh tokens stored in HttpOnly cookies
-- Token revocation via blocklist in Redis
-- CSRF protection for web flows
+- HS256 signing with issuer and audience validation
+- Configurable access-token lifetime (24 hours by default)
+- Refresh tokens are rotated and stored as expiring database sessions
+- The dashboard sends access tokens in the `Authorization` header
+- CSRF protection remains enabled for cookie-authenticated internal writes
 
 ## API Examples
 
@@ -203,15 +205,15 @@ func AuthMiddleware(keyRepo repository.APIKeyRepository, jwtService *JWTService)
 ```python
 from agenttrace import AgentTrace
 
-client = AgentTrace(api_key="at_prod_a1b2c3...")
+client = AgentTrace(api_key="sk-at-key-id.secret")
 client.trace(name="my-trace")
 ```
 
 ### Web Dashboard (JWT)
 ```typescript
-// After OAuth login, JWT stored in HttpOnly cookie
-const response = await fetch('/api/traces', {
-  credentials: 'include',  // Sends JWT cookie
+// Auth.js manages the browser session; the API client forwards its access token.
+const response = await fetch('/api/v1/projects', {
+  headers: { Authorization: `Bearer ${accessToken}` },
 });
 ```
 

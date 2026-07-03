@@ -141,6 +141,49 @@ curl -X POST https://api.agenttrace.io/api/public/webhooks \
 | `eval.failed` | An evaluation failed to complete |
 | `eval.score_low` | An evaluation score fell below the threshold |
 | `anomaly.detected` | An anomaly was detected in trace patterns |
+| `team.digest` | Project outcome digest rendered from real trace, git, CI, and cost data |
+
+## Deliver a Team Digest
+
+Create Slack, Discord, or generic webhooks first, then deliver one canonical report to selected project-owned webhook IDs:
+
+```bash
+curl -X POST "$AGENTTRACE_HOST/api/public/outcomes/digest/deliver" \
+  -H "Authorization: Bearer $AGENTTRACE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "window": "7d",
+    "webhookIds": [
+      "00000000-0000-0000-0000-000000000001"
+    ]
+  }'
+```
+
+### Validation happens before any send
+
+Every requested webhook is resolved and checked before the first delivery: it must exist in the project, be enabled, use a supported type (`slack`, `discord`, `generic`), and have a usable public HTTPS destination. If any check fails, the request is rejected with `4xx` and **no** webhook receives the digest. Privacy no-egress mode is rejected the same way, with `422`, before any send.
+
+### Partial results are reported honestly
+
+Once delivery processing starts, a failing channel no longer aborts the request. Each non-duplicate webhook whose duplicate-safety lookup succeeds is attempted, every resulting outcome is persisted where storage is available, and the response summarizes the outcome:
+
+```json
+{
+  "deliveries": [{ "webhookId": "...", "success": true, "deliveryKey": "9f1c..." }],
+  "succeeded": 2,
+  "failed": 1,
+  "duplicates": 0,
+  "deliveryKey": "9f1c..."
+}
+```
+
+`failed` counts channels that rejected the delivery, could not complete the duplicate-safety lookup, or whose delivery record could not be persisted. A duplicate-safety lookup failure skips that send rather than risking a duplicate. `triggerUpdateFailures` counts deliveries that succeeded while their bookkeeping update failed; those are **not** reported as failures.
+
+### Duplicate suppression
+
+Each digest carries a `deliveryKey` derived from the project, the reporting window, and the rendered content. Before sending, AgentTrace atomically claims `(webhookId, deliveryKey)` in PostgreSQL across API instances. If the same key was already delivered within five minutes, the recorded delivery is returned; if another request is still sending it, the retry is reported as an in-progress duplicate. In both cases it is counted in `duplicates` and is not sent again. Claims expire after five minutes so a process crash does not block delivery indefinitely.
+
+Duplicate webhook IDs in one request are ignored.
 
 ## Thresholds
 
@@ -165,6 +208,10 @@ Prevent notification spam with rate limiting:
 ```
 
 ## Webhook Security
+
+Webhook destinations must use public HTTPS without embedded credentials. AgentTrace resolves every destination before connecting, rejects private, loopback, link-local, and metadata-service IPs, pins the dial to validated public addresses, and does not follow redirects.
+
+When `PRIVACY_NO_EGRESS=true`, webhook delivery is blocked at runtime.
 
 ### Signature Verification
 

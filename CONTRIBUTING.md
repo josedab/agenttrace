@@ -24,15 +24,23 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ### Prerequisites
 
-- **Go 1.24+** - Backend development
-- **Node.js 18+** - Frontend and TypeScript SDK development
+- **Go 1.25.12+** - Backend development
+- **Node.js 20+** - Frontend and TypeScript SDK development
 - **Python 3.9+** - Python SDK development
-- **Docker & Docker Compose** - Running local services
+- **Docker with Docker Compose v2** - Running the core or full application
 - **Make** - Build automation
 
 ### Quick Start
 
-> **Fastest Path**: If you have Go, Node.js, Docker, and Make installed, run `make doctor` to verify prerequisites, then `make setup` to set up everything in one command. Once complete, run `make dev` to start the development environment.
+Default tests do not require PostgreSQL, ClickHouse, Redis, MinIO, or any other deployed service. Run `make test` after installing the language dependencies for the components you are changing.
+
+For application development, choose the smallest stack that covers your work:
+
+| Workflow | Services | Commands |
+|----------|----------|----------|
+| Tests only | None | `make test` |
+| Core API and dashboard | PostgreSQL, ClickHouse | `make setup && make dev` |
+| Workers, async exports, distributed rate limiting | PostgreSQL, ClickHouse, Redis, MinIO | `make setup-full && make dev-full` |
 
 1. **Fork the repository** on GitHub
 
@@ -48,43 +56,24 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
    pre-commit install
    ```
 
-4. **Set up the development environment**:
+4. **Set up the minimal development environment**:
    ```bash
-   # Start required services (PostgreSQL, ClickHouse, Redis, MinIO)
-   cp deploy/.env.example deploy/.env
-   docker compose -f deploy/docker-compose.dev.yml up -d
-
-   # Wait for services to be healthy
-   docker compose -f deploy/docker-compose.dev.yml ps
+   make doctor
+   make setup
    ```
 
-5. **Run database migrations**:
+5. **Start the API and frontend**:
    ```bash
-   cd api
-   make migrate-pg-up
-   make migrate-ch-up
+   make dev
    ```
 
-6. **Start the backend**:
-   ```bash
-   cd api
-   go run cmd/server/main.go
-   ```
-
-7. **Start the frontend** (in a new terminal):
-   ```bash
-   cd web
-   npm install
-   npm run dev
-   ```
-
-8. **Access the application** at http://localhost:3000
+6. **Access the application** at http://localhost:3000
 
 ## Development Setup
 
 ### Development with Hot Reload
 
-For a faster feedback loop during backend development, use `make dev-hot` which integrates [air](https://github.com/air-verse/air) for automatic Go rebuilds on file changes:
+For a faster feedback loop during backend development, use `make dev-hot`, which runs the minimal stack with [air](https://github.com/air-verse/air) for automatic Go rebuilds:
 
 ```bash
 # Install air (one-time)
@@ -96,6 +85,8 @@ make dev-hot
 
 This starts both the Go API server (with hot-reload) and the Next.js dev server. The frontend already supports hot-reload via Next.js Fast Refresh.
 
+Use `make dev-hot-full` when the feature also needs Redis, MinIO, or the background worker.
+
 ### Backend (Go)
 
 ```bash
@@ -104,11 +95,14 @@ cd api
 # Install dependencies
 go mod download
 
-# Run the server
-go run cmd/server/main.go
+# Run the server against the minimal stack
+make run-core
+
+# Run the server with Redis and MinIO enabled
+make run-full
 
 # Run the background worker
-go run cmd/worker/main.go
+make run-worker
 
 # Run tests
 make test
@@ -361,6 +355,8 @@ def create_trace(name, metadata=None):
 
 ### Running Tests
 
+The default test commands do not require deployed databases, caches, queues, or object storage. Database integration tests are opt-in and skip unless their test environment variables are configured.
+
 ```bash
 # Backend
 cd api && make test
@@ -466,7 +462,7 @@ Include:
 
 ### Port Conflicts
 
-If ports 3000, 5432, 8080, 8123, 9000, or 9001 are already in use:
+For the minimal stack, check ports 3000, 5432, 8080, 8123, and 9000. The full stack also uses 6379, 9001, and 9002.
 ```bash
 # Find what's using a port
 lsof -i :8080
@@ -474,15 +470,13 @@ lsof -i :8080
 # Kill the process or change the port in deploy/.env
 ```
 
-### `migrate` CLI Not Found
+### Database Migrations
 
-Install the Go migrate CLI:
+Migration targets use a pinned `golang-migrate` runner through `go run`; no global migration CLI or host-installed ClickHouse client is required.
+
 ```bash
-# macOS
-brew install golang-migrate
-
-# Linux
-go install -tags 'postgres clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+make migrate-pg-up
+make migrate-ch-up
 ```
 
 ### Docker Memory Issues
@@ -494,7 +488,7 @@ ClickHouse requires significant memory. If containers crash:
 
 ### Node Version Mismatch
 
-This project requires Node.js 18+. Check `.nvmrc` for the exact version:
+This project requires Node.js 20+. Check `.nvmrc` for the exact version:
 ```bash
 # If using nvm
 nvm use
@@ -512,6 +506,9 @@ docker compose -f deploy/docker-compose.dev.yml ps
 
 # View container logs
 docker compose -f deploy/docker-compose.dev.yml logs
+
+# Include Redis and MinIO when debugging the full stack
+docker compose -f deploy/docker-compose.dev.yml --profile full ps
 ```
 
 ## Community

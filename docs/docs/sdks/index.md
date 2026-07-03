@@ -52,7 +52,7 @@ pnpm add agenttrace
 go get github.com/agenttrace/agenttrace/sdk/go
 ```
 
-**Requirements**: Go 1.21+
+**Requirements**: Go 1.25+
 
 </TabItem>
 <TabItem value="cli" label="CLI">

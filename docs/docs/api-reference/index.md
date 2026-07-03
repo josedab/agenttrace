@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # API Reference
 
-AgentTrace provides a comprehensive REST API for all platform functionality. The API is designed to be compatible with Langfuse, making migration seamless.
+AgentTrace provides project-scoped REST APIs for tracing, outcomes, replay, prompts, evaluations, and administration. A documented Langfuse JSON-export subset is supported; complete API parity is not claimed.
 
 ## Base URL
 
@@ -105,7 +105,7 @@ Errors return appropriate HTTP status codes with detailed messages:
 | [POST /v1/traces](/api-reference/traces#create-trace) | Create a new trace |
 | [GET /v1/traces](/api-reference/traces#list-traces) | List traces |
 | [GET /v1/traces/:id](/api-reference/traces#get-trace) | Get a trace |
-| [POST /v1/observations](/api-reference/observations#create-observation) | Create an observation |
+| [POST /v1/observations](/api-reference/observations) | Create an observation |
 | [GET /v1/sessions](/api-reference/sessions) | List sessions |
 | [POST /v1/scores](/api-reference/scores#create-score) | Create a score |
 
@@ -113,8 +113,8 @@ Errors return appropriate HTTP status codes with detailed messages:
 
 | Endpoint | Description |
 |----------|-------------|
-| [POST /v1/prompts](/api-reference/prompts#create-prompt) | Create a prompt |
-| [GET /v1/prompts](/api-reference/prompts#list-prompts) | List prompts |
+| [POST /v1/prompts](/api-reference/prompts) | Create a prompt |
+| [GET /v1/prompts](/api-reference/prompts) | List prompts |
 | [GET /v1/prompts/:name](/api-reference/prompts#get-prompt) | Get prompt by name |
 | [POST /v1/prompts/:name/compile](/api-reference/prompts#compile-prompt) | Compile prompt with variables |
 
@@ -124,8 +124,8 @@ Errors return appropriate HTTP status codes with detailed messages:
 |----------|-------------|
 | [POST /v1/datasets](/api-reference/datasets#create-dataset) | Create a dataset |
 | [GET /v1/datasets](/api-reference/datasets#list-datasets) | List datasets |
-| [POST /v1/datasets/:id/items](/api-reference/datasets#add-item) | Add item to dataset |
-| [POST /v1/datasets/:id/runs](/api-reference/datasets#create-run) | Create experiment run |
+| [POST /v1/datasets/:id/items](/api-reference/datasets#create-dataset-item) | Add item to dataset |
+| [POST /v1/datasets/:id/runs](/api-reference/datasets) | Create experiment run |
 
 ### Evaluators
 
@@ -133,7 +133,7 @@ Errors return appropriate HTTP status codes with detailed messages:
 |----------|-------------|
 | [POST /v1/evaluators](/api-reference/evaluators#create-evaluator) | Create an evaluator |
 | [GET /v1/evaluators](/api-reference/evaluators#list-evaluators) | List evaluators |
-| [POST /v1/evaluators/:id/execute](/api-reference/evaluators#execute) | Execute evaluator |
+| [POST /v1/evaluators/:id/execute](/api-reference/evaluators) | Execute evaluator |
 
 ### Agent Features
 
@@ -144,18 +144,31 @@ Errors return appropriate HTTP status codes with detailed messages:
 | [POST /v1/git-links](/api-reference/git-links#create-git-link) | Link commit to trace |
 | [POST /v1/ci-runs](/api-reference/ci-runs#create-ci-run) | Create CI run |
 
+### Outcomes, Replay, and Eval Hub
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/public/outcomes` | Real trace-to-git-to-CI outcome metrics |
+| `GET /api/public/outcomes/digest` | Reusable JSON or Markdown team digest |
+| `POST /api/public/traces/:traceId/replay-plans` | Create a safe replay plan |
+| `POST /api/public/replay-plans/:planId/execute` | Run deterministic recorded-generation replay |
+| `GET/POST /api/public/eval-hub/packages` | Discover or publish versioned Eval Hub packages |
+| `POST /api/public/eval-hub/packages/:packageId/fork` | Fork with provenance |
+| `POST /api/public/traces/:traceId/share-links` | Create an expiring redacted link |
+
+See [Outcome, Replay, Eval Hub, and Sharing APIs](/api-reference/next-generation).
+
 ### Ingestion (Langfuse Compatible)
 
 | Endpoint | Description |
 |----------|-------------|
-| [POST /api/public/ingestion](/api-reference/traces#ingestion) | Batch ingestion endpoint |
+| [POST /api/public/ingestion](/api-reference/traces#batch-ingestion) | Batch ingestion endpoint |
 
 ## OpenAPI Specification
 
 Download the full OpenAPI specification:
 
-- [openapi.yaml](/openapi.yaml) - OpenAPI 3.0 spec
-- [openapi.json](/openapi.json) - JSON format
+- [OpenAPI 3.0 YAML](https://github.com/agenttrace/agenttrace/blob/main/api/docs/openapi.yaml)
 
 ## SDKs
 
